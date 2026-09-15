@@ -83,6 +83,25 @@ import tempfile
 VERSION_PROBE = "SIDEB COLOR PROBE"
 ANCHO = 78
 
+#: LAS DOS QUE NO SE CAPTURAN NUNCA.
+#:
+#: Esta sonda captura `BaseException` por todas partes, y hace bien: no sabemos
+#: que puede lanzar una API que nadie ha probado, y la gracia de una sonda es
+#: que sobreviva a cada pregunta para poder hacer la siguiente. Una pregunta que
+#: revienta es un dato, no el final del informe.
+#:
+#: Pero `KeyboardInterrupt` y `SystemExit` **no son respuestas de la API**: son
+#: la forma que tiene quien lo ejecuta de decir "para". Si se capturan, el
+#: Ctrl-C se anota como un error mas y el script sigue con el clip siguiente, o
+#: sea que no se puede parar. Y esto se ejecuta con Resolve delante y un
+#: proyecto abierto.
+#:
+#: Asi que delante de cada `except BaseException` va un `except PARADA: raise`.
+#: Es feo y es repetitivo; es tambien lo que hace que Ctrl-C funcione. Hay un
+#: test que recorre el AST de este fichero y comprueba que no falta ninguno:
+#: `tests/test_resolve_probe.py::test_ningun_except_del_probe_se_traga_un_ctrl_c`.
+PARADA = (KeyboardInterrupt, SystemExit)
+
 # Rutas habituales del modulo de scripting en macOS.
 MODULOS_DESCARGA = (
     "/Library/Application Support/Blackmagic Design/DaVinci Resolve"
@@ -358,6 +377,8 @@ def importar_modulo(inf: Informe):
 
     try:
         import DaVinciResolveScript as dvr  # type: ignore[import-not-found]  # noqa: N813
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001 - aqui queremos cazarlo todo
         mal(f"no se ha podido importar el modulo: {type(exc).__name__}: {exc}")
         linea()
@@ -387,6 +408,8 @@ def conectar(dvr, inf: Informe):
     apartado("3. CONEXION CON RESOLVE")
     try:
         resolve = dvr.scriptapp("Resolve")
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         mal(f"scriptapp('Resolve') ha reventado: {type(exc).__name__}: {exc}")
         inf.error(f"scriptapp: {type(exc).__name__}: {exc}")
@@ -405,6 +428,8 @@ def conectar(dvr, inf: Informe):
     try:
         producto = resolve.GetProductName()
         version = resolve.GetVersionString()
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         producto, version = "(desconocido)", "(desconocido)"
         inf.error(f"GetProductName/GetVersionString: {exc}")
@@ -428,6 +453,8 @@ def contexto(resolve, inf: Informe):
     try:
         pm = resolve.GetProjectManager()
         project = pm.GetCurrentProject() if pm else None
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         mal(f"no he podido pedir el proyecto: {exc}")
         inf.error(f"GetCurrentProject: {exc}")
@@ -452,6 +479,8 @@ def contexto(resolve, inf: Informe):
         n_pistas = int(timeline.GetTrackCount("video"))
         for pista in range(1, n_pistas + 1):
             items.extend(timeline.GetItemListInTrack("video", pista) or [])
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetItemListInTrack: {exc}")
     inf.datos["resolve"]["clips_en_timeline"] = len(items)
@@ -467,6 +496,8 @@ def contexto(resolve, inf: Informe):
     ):
         try:
             inf.datos["resolve"][clave] = project.GetSetting(metodo)
+        except PARADA:
+            raise
         except BaseException:  # noqa: BLE001
             inf.datos["resolve"][clave] = "(no se ha podido leer)"
     return project, timeline, items
@@ -583,7 +614,9 @@ def pregunta_f0_4(inf: Informe, instalacion: str | None, project) -> None:
         + f"Carpeta de LUTs del Mac App Store: {'existe' if mas else 'no existe'}."
     )
     if project is not None:
-        with contextlib.suppress(BaseException):
+        # `Exception` y no `BaseException`: aqui tambien tiene que poder
+        # entrar un Ctrl-C. Ver PARADA.
+        with contextlib.suppress(Exception):
             detalle += (
                 f" Ajuste de color del proyecto: {project.GetSetting('colorScienceMode')}."
             )
@@ -604,6 +637,19 @@ def pregunta_f0_4(inf: Informe, instalacion: str | None, project) -> None:
     )
 
 
+def _cuenta_ordenada(valores) -> str:
+    """"3x str, 1x NoneType" — cuantas veces sale cada cosa, de mas a menos.
+
+    Sirve para decir de un vistazo si los doce clips contestan lo mismo o si hay
+    uno raro, que es la mitad del diagnostico de la V-0.
+    """
+    cuenta: dict[str, int] = {}
+    for v in valores:
+        cuenta[v] = cuenta.get(v, 0) + 1
+    partes = sorted(cuenta.items(), key=lambda kv: (-kv[1], kv[0]))
+    return ", ".join(f"{n}x {texto}" for texto, n in partes)
+
+
 def pregunta_v0_version_actual(inf: Informe, items) -> None:
     """LA PRIMERA. ¿Que contesta `GetCurrentVersion()` en un clip sin tocar?
 
@@ -619,17 +665,35 @@ def pregunta_v0_version_actual(inf: Informe, items) -> None:
     respuestas = []
     usables = 0
     for i, item in enumerate(items[:12], start=1):
-        fila = {"clip": i, "nombre_clip": None, "crudo": None, "tipo": None, "usable": False}
+        fila = {
+            "clip": i,
+            "nombre_clip": None,
+            "crudo": None,
+            "tipo": None,
+            "claves": None,
+            "nombre_version": None,
+            "usable": False,
+            "lanza": None,
+        }
         try:
             fila["nombre_clip"] = str(item.GetName())
             actual = item.GetCurrentVersion()
+            # El CRUDO y el TIPO son lo importante de esta pregunta. Con un
+            # "funciona / no funciona" no se puede arreglar nada: si contesta un
+            # diccionario hay que saber con que claves, y si contesta una cadena
+            # vacia hay que saber que era una cadena y no un None.
             fila["crudo"] = repr(actual)
             fila["tipo"] = type(actual).__name__
+            if isinstance(actual, dict):
+                fila["claves"] = sorted(str(k) for k in actual)
             nombre = actual.get("versionName") if isinstance(actual, dict) else actual
             fila["nombre_version"] = None if nombre is None else str(nombre)
             fila["usable"] = bool(isinstance(nombre, str) and nombre.strip())
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
-            fila["error"] = f"{type(exc).__name__}: {exc}"
+            fila["lanza"] = f"{type(exc).__name__}: {exc}"
+            fila["error"] = fila["lanza"]
             inf.error(f"GetCurrentVersion en el clip {i}: {exc}")
         usables += 1 if fila["usable"] else 0
         respuestas.append(fila)
@@ -640,13 +704,29 @@ def pregunta_v0_version_actual(inf: Informe, items) -> None:
     if total == 0:
         detalle = "No habia clips que mirar."
     else:
+        # Un resumen de TODOS los clips, no solo del primero: si uno de doce
+        # contesta distinto, eso es justo lo que hay que ver.
+        tipos = _cuenta_ordenada(f["tipo"] or "(lanzo)" for f in respuestas)
+        crudos = _cuenta_ordenada(
+            (f["lanza"] and f"lanzo {f['lanza']}") or str(f["crudo"]) for f in respuestas
+        )
         muestra = respuestas[0]
         detalle = (
             f"He mirado {total} clip(s) sin tocar nada. Devuelven un nombre de version usable "
-            f"{usables} de {total}. El primero ({muestra.get('nombre_clip')!r}) contesta "
+            f"{usables} de {total}. "
+            f"Tipos que ha devuelto: {tipos}. "
+            f"Respuestas en crudo: {crudos}. "
+            f"El primero ({muestra.get('nombre_clip')!r}) contesta "
             f"{muestra.get('crudo')} (tipo {muestra.get('tipo')}), que la app leeria como "
             f"{muestra.get('nombre_version')!r}."
         )
+        claves = sorted({c for f in respuestas for c in (f.get("claves") or [])})
+        if claves:
+            detalle += (
+                f" OJO, contesta DICCIONARIOS, con estas claves: {', '.join(claves)}. La app "
+                f"busca el nombre en 'versionName' (y en 'name'); si no esta ahi, esta es la "
+                f"linea que hay que cambiar: bridge.nombre_de_version()."
+            )
     inf.responder(
         "V-0",
         "¿Que devuelve GetCurrentVersion() en un clip recien abierto? (de esto depende "
@@ -672,6 +752,8 @@ def pregunta_f0_5_lectura(inf: Informe, resolve) -> str | None:
         ok(f"pagina actual de Resolve: {pagina}")
         inf.datos["resolve"]["pagina_al_empezar"] = pagina
         return pagina
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetCurrentPage: {exc}")
         return None
@@ -731,6 +813,8 @@ def crear_version_probe(inf: Informe, item) -> tuple[str | None, dict]:
     try:
         actual = item.GetCurrentVersion()
         original = actual.get("versionName") if isinstance(actual, dict) else str(actual)
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetCurrentVersion: {exc}")
         original = None
@@ -740,12 +824,16 @@ def crear_version_probe(inf: Informe, item) -> tuple[str | None, dict]:
     try:
         grafo = item.GetNodeGraph(1)
         medidas["nodos_antes"] = int(grafo.GetNumNodes()) if grafo else None
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetNodeGraph/GetNumNodes antes: {exc}")
         medidas["nodos_antes"] = None
 
     try:
         creada = bool(item.AddVersion(VERSION_PROBE, 0))
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         mal(f"AddVersion ha reventado: {exc}")
         inf.error(f"AddVersion: {exc}")
@@ -756,6 +844,8 @@ def crear_version_probe(inf: Informe, item) -> tuple[str | None, dict]:
         try:
             item.LoadVersionByName(VERSION_PROBE, 0)
             ok(f"la version {VERSION_PROBE!r} ya existia; la he seleccionado")
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
             inf.error(f"LoadVersionByName: {exc}")
     else:
@@ -766,12 +856,16 @@ def crear_version_probe(inf: Informe, item) -> tuple[str | None, dict]:
         medidas["version_tras_crear"] = (
             actual.get("versionName") if isinstance(actual, dict) else str(actual)
         )
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetCurrentVersion tras AddVersion: {exc}")
 
     try:
         grafo = item.GetNodeGraph(1)
         medidas["nodos_despues"] = int(grafo.GetNumNodes()) if grafo else None
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetNodeGraph/GetNumNodes despues: {exc}")
         medidas["nodos_despues"] = None
@@ -842,6 +936,8 @@ def pregunta_f0_5(inf: Informe, resolve, item, pagina_inicial: str | None) -> No
             resolve.OpenPage("color")
             item.SetLUT(objetivo, lut_previo or "")
             resultado = not funciono_sin_color
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"prueba F0-5: {type(exc).__name__}: {exc}")
         detalle_partes.append(f"ha saltado {type(exc).__name__}: {exc}")
@@ -882,6 +978,8 @@ def pregunta_f0_3(inf: Informe, item, dctl_rel: str | None) -> None:
                 f"SetLUT({objetivo}, {dctl_rel!r}) devolvio {acepto} y GetLUT devuelve {leido!r}."
             )
             item.SetLUT(objetivo, previo or "")
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
             detalle = f"ha saltado {type(exc).__name__}: {exc}"
             inf.error(f"prueba F0-3: {exc}")
@@ -905,6 +1003,8 @@ def preguntas_stills(inf: Informe, project, timeline, item, dir_pruebas: str) ->
     try:
         gallery = project.GetGallery()
         album = gallery.GetCurrentStillAlbum() if gallery else None
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"GetGallery/GetCurrentStillAlbum: {exc}")
 
@@ -961,6 +1061,8 @@ def preguntas_stills(inf: Informe, project, timeline, item, dir_pruebas: str) ->
                 leer_ppm_medio(os.path.join(dir_pruebas, nuevos[0])) if nuevos else None
             )
         grafo.SetNodeEnabled(objetivo, True)
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.error(f"prueba F0-2: {type(exc).__name__}: {exc}")
 
@@ -1005,6 +1107,8 @@ def preguntas_stills(inf: Informe, project, timeline, item, dir_pruebas: str) ->
             )
         else:
             detalle_1 = "No he llegado a coger ningun still, asi que no he podido exportarlo."
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         detalle_1 = f"ha saltado {type(exc).__name__}: {exc}"
         inf.error(f"prueba F0-1: {exc}")
@@ -1026,6 +1130,8 @@ def preguntas_stills(inf: Informe, project, timeline, item, dir_pruebas: str) ->
             album.DeleteStills(stills)
             inf.datos["limpieza"]["stills_borrados"] = len(stills)
             ok(f"borrados {len(stills)} still(s) de la galeria")
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
             inf.datos["limpieza"]["stills_borrados"] = f"fallo: {exc}"
             inf.aviso(
@@ -1050,6 +1156,8 @@ def limpiar(inf: Informe, item, original: str | None, resolve, pagina_inicial: s
             }
         )
         ok("CDL de la version de sonda devuelto a neutro")
+    except PARADA:
+        raise
     except BaseException as exc:  # noqa: BLE001
         inf.aviso(f"no he podido dejar el CDL en neutro: {exc}")
 
@@ -1058,6 +1166,8 @@ def limpiar(inf: Informe, item, original: str | None, resolve, pagina_inicial: s
             item.LoadVersionByName(original, 0)
             inf.datos["limpieza"]["version_restaurada"] = original
             ok(f"vuelta a tu version {original!r}")
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
             inf.datos["limpieza"]["version_restaurada"] = f"fallo: {exc}"
             mal(f"NO he podido volver a tu version {original!r}: {exc}")
@@ -1073,6 +1183,8 @@ def limpiar(inf: Informe, item, original: str | None, resolve, pagina_inicial: s
             borrada = bool(item.DeleteVersionByName(VERSION_PROBE, 0))
             inf.datos["limpieza"]["version_probe_borrada"] = borrada
             (ok if borrada else mal)(f"DeleteVersionByName({VERSION_PROBE!r}) -> {borrada}")
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
             inf.datos["limpieza"]["version_probe_borrada"] = f"fallo: {exc}"
             mal(f"DeleteVersionByName ha fallado: {exc}")
@@ -1089,6 +1201,8 @@ def limpiar(inf: Informe, item, original: str | None, resolve, pagina_inicial: s
         try:
             resolve.OpenPage(pagina_inicial)
             ok(f"Resolve devuelto a la pagina {pagina_inicial!r}")
+        except PARADA:
+            raise
         except BaseException as exc:  # noqa: BLE001
             inf.aviso(f"no he podido volver a la pagina {pagina_inicial!r}: {exc}")
 

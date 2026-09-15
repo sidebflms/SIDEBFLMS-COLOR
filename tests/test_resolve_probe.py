@@ -389,3 +389,140 @@ def test_el_probe_hace_la_v0_antes_que_las_seis_incognitas(arbol):
     for incognita in ("pregunta_f0_5", "pregunta_f0_3", "preguntas_stills"):
         assert orden.index("pregunta_v0_version_actual") < orden.index(incognita)
     assert "V-0" in ast.get_docstring(arbol)
+
+
+# ---------------------------------------------------------------------------
+# C2: Ctrl-C tiene que parar el probe
+# ---------------------------------------------------------------------------
+#
+# Hallazgo 3 del auditor del dia 2. El probe captura `BaseException` por todas
+# partes —y hace bien, porque no sabemos que puede lanzar una API que nadie ha
+# probado y una sonda tiene que sobrevivir a cada pregunta—, pero `BaseException`
+# se traga tambien `KeyboardInterrupt` y `SystemExit`. Consecuencia real: darle a
+# Ctrl-C mientras recorre doce clips NO lo para; se anota como un error mas por
+# clip y sigue. Y esto se ejecuta con Resolve delante y un proyecto real abierto.
+
+
+def _manejadores_de_baseexception(arbol: ast.Module) -> list[ast.Try]:
+    """Los `try` que tienen un `except BaseException` (o un `except:` pelado)."""
+    fuera = []
+    for nodo in ast.walk(arbol):
+        if not isinstance(nodo, ast.Try):
+            continue
+        for manejador in nodo.handlers:
+            tipo = manejador.type
+            if tipo is None or (isinstance(tipo, ast.Name) and tipo.id == "BaseException"):
+                fuera.append(nodo)
+                break
+    return fuera
+
+
+def test_ningun_except_del_probe_se_traga_un_ctrl_c(arbol):
+    """Cada `except BaseException` tiene delante un `except PARADA: raise`.
+
+    Se mira el AST y no el texto: un comentario que diga "aqui dejamos pasar el
+    Ctrl-C" no vale, y el orden importa (si la guarda fuera DESPUES, no
+    serviria de nada porque el `BaseException` ya habria capturado).
+    """
+    tries = _manejadores_de_baseexception(arbol)
+    assert tries, "no hay ningun except BaseException: si se han quitado, borra este test"
+    print(f"[C2] try con except BaseException: {len(tries)}")
+
+    sin_guarda = []
+    for nodo in tries:
+        posiciones = {}
+        for i, manejador in enumerate(nodo.handlers):
+            tipo = manejador.type
+            # y que lo que hace es RE-LANZAR, no anotarlo
+            es_parada = isinstance(tipo, ast.Name) and tipo.id == "PARADA"
+            cuerpo = manejador.body
+            relanza = (
+                len(cuerpo) == 1
+                and isinstance(cuerpo[0], ast.Raise)
+                and cuerpo[0].exc is None
+            )
+            if es_parada and relanza:
+                posiciones["parada"] = i
+            if tipo is None or (isinstance(tipo, ast.Name) and tipo.id == "BaseException"):
+                posiciones.setdefault("base", i)
+        if "parada" not in posiciones or posiciones["parada"] > posiciones["base"]:
+            sin_guarda.append(nodo.lineno)
+
+    assert not sin_guarda, (
+        f"estos `try` se tragarian un Ctrl-C (lineas {sin_guarda}): pon delante del "
+        f"`except BaseException` un `except PARADA:` que haga `raise`"
+    )
+
+
+def test_la_tupla_PARADA_es_exactamente_las_dos_que_no_se_capturan(arbol):
+    """`PARADA` no puede acabar siendo cualquier cosa.
+
+    Si alguien le mete `Exception` dentro, el probe dejaria de sobrevivir a la
+    primera pregunta que reviente, que es justo lo contrario de lo que se quiere.
+    """
+    asignacion = next(
+        n
+        for n in arbol.body
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "PARADA" for t in n.targets)
+    )
+    nombres = {e.id for e in ast.walk(asignacion.value) if isinstance(e, ast.Name)}
+    assert nombres == {"KeyboardInterrupt", "SystemExit"}
+
+
+def test_ningun_contextlib_suppress_se_traga_un_ctrl_c(arbol):
+    """El otro sitio por donde se colaba: `suppress(BaseException)`.
+
+    `contextlib.suppress` no aparece como un `except` en el AST, asi que el test
+    de arriba no lo ve. Y se traga el Ctrl-C exactamente igual.
+    """
+    malos = [
+        n.lineno
+        for n in ast.walk(arbol)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "suppress"
+        and any(isinstance(a, ast.Name) and a.id == "BaseException" for a in n.args)
+    ]
+    assert not malos, f"contextlib.suppress(BaseException) en las lineas {malos}"
+
+
+def test_el_probe_sigue_capturando_lo_demas(arbol):
+    """Contrapeso: la sonda tiene que seguir sobreviviendo a la API.
+
+    Arreglar el Ctrl-C no puede convertirse en "quitemos los try". Si un dia
+    alguien cambia todos los `except BaseException` por nada, esto se entera.
+    """
+    assert len(_manejadores_de_baseexception(arbol)) >= 20
+
+
+def test_la_v0_dice_de_que_TIPO_es_lo_que_contesta_resolve_en_todos_los_clips():
+    """B-4: que la V-0 sirva para arreglar algo, no solo para decir si va o no.
+
+    Si contesta un diccionario hay que saber CON QUE CLAVES; si contesta una
+    cadena vacia hay que saber que era una cadena y no un None. Y hay que verlo
+    de los doce clips, no solo del primero: un clip raro entre doce es
+    exactamente lo que hay que ver.
+    """
+    inf = _preguntar_v0(
+        [
+            ClipFalso("bueno", {"versionName": "SIDEB COLOR"}),
+            ClipFalso("mudo", None),
+            ClipFalso("roto", None, revienta=True),
+        ]
+    )
+    v0 = inf.datos["preguntas"]["V-0"]
+    detalle = v0["detalle"]
+    print(f"[B4] {detalle}")
+    assert "1 de 3" in detalle
+    assert "Tipos que ha devuelto" in detalle
+    assert "dict" in detalle and "NoneType" in detalle
+    assert "Respuestas en crudo" in detalle
+    assert "contesta DICCIONARIOS" in detalle
+    assert "versionName" in detalle
+    assert "nombre_de_version" in detalle  # donde se arregla si la clave es otra
+
+    filas = inf.datos["resolve"]["get_current_version"]
+    assert filas[0]["claves"] == ["versionName"]
+    assert filas[1]["tipo"] == "NoneType"
+    assert filas[2]["lanza"] and "GetCurrentVersion" not in (filas[2]["tipo"] or "")

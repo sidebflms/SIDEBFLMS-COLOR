@@ -293,3 +293,114 @@ def test_un_escalon_en_una_sola_celda_no_se_agrupa_de_mas():
     assert problemas
     assert all(p.repeticiones == 1 for p in problemas)
     assert informe.metricas["celdas_con_banding"] == informe.metricas["escalones_de_banding"]
+
+
+# ---------------------------------------------------------------------------
+# El aviso de banding AVISA, no bloquea, y el mensaje dice por qué (A2)
+# ---------------------------------------------------------------------------
+
+
+def _gamma_de_salida(size: int) -> LUT3D:
+    """El LUT más común que existe: la conversión a Rec.709 metida en un cubo."""
+    return _lut_de_funcion(size, lambda x: x ** (1 / 2.2))
+
+
+@pytest.mark.parametrize("size", [17, 33, 65])
+def test_el_banding_en_sombras_se_explica_como_ESPERABLE_en_un_lut_de_salida(size):
+    """Mario lo aclaró con estas palabras: si el LUT incluye la conversión a
+    Rec.709, los escalones en sombras son esperables y no son un defecto.
+
+    El detector no cambia —sigue avisando, y hace bien: está medido que el LUT
+    se desvía 11/255 de la curva que dice representar incluso con 65 puntos—.
+    Lo que cambia es que el mensaje ya no manda a arreglar algo que no está roto.
+    """
+    problemas = qc_lut(_gamma_de_salida(size)).por_codigo(CODIGO_BANDING)
+    assert problemas, f"tamaño {size}: la gamma de salida tiene que seguir avisando"
+    for p in problemas:
+        assert "Rec.709" in p.mensaje
+        assert "ESPERABLES y no son un defecto" in p.mensaje
+        assert "aviso, no un error" in p.mensaje
+    print(f"[A2 {size}] {problemas[0].mensaje}")
+
+
+@pytest.mark.parametrize("size", [17, 33, 65])
+def test_el_aviso_de_banding_es_de_gravedad_aviso_y_no_bloquea_nada(size, tmp_path):
+    """Las tres formas de "no bloquea", porque decirlo en el texto no basta.
+
+    1. `gravedad` es "aviso" en todos los problemas de banding;
+    2. `hay_errores` sigue siendo False, que es lo que mira la GUI;
+    3. el `.cube` se escribe y se vuelve a leer sin que nadie proteste.
+    """
+    lut = _gamma_de_salida(size)
+    informe = qc_lut(lut)
+    assert informe.codigos() == (CODIGO_BANDING,), informe.resumen()
+    assert all(p.gravedad == "aviso" for p in informe.por_codigo(CODIGO_BANDING))
+    assert informe.hay_errores is False
+
+    from core.io import escribir_cube, leer_cube
+
+    ruta = escribir_cube(lut, tmp_path / f"rec709_{size}.cube")
+    assert leer_cube(ruta).size == size
+
+
+def test_un_escalon_en_los_medios_NO_se_explica_como_normal():
+    """El contrapeso, y es lo que hace que el aviso siga sirviendo de algo.
+
+    Si el mensaje dijera "esto es normal" en todos los casos, quien lo lea deja
+    de mirarlos. Un escalón en mitad del rango no es el achatamiento de una
+    gamma de salida y el texto tiene que decir lo contrario que el de sombras.
+    """
+    problemas = qc_lut(lut_con_banding(17, eje=2, salto=0.3)).por_codigo(CODIGO_BANDING)
+    assert problemas
+    for p in problemas:
+        assert "no está pegado al negro" in p.mensaje
+        assert "Merece un vistazo" in p.mensaje
+        assert "Rec.709" not in p.mensaje
+        assert p.gravedad == "aviso"  # sigue sin bloquear: es un aviso, no un error
+    print(f"[A2 medios] {problemas[0].mensaje}")
+
+
+def test_el_mensaje_no_dice_que_haya_miles_de_bandas_cuando_hay_una():
+    """Lo de D-1, pero mirando el texto y no las métricas: el aviso tiene que
+    decir que es UN escalón repetido, no 1.089 defectos."""
+    p = qc_lut(_gamma_de_salida(33)).por_codigo(CODIGO_BANDING)[0]
+    assert "Es UN escalón, no 1089" in p.mensaje
+    assert p.repeticiones == 33 * 33
+
+
+def test_donde_esta_la_frontera_entre_sombras_y_medios():
+    """`UMBRAL_SOMBRAS` decide la REDACCIÓN, no la detección.
+
+    Un escalón deja dos quiebros de pendiente, uno a cada lado, así que este LUT
+    de 33 da dos avisos: uno en la celda 4 (nivel de entrada 4/32 = 0,125, justo
+    dentro de sombras) y otro en la 5 (5/32 = 0,156, ya fuera). O sea que la
+    frontera se prueba con un solo LUT y con los dos textos a la vez.
+    """
+    from core.io import UMBRAL_SOMBRAS
+
+    assert UMBRAL_SOMBRAS == 0.125
+    tabla = np.asarray(LUT3D.identity(33).table, dtype=np.float64).copy()
+    tabla[5:, :, :, 0] += 0.3
+    informe = qc_lut(LUT3D(table=np.clip(tabla, 0, 1.3).astype(np.float32)))
+
+    por_celda = {
+        p.celda[0]: ("Rec.709" in p.mensaje)
+        for p in informe.por_codigo(CODIGO_BANDING)
+        if p.eje == 0
+    }
+    print(f"[frontera] celda -> se explica como sombras: {por_celda}")
+    assert por_celda == {4: True, 5: False}
+
+
+def test_cambiar_el_umbral_de_sombras_no_cambia_lo_que_se_detecta():
+    """Que sea sólo de redacción no es una promesa: se comprueba.
+
+    `UMBRAL_SOMBRAS` no es un parámetro de `qc_lut`, así que si alguien lo
+    convirtiera en uno de detección este test se enteraría: el número de
+    escalones de la gamma de salida es el mismo que estaba medido antes de
+    tocar el mensaje (3, uno por eje, en 17, 33 y 65).
+    """
+    for size in (17, 33, 65):
+        informe = qc_lut(_gamma_de_salida(size))
+        assert informe.metricas["escalones_de_banding"] == 3.0, size
+        assert informe.metricas["celdas_con_banding"] == 3.0 * size * size, size

@@ -407,7 +407,12 @@ class Hotspot:
     w: int
     h: int
     magnitude: float  # residuo medio en la zona, en unidades de dE2000
-    label: str  # "vineta", "zona local", "degradado"
+    #: Etiqueta de que clase de cosa no-LUT es. Valores que emite hoy
+    #: `core.reverse`: "vineta", "zona local", "degradado" y "textura" (grano,
+    #: enfoque, reduccion de ruido: lo que vive en la alta frecuencia). Es `str`
+    #: libre a proposito -- la GUI la imprime tal cual -- pero si anades una,
+    #: escribela aqui: esta lista es lo unico que hay para saber que esperar.
+    label: str
 
 
 @dataclass(frozen=True, eq=False)

@@ -16,6 +16,13 @@ LAS TRES REGLAS QUE SE INCUMPLEN SOLAS
    contorno, borde discontinuo. Ver `FormaConfianza`.
 3. **Toda cifra va en monoespaciada.** Usa `fuente_cifra()` o la clase QSS
    `cifra`. Sin excepcion: dE, porcentajes, CDL, tamanos de LUT, IDs de clip.
+   Ojo: **la hoja de estilo pisa a `setFont()`**. Un `QLabel` al que se le pone
+   `fuente_cifra()` a mano sale en Inter igualmente si ninguna regla del QSS le
+   declara `font-family`. Por eso las cifras van en la clase `Cifra`, que lleva
+   la clase QSS puesta. Estaba pasando en dos sitios y esta contado en
+   `gui/NOTAS.md`.
+4. **`#ff6a3d` como pastilla, nunca.** Ver el comentario de `BRAND_400`. En
+   pastilla ese hexadecimal es el estado «Fuera» del inventario de SIDEBFLMS.
 
 SOBRE `#3ad6cf`
 ---------------
@@ -38,7 +45,27 @@ from PySide6.QtGui import QColor, QFont
 
 BRAND_500 = "#e8451d"  # acento / foco / activo
 BRAND_600 = "#bb4223"  # fondo de boton primario (el 500 no pasa AA)
-BRAND_400 = "#ff6a3d"  # texto e iconos de marca sobre oscuro
+
+#: `#ff6a3d` COMO TEXTO E ICONOS DE MARCA, SI. COMO PASTILLA, NUNCA.
+#:
+#: Confirmado por Mario. En pastilla (fondo al 12%, borde al 25%, texto pleno)
+#: este hexadecimal significa **«Fuera»** en el inventario de SIDEBFLMS, que es
+#: otro sistema en produccion de la casa. Pintar aqui una pastilla `#ff6a3d`
+#: diria «Fuera» a cualquiera que conozca el inventario, y contaminaria los dos
+#: sistemas a la vez: aqui pareceria un estado que no existe, y alli dejaria de
+#: querer decir una sola cosa.
+#:
+#: Lo que si se hace, porque es su funcion declarada en `docs/IDENTIDAD.md`:
+#: texto, iconos, lineas y trazos de marca sobre superficie oscura. El aviso de
+#: desajuste, por ejemplo, va en `#ff6a3d` pero con forma de ROMBO y no de
+#: pastilla; la insignia de confianza, que si es una pastilla, se rellena con
+#: `brand-600` o no se rellena.
+#:
+#: Es comprobable: `tests/test_gui_identidad.py` verifica que ninguna pastilla
+#: de la interfaz usa este hexadecimal de fondo, ni en la hoja de estilo ni en
+#: lo que se pinta a mano.
+BRAND_400 = "#ff6a3d"  # texto e iconos de marca sobre oscuro. NUNCA de pastilla.
+
 BRAND_50 = "#fdf4ee"  # texto principal sobre oscuro
 CYAN_GLOW = "#3ad6cf"  # unico, datos secundarios
 
@@ -254,6 +281,18 @@ def hoja_de_estilo() -> str:
     QLabel#apagado {{ color: {apagado}; }}
     QLabel#tenue {{ color: {tenue}; }}
     QLabel.cifra, QLabel#cifra {{ font-family: {cifra}; }}
+    /* Bloques de cifras a 11px: el CDL del lateral de «antes/despues» y los
+       datos del LUT del panel de ingenieria inversa. Hace falta un id propio
+       porque la hoja de estilo PISA a `setFont()`: a esos dos `QLabel` se les
+       ponia `fuente_cifra(11)` a mano y salian en Inter a 13px igualmente,
+       porque ninguna regla que les aplicara declaraba `font-family`. Se veia
+       en la captura `02-comparar-966`: las cuatro lineas del CDL no
+       alineaban. */
+    QLabel#cifraApagada {{
+        font-family: {cifra};
+        font-size: 11px;
+        color: {apagado};
+    }}
     QLabel#cifraGrande {{
         font-family: {cifra};
         font-size: 26px;

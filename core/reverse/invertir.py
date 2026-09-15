@@ -217,6 +217,25 @@ def invertir_grado(
             "Ni un solo pixel ha caido dentro del cubo. El LUT que devuelvo es la identidad "
             "entera: todo el grado que haya esta en el CDL."
         )
+    elif fuera >= 1.0:
+        # TODO el material, despues del CDL, cae fuera de 0..1. La acumulacion
+        # sujeta al borde, asi que las 35.937 celdas se ajustan contra UNA sola
+        # esquina del cubo, y lo que sale es un LUT **constante**: todo el gamut
+        # al mismo color. `core.io.qc_lut` lo caza con el codigo `lut_plano` y
+        # tiene razon, pero para entonces ya se ha entregado.
+        #
+        # Es un caso real: material log sin normalizar, o un EXR de un cielo.
+        # La respuesta honesta es la identidad y decirlo: el grado que se pueda
+        # explicar ya esta en el CDL, y el LUT no tiene ni un dato con el que
+        # opinar. MEDIDO: con un plano entero en 40.0 y el coloreado en 48.0, la
+        # version anterior devolvia un LUT con todas las celdas a 1.0.
+        lut = LUT3D(table=entradas.astype(np.float32), title="SIDEB COLOR (fuera de dominio)")
+        notas.append(
+            "NINGUN pixel cae dentro del dominio 0..1 del LUT una vez aplicado el CDL: todo el "
+            "material esta por encima o por debajo. Con un solo punto del cubo tocado, cualquier "
+            "LUT que ajustara seria una constante; devuelvo la identidad. Si el material es log "
+            "sin normalizar, normalizalo antes o dame el par ya en el espacio de trabajo."
+        )
     else:
         lut = _ajustar_lut(acumulado, medidas, entradas, fuente, dst, n)
 

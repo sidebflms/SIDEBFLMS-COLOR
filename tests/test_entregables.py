@@ -629,25 +629,22 @@ def test_T2_sin_nada_espacial_dice_que_SI_es_un_lut(estudio_trabajo):
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "LIMITE REAL, no un test mal escrito: una vineta SOLA se detecta como "
-        "no-reproducible (lut_reproducible=0.7319) pero NO se etiqueta como "
-        "'vineta'. De las tres puertas del detector radial, DOS PASAN "
-        "(monotonia 0.8803 >= 0.80, recorrido 9.1073 >= 1.0) y solo cierra la "
-        "del ajuste: R2=0.2887 frente al 0.30 que se pide, o sea que falla por "
-        "un 4%. El agente F murio por limite de API antes de poder probar esta "
-        "rama. Ver BITACORA.md, dia 2. "
-        "AVISO: la version anterior de esta razon decia 0.851 y R2=0.076. "
-        "Las dos cifras eran FALSAS -- estaban medidas sobre otro montaje -- y "
-        "las cazo la auditoria del dia 2. Pintaban un problema estructural "
-        "donde hay un umbral que se queda a un 4%."
-    ),
-)
 def test_T2_una_vineta_sola_se_etiqueta_como_vineta(estudio_trabajo):
-    """Lo que deberia pasar y hoy no pasa. Se deja escrito para que manana
-    cueste diez minutos y no una tarde de volver a averiguarlo."""
+    """ARREGLADO EL DIA 2. Estuvo en xfail una noche.
+
+    El fallo no era de calibracion: era el estadistico equivocado. El umbral de
+    zonas locales salia de `base + 4*1.4826*MAD` sobre el campo de residuos, y
+    la MAD es robusta frente a VALORES ATIPICOS -- pero una vineta no es un
+    valor atipico, afecta a casi todos los pixeles del cuadro. El estimador se
+    la tragaba como linea base.
+
+    Lo que lo resolvio fue cambiar de campo: en vez de mirar el dE2000, mirar
+    el LOGARITMO DE LA GANANCIA de luma entre el coloreado y el reconstruido.
+    Una vineta es multiplicativa sobre la imagen, asi que su dE depende del
+    brillo local y no solo del radio; su ganancia, no. En ganancia da R2 radial
+    de 0.879 y correlacion -0.875 con el radio, frente al 0.2887 de antes. Y el
+    SIGNO distingue las familias: una vineta oscurece hacia fuera, una ventana
+    no. Tabla entera en core/reverse/NOTAS.md, seccion 6.2."""
     from core.reverse import invertir_grado
 
     base = _fabricar_coloreado(estudio_trabajo, _lut_de_look_conocido())

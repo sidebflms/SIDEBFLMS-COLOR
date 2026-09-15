@@ -341,9 +341,12 @@ class PantallaComparar(QWidget):
 
         panel_cdl = Panel(margenes=(14, 12, 14, 12), espaciado=4)
         panel_cdl.caja.addWidget(Rotulo("cdl del nodo 2", acento=True))
+        # `cifraApagada` y no `setFont(fuente_cifra(11))`: la hoja de estilo
+        # pisa a `setFont()`, asi que estos diez numeros salian en Inter a
+        # 13px, sin alinear, incumpliendo la regla de «toda cifra en
+        # monoespaciada». Se ve en la captura vieja `02-comparar-966`.
         self.texto_cdl = QLabel("—")
-        self.texto_cdl.setFont(idn.fuente_cifra(11))
-        self.texto_cdl.setObjectName("apagado")
+        self.texto_cdl.setObjectName("cifraApagada")
         self.texto_cdl.setMinimumWidth(0)
         self.texto_cdl.setWordWrap(True)
         panel_cdl.caja.addWidget(self.texto_cdl)

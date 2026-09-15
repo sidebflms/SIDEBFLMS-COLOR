@@ -72,12 +72,24 @@ from core.reverse.alineado import (
 )
 from core.reverse.diagnostico import (
     AREA_MINIMA_HOTSPOT,
+    FRACCION_DE_PICO,
+    RADIO_MAXIMO_CENTRO,
+    SIGMA_LOCAL,
+    SIGMA_RADIAL,
+    SIGMA_TEXTURA,
+    SUELO_GANANCIA_LOCAL,
     UMBRAL_DE_HOTSPOT,
     UMBRAL_DE_PURO,
     UMBRAL_MONOTONIA_RADIAL,
     UMBRAL_R2_LINEAL,
     UMBRAL_R2_RADIAL,
+    UMBRAL_RECORRIDO_GANANCIA,
+    UMBRAL_RECORRIDO_LINEAL,
     UMBRAL_REPRODUCIBLE_PURO,
+    UMBRAL_TEXTURA,
+    AnalisisEspacial,
+    analizar_espacial,
+    campo_de_ganancia,
     diagnosticar,
     mapa_de_residuo,
 )
@@ -108,6 +120,11 @@ __all__ = [
     "rellenar_huecos",
     "diagnosticar",
     "mapa_de_residuo",
+    # el detector espacial, por si alguien quiere medirlo sin pasar por el
+    # diagnostico entero (lo hacen los tests y la tabla de NOTAS.md)
+    "AnalisisEspacial",
+    "analizar_espacial",
+    "campo_de_ganancia",
     # utilidades
     "correlacion_de_gradientes",
     "redimensionar",
@@ -137,4 +154,13 @@ __all__ = [
     "UMBRAL_R2_RADIAL",
     "UMBRAL_MONOTONIA_RADIAL",
     "UMBRAL_R2_LINEAL",
+    "UMBRAL_RECORRIDO_GANANCIA",
+    "UMBRAL_RECORRIDO_LINEAL",
+    "UMBRAL_TEXTURA",
+    "SUELO_GANANCIA_LOCAL",
+    "FRACCION_DE_PICO",
+    "RADIO_MAXIMO_CENTRO",
+    "SIGMA_RADIAL",
+    "SIGMA_LOCAL",
+    "SIGMA_TEXTURA",
 ]

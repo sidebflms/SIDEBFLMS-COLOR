@@ -504,3 +504,267 @@ def test_un_puente_que_no_sabe_la_version_no_escribe_nada():
     mudo.PELIGRO_escribir_fuera_de_la_version = True
     assert mudo.set_cdl("clip001", NODE_BALANCE, GRADO) is True
     assert mudo.escrituras == [("clip001", NODE_BALANCE)]
+
+
+# ---------------------------------------------------------------------------
+# B: las CUATRO respuestas raras de GetCurrentVersion()
+# ---------------------------------------------------------------------------
+#
+# Esto es el riesgo que nos creamos al cerrar R-0: la regla de oro llama a
+# `GetCurrentVersion()` antes de CADA escritura y nadie ha visto esa llamada
+# contestar contra Resolve de verdad. Si se porta raro, la app no escribe en
+# ningun sitio, y eso la deja inservible hasta que alguien lo mire.
+#
+# Aqui se prueba lo unico que se puede probar sin Resolve: que las cuatro formas
+# plausibles de portarse mal acaban en "no puedo garantizar la version de
+# seguridad, no escribo", y que NI UNA acaba en una escritura.
+
+
+#: Las cuatro, cada una con la linea que la monta en `FakeResolve`. El mecanismo
+#: es el de siempre (`devolver_en` / `fallar_en`), no uno inventado para esto.
+RESPUESTAS_RARAS = {
+    "cadena vacia": lambda f: f.devolver_en("current_version", ""),
+    "solo espacios": lambda f: f.devolver_en("current_version", "   "),
+    "None": lambda f: f.devolver_en("current_version", None),
+    "dict sin las claves": lambda f: f.devolver_en(
+        "current_version", {"version": 2, "tipo": "local"}
+    ),
+    "dict vacio": lambda f: f.devolver_en("current_version", {}),
+    "dict con versionName vacio": lambda f: f.devolver_en(
+        "current_version", {"versionName": ""}
+    ),
+    "un numero": lambda f: f.devolver_en("current_version", 7),
+    "lanza": lambda f: f.fallar_en("current_version", "GetCurrentVersion se ha caido"),
+}
+
+#: Las cinco escrituras de grado, cada una lanzada a pelo sobre el puente.
+ESCRITURAS = {
+    "set_cdl": lambda f: f.set_cdl("clip001", NODE_BALANCE, GRADO),
+    "set_lut": lambda f: f.set_lut("clip001", NODE_LOOK, LUT_OK),
+    "set_node_enabled": lambda f: f.set_node_enabled("clip001", NODE_NORMALIZACION, False),
+    "copy_grades": lambda f: f.copy_grades("clip001", ["clip002"]),
+    "reset_all_grades": lambda f: f.reset_all_grades("clip001"),
+}
+
+
+def _fake_ya_en_nuestra_version() -> FakeResolve:
+    """Un falso con la version `SIDEB COLOR` ya activa en los dos clips.
+
+    El punto de partida tiene que ser el caso BUENO: si se partiera de la
+    version del usuario, bloquear seria lo esperado y el test no probaria nada.
+    Aqui todo esta bien y lo unico que falla es la respuesta de la API.
+    """
+    fake = FakeResolve(n_clips=2)
+    for clip in ("clip001", "clip002"):
+        asegurar_version(fake, clip)
+    assert fake.current_version("clip001") == VERSION_NAME
+    fake._grados_escritos.clear()
+    return fake
+
+
+@pytest.mark.parametrize("rara", sorted(RESPUESTAS_RARAS))
+@pytest.mark.parametrize("operacion", sorted(ESCRITURAS))
+def test_si_GetCurrentVersion_se_porta_raro_no_se_escribe_NADA(rara, operacion):
+    """Las cuatro respuestas raras x las cinco escrituras. Ninguna escribe.
+
+    Y se comprueba que no escribe de verdad, no solo que lanza: se mira
+    `_grados_escritos` (los CDL que han entrado) y el LUT del nodo 3.
+    """
+    fake = _fake_ya_en_nuestra_version()
+    RESPUESTAS_RARAS[rara](fake)
+
+    with pytest.raises(VersionIndeterminada):
+        ESCRITURAS[operacion](fake)
+
+    assert fake._grados_escritos == []
+    for clip in ("clip001", "clip002"):
+        assert fake._lut_escrito(clip, NODE_LOOK, VERSION_NAME) is None
+
+
+@pytest.mark.parametrize("rara", sorted(RESPUESTAS_RARAS))
+def test_el_camino_bueno_tambien_se_para(rara):
+    """`aplicar_grado_seguro` no tiene una puerta de atras: se para igual."""
+    fake = _fake_ya_en_nuestra_version()
+    RESPUESTAS_RARAS[rara](fake)
+    with pytest.raises(ResolveError):  # VersionIndeterminada, o el fallo al asegurar
+        aplicar_grado_seguro(fake, "clip001", cdl=GRADO, lut_rel_path=LUT_OK)
+    assert fake._grados_escritos == []
+
+
+@pytest.mark.parametrize("rara", sorted(RESPUESTAS_RARAS))
+def test_copiar_a_varios_clips_no_copia_a_ninguno(rara):
+    """El caso peor: `CopyGrades` reemplaza el arbol de nodos ENTERO del
+    destino. Si no se sabe donde esta ninguno, no se copia a ninguno."""
+    fake = _fake_ya_en_nuestra_version()
+    RESPUESTAS_RARAS[rara](fake)
+    with pytest.raises(ResolveError):
+        copiar_grado_seguro(fake, "clip001", ["clip002"])
+    assert fake._grados_escritos == []
+
+
+def test_un_diccionario_CON_el_nombre_si_se_entiende_y_se_escribe():
+    """Contrapeso obligatorio: bloquear siempre seria facil y seria inutil.
+
+    Si manana resulta que `GetCurrentVersion()` devuelve un diccionario con
+    `versionName` —que es la forma en que la API contesta en otros sitios—, la
+    app tiene que FUNCIONAR, no bloquear. Lo que bloquea es no encontrar el
+    nombre, no que venga envuelto.
+    """
+    fake = _fake_ya_en_nuestra_version()
+    fake.devolver_en("current_version", {"versionName": VERSION_NAME, "versionType": 0})
+    assert fake.set_cdl("clip001", NODE_BALANCE, GRADO) is True
+    assert len(fake._grados_escritos) == 1
+
+
+def test_un_diccionario_con_el_nombre_del_USUARIO_bloquea_como_debe():
+    """Y el otro contrapeso: entender el diccionario no puede ablandar la regla.
+
+    Si el diccionario dice que estamos en `Version 1`, eso es saber que estamos
+    en la version del usuario, no es no saber nada: tiene que salir
+    `EscrituraFueraDeVersion` y NO `VersionIndeterminada`, porque el mensaje y
+    la salida son distintos.
+    """
+    fake = _fake_ya_en_nuestra_version()
+    fake.devolver_en("current_version", {"versionName": VERSION_INICIAL})
+    with pytest.raises(EscrituraFueraDeVersion) as exc:
+        fake.set_cdl("clip001", NODE_BALANCE, GRADO)
+    assert not isinstance(exc.value, VersionIndeterminada)
+    assert VERSION_INICIAL in str(exc.value)
+
+
+@pytest.mark.parametrize("rara", sorted(RESPUESTAS_RARAS))
+def test_el_mensaje_dice_QUE_devolvio_la_api_y_QUE_ejecutar(rara):
+    """El mensaje lo va a leer Mario con Resolve abierto y sin saber por que.
+
+    Tiene que hacer tres cosas: decir que contesto la API en crudo, decir que el
+    sospechoso es la API y no el, y decir el comando exacto que lo diagnostica.
+    """
+    fake = _fake_ya_en_nuestra_version()
+    RESPUESTAS_RARAS[rara](fake)
+    with pytest.raises(VersionIndeterminada) as exc:
+        fake.set_cdl("clip001", NODE_BALANCE, GRADO)
+    mensaje = str(exc.value)
+
+    assert "GetCurrentVersion()" in mensaje  # que llamada es
+    assert "NO ES CULPA TUYA" in mensaje  # de quien es la culpa
+    assert "probe/api_probe.py" in mensaje  # que ejecutar
+    assert "V-0" in mensaje  # que mirar dentro del informe
+    assert "PELIGRO_escribir_fuera_de_la_version" in mensaje  # como salir del paso
+    assert "no tiene deshacer" in mensaje  # por que no se arriesga
+
+
+def test_el_mensaje_distingue_devolver_de_reventar():
+    """Un `None` y una excepcion son dos averias distintas y se diagnostican
+    distinto: el texto no puede decir lo mismo en los dos casos."""
+    devuelto = _fake_ya_en_nuestra_version()
+    devuelto.devolver_en("current_version", None)
+    with pytest.raises(VersionIndeterminada) as a:
+        devuelto.set_cdl("clip001", NODE_BALANCE, GRADO)
+    assert "ha devuelto None (tipo NoneType)" in str(a.value)
+
+    revienta = _fake_ya_en_nuestra_version()
+    revienta.fallar_en("current_version", "el socket se ha cerrado")
+    with pytest.raises(VersionIndeterminada) as b:
+        revienta.set_cdl("clip001", NODE_BALANCE, GRADO)
+    assert "no ha contestado: ha lanzado" in str(b.value)
+    assert "el socket se ha cerrado" in str(b.value)
+
+
+def test_el_mensaje_de_un_diccionario_dice_QUE_CLAVES_traia():
+    """Si contesta un diccionario, lo unico que hace falta para arreglarlo es
+    saber por que clave viene el nombre. El mensaje tiene que darlas."""
+    fake = _fake_ya_en_nuestra_version()
+    fake.devolver_en("current_version", {"nombreVersion": "SIDEB COLOR", "tipo": 0})
+    with pytest.raises(VersionIndeterminada) as exc:
+        fake.set_cdl("clip001", NODE_BALANCE, GRADO)
+    mensaje = str(exc.value)
+    assert "'nombreVersion'" in mensaje and "'tipo'" in mensaje
+    assert "versionName" in mensaje  # las que SI busca
+    print(f"[B dict] {mensaje.splitlines()[1]}")
+
+
+def test_la_via_de_escape_sigue_siendo_la_unica_forma_de_escribir_a_ciegas():
+    """Que bloquee siempre no puede dejar la app tapiada: con la via de escape
+    abierta se escribe, y el que la abre sabe lo que hace."""
+    fake = _fake_ya_en_nuestra_version()
+    fake.devolver_en("current_version", None)
+    fake.PELIGRO_escribir_fuera_de_la_version = True
+    assert fake.set_cdl("clip001", NODE_BALANCE, GRADO) is True
+
+
+def test_una_respuesta_rara_de_UNA_vez_no_deja_el_puente_tonto_para_siempre():
+    """`veces=1` se consume al contestar, no al registrar la llamada.
+
+    Si `_guardia` y `_respuesta_simulada` consumieran los dos, la respuesta rara
+    se gastaria antes de llegar a contestar y este test no vería nunca el fallo.
+    """
+    fake = _fake_ya_en_nuestra_version()
+    fake.devolver_en("current_version", None, veces=1)
+    with pytest.raises(VersionIndeterminada):
+        fake.set_cdl("clip001", NODE_BALANCE, GRADO)
+    assert fake.set_cdl("clip001", NODE_BALANCE, GRADO) is True
+
+
+def test_el_falso_pregunta_la_version_en_cada_escritura_como_hara_el_de_verdad():
+    """`FakeResolve` no puede atajar mirando su estado interno.
+
+    Si el falso comprobara la version leyendo su propio diccionario en vez de
+    pasar por `current_version()`, estaria probando algo que `LiveResolve` no
+    hace, y las respuestas raras de arriba no se podrian simular siquiera. Se
+    comprueba contando llamadas.
+    """
+    fake = _fake_ya_en_nuestra_version()
+    fake._llamadas.clear()
+    fake.set_cdl("clip001", NODE_BALANCE, GRADO)
+    assert "current_version" in fake._llamadas, (
+        "set_cdl no ha preguntado la version: la regla de oro estaria mirando el estado "
+        "interno del falso y no lo que contesta la API"
+    )
+
+
+# ---------------------------------------------------------------------------
+# C1: la excepcion de la regla de oro, escrita donde se puede encontrar
+# ---------------------------------------------------------------------------
+
+
+def test_el_hueco_de_set_group_post_clip_lut_esta_ESCRITO_en_los_dos_puentes():
+    """Hallazgo 4 del auditor. No es un bug: es que no estaba dicho.
+
+    `set_group_post_clip_lut` no pasa por la regla de oro y no puede pasar (un
+    grafo post-clip de grupo no tiene versiones). Eso convierte la frase que se
+    repite por todo el repo —«el puente se niega en redondo a escribir grado
+    fuera de la version»— en algo con una excepcion silenciosa. Este test exige
+    que la excepcion este dicha en el docstring del metodo, en las DOS
+    implementaciones, para que nadie se la encuentre de golpe.
+    """
+    import ast
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parent.parent / "core" / "resolve"
+    for fichero, clase in (("fake.py", "FakeResolve"), ("live.py", "LiveResolve")):
+        arbol = ast.parse((raiz / fichero).read_text(encoding="utf-8"))
+        definicion = next(
+            n for n in ast.walk(arbol) if isinstance(n, ast.ClassDef) and n.name == clase
+        )
+        metodo = next(
+            n
+            for n in definicion.body
+            if isinstance(n, ast.FunctionDef) and n.name == "set_group_post_clip_lut"
+        )
+        doc = ast.get_docstring(metodo) or ""
+        assert "FUERA DE LA REGLA DE ORO" in doc, f"{fichero}: sin avisar del hueco"
+        assert "no tiene versiones" in doc or "no tienen versiones" in doc, fichero
+        assert "sin deshacer" in doc, f"{fichero}: no dice lo que cuesta"
+        assert "NOTAS.md" in doc, f"{fichero}: no manda a donde esta explicado"
+
+
+def test_el_hueco_tambien_esta_en_NOTAS_y_en_el_docstring_de_bridge():
+    from pathlib import Path
+
+    raiz = Path(__file__).resolve().parent.parent / "core" / "resolve"
+    notas = (raiz / "NOTAS.md").read_text(encoding="utf-8")
+    assert "set_group_post_clip_lut" in notas
+    assert "2.8" in notas
+    import core.resolve.bridge as bridge
+
+    assert "set_group_post_clip_lut" in (bridge.__doc__ or "")

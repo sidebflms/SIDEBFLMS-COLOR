@@ -21,6 +21,7 @@ la app entera.
 from __future__ import annotations
 
 from core.resolve.bridge import (
+    CLAVES_NOMBRE_VERSION,
     BaseResolveBridge,
     ClipNoEncontrado,
     EscrituraFueraDeVersion,
@@ -28,6 +29,7 @@ from core.resolve.bridge import (
     NodoInvalido,
     OperacionNoDisponible,
     ResolveNoConectado,
+    RespuestaRota,
     ResultadoAplicacion,
     RutaLUTInvalida,
     TimelineNoAbierto,
@@ -38,6 +40,7 @@ from core.resolve.bridge import (
     asegurar_version,
     copiar_grado_seguro,
     es_version_nuestra,
+    nombre_de_version,
     resumen_nodos,
     validar_indice_nodo,
     validar_nombre_version,
@@ -55,6 +58,7 @@ from core.resolve.incognitas import (
 )
 
 __all__ = [
+    "CLAVES_NOMBRE_VERSION",
     "INCOGNITAS_CONSERVADORAS",
     "BaseResolveBridge",
     "ClipNoEncontrado",
@@ -66,6 +70,7 @@ __all__ = [
     "NodoInvalido",
     "OperacionNoDisponible",
     "ResolveNoConectado",
+    "RespuestaRota",
     "ResultadoAplicacion",
     "RutaLUTInvalida",
     "TimelineNoAbierto",
@@ -79,6 +84,7 @@ __all__ = [
     "extensiones_lut_aceptadas",
     "formatos_export_disponibles",
     "lut_dir",
+    "nombre_de_version",
     "resumen_nodos",
     "still_sirve_para_medir",
     "validar_indice_nodo",

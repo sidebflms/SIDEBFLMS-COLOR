@@ -118,18 +118,42 @@ class EtiquetaElidida(QLabel):
 class Rotulo(EtiquetaElidida):
     """Rotulo de marca: MAYUSCULAS, 10-11px, tracking 0.16em.
 
-    Hereda de `EtiquetaElidida` a proposito. Un rotulo corto no se recorta
-    nunca; pero cuando la ventana llega a su anchura minima, un rotulo largo
-    («DESAJUSTES DE CONTENIDO», «CABE EN UN .CUBE») se comia la letra final sin
-    avisar. Ahora pone los puntos suspensivos y el texto entero queda en el
-    tooltip.
+    **Un rotulo no se recorta nunca**, y eso lo impone `minimumSizeHint()`, no
+    la buena voluntad: devuelve el ancho del texto ENTERO, o sea que el layout
+    no puede estrujarlo. Un rotulo es el vocabulario fijo de la app —lo escribe
+    la app, es corto, y esta puesto para decir que es cada cosa—, asi que
+    recortado no informa de nada: «SLO...» no es «slope» y «CABE ...» no es
+    «cabe en un .cube». Si un rotulo no cabe, lo que tiene que crecer es la
+    anchura minima de la ventana, que para eso se mide.
+
+    Hereda igualmente de `EtiquetaElidida`, y eso sigue teniendo sentido como
+    ultimo recurso: si alguien le pone un `setMinimumWidth()` por encima o lo
+    mete en un sitio que lo estruja de todas formas, saldra con puntos
+    suspensivos y con el texto entero en el tooltip, en vez de comerse la
+    ultima letra en silencio. Pero `tests/test_gui_texto.py` comprueba que ese
+    ultimo recurso no se usa en ninguna pantalla.
     """
 
-    def __init__(self, texto: str = "", *, px: int = 10, acento: bool = False,
+    #: Tamanos de la identidad: 10px el rotulo normal, 11px el de acento. Son
+    #: los mismos que declara la hoja de estilo para `#rotulo` y `#titulo`, y
+    #: tienen que coincidir: **el QSS pisa a `setFont()` en familia y tamano,
+    #: pero NO en el tracking**, que no se puede escribir en QSS. Si aqui se
+    #: construye la fuente a 10px y el QSS la pinta a 11, el tracking absoluto
+    #: se queda en el de 10 y sale un 0.145em donde la identidad pide 0.15-0.18.
+    PX_NORMAL = 10
+    PX_ACENTO = 11
+
+    def __init__(self, texto: str = "", *, px: int | None = None, acento: bool = False,
                  ancho_minimo_px: int = 30, parent: QWidget | None = None) -> None:
         super().__init__(texto, ancho_minimo_px=ancho_minimo_px, parent=parent)
         self.setObjectName("titulo" if acento else "rotulo")
+        if px is None:
+            px = self.PX_ACENTO if acento else self.PX_NORMAL
         self.setFont(idn.fuente_rotulo(px, QFont.Weight.Bold if acento else QFont.Weight.DemiBold))
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        """El texto entero. Un rotulo no cede ancho: lo cede la ventana."""
+        return self.sizeHint()
 
 
 class Cifra(QLabel):
@@ -175,8 +199,9 @@ def fila_dato(rotulo: str, valor: str, *, secundario: bool = False) -> QWidget:
     caja = QHBoxLayout(w)
     caja.setContentsMargins(0, 0, 0, 0)
     caja.setSpacing(10)
+    # Sin `setMinimumWidth(0)`: eso le quitaba al rotulo su ancho minimo y lo
+    # dejaba elidir, que es justo lo que `Rotulo` no hace.
     r = Rotulo(rotulo)
-    r.setMinimumWidth(0)
     caja.addWidget(r, 1)
     v = Cifra(valor, secundario=secundario)
     v.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
