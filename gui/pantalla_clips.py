@@ -191,7 +191,7 @@ class FichaClip(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setMinimumWidth(240)
+        # La anchura minima se pone al final del constructor, medida. Ver alli.
         caja = QVBoxLayout(self)
         caja.setContentsMargins(0, 0, 0, 0)
         caja.setSpacing(10)
@@ -256,6 +256,20 @@ class FichaClip(QWidget):
         self.texto_desajuste.setMinimumWidth(0)
         self.bloque_desajuste.caja.addWidget(self.texto_desajuste)
         caja.addWidget(self.bloque_desajuste)
+        # La anchura minima se mide ANTES de esconder el bloque de desajuste,
+        # y a proposito: un widget escondido no cuenta para el layout, asi que
+        # si el minimo se preguntara despues, la ficha podria encogerse hasta
+        # que el rotulo «desajuste de contenido» saliera como «desajuste de
+        # conteni…» justo cuando hay desajuste, que es cuando hace falta
+        # leerlo. Y la anchura minima de la ventana no puede depender de que
+        # clip haya seleccionado.
+        self.setMinimumWidth(
+            max(
+                240,
+                self.bloque_desajuste.minimumSizeHint().width(),
+                self.panel.minimumSizeHint().width(),
+            )
+        )
         self.bloque_desajuste.setVisible(False)
         caja.setStretch(0, 1)
         self.mostrar(None)
@@ -345,7 +359,11 @@ class PantallaClips(QWidget):
         contenedor.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.ficha = FichaClip()
         contenedor.setWidget(self.ficha)
-        contenedor.setMinimumWidth(240)
+        # Lo que pida la ficha, mas la barra vertical: la barra horizontal esta
+        # apagada, asi que lo que no cabe de ancho no se ve y no lo dice nadie.
+        contenedor.setMinimumWidth(
+            self.ficha.minimumWidth() + contenedor.verticalScrollBar().sizeHint().width()
+        )
         self.division.addWidget(contenedor)
         self.division.setStretchFactor(0, 3)
         self.division.setStretchFactor(1, 2)
@@ -354,6 +372,16 @@ class PantallaClips(QWidget):
 
         self.vacio = self._panel_vacio()
         caja.addWidget(self.vacio)
+
+        # La anchura minima de la pantalla NO puede depender de cuantos clips
+        # haya. Con cero clips la tabla se esconde, un widget escondido no
+        # cuenta para el layout, y la ventana entera se podia encoger 55 px por
+        # debajo de su minimo de siempre; ahi el panel de ingenieria inversa
+        # salia con los rotulos recortados. Se fija aqui, con la tabla y la
+        # ficha como testigos, y ya no se mueve.
+        self.setMinimumWidth(
+            self.tabla.minimumWidth() + contenedor.minimumWidth() + self.division.handleWidth()
+        )
 
         self.tabla.selectionModel().selectionChanged.connect(self._cambio)
         if estado.clips:

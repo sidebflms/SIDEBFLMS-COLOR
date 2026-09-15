@@ -205,7 +205,8 @@ class VentanaPrincipal(QMainWindow):
             self.detalle_resolve.setText(
                 "no hay conexión; se puede mirar todo, pero no se escribe nada"
             )
-        self.cifra_clips.setText(f"{len(self._estado.clips):d} clips")
+        n = len(self._estado.clips)
+        self.cifra_clips.setText(f"{n:d} clip" if n == 1 else f"{n:d} clips")
 
     # -- anchura minima ----------------------------------------------------
 

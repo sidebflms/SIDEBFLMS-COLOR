@@ -20,11 +20,20 @@ LAS CUATRO COSAS QUE ENSENA, Y POR QUE ESTAN ASI
    el mapa de residuo espacial con sus zonas calientes. Esto es lo que dice si
    habia una ventana o una vineta, que es lo que un `.cube` **no** se lleva.
 
-SI `core.reverse` NO ESTA
--------------------------
+SI `core.reverse` NO ESTA, O FALLA
+----------------------------------
 El panel se dibuja igual. `gui.reverse_puente` protege el import y, si hace
 falta, calcula un sustituto; la pantalla pone por escrito quien ha calculado lo
 que se esta viendo. Ver el docstring de `gui/reverse_puente.py`.
+
+**Y entonces la pantalla NO dice si el grado es un LUT puro.** Ese veredicto lo
+da `core.reverse` y aqui solo se pinta. Si no lo ha dado el nucleo, lo que se
+escribe es «no se ha podido decidir», y se ensena ademas un aviso de que lo que
+hay delante lo ha calculado un sustituto. El motivo esta en `gui/NOTAS.md`: la
+frase «es un LUT puro» es la mas peligrosa que puede decir esta app, porque
+manda a Mario a llevarse un `.cube` que no reproduce el grado y a enterarse
+delante de un cliente. Si hay que equivocarse, se hace hacia «no lo se» o hacia
+«no es puro», que solo hacen trabajar de mas.
 """
 
 from __future__ import annotations
@@ -51,7 +60,7 @@ from core.contracts import CDL, LUT_SIZES_SOPORTADOS, CoverageMap, ReverseResult
 from core.io import qc_lut
 from gui import identidad as idn
 from gui.imagen import a_qimage, tira_de_color
-from gui.reverse_puente import TAM_REJILLA_PANEL, invertir
+from gui.reverse_puente import SIN_VEREDICTO, TAM_REJILLA_PANEL, Inversion, invertir
 from gui.widgets import (
     BarraProporcion,
     Cifra,
@@ -343,6 +352,7 @@ class PantallaReverse(QWidget):
         self._coloreado = coloreado
         self._parches = parches
         self._resultado: ReverseResult | None = None
+        self._inversion: Inversion | None = None
         self._origen = ""
 
         caja = QVBoxLayout(self)
@@ -359,6 +369,26 @@ class PantallaReverse(QWidget):
         self.division.setStretchFactor(1, 3)
         self.division.setSizes([420, 700])
         caja.addWidget(self.division, 1)
+
+        # Dos avisos distintos y que NO se confunden:
+        #
+        # * `aviso_sustituto`: hay resultado, pero NO lo ha calculado
+        #   `core.reverse`. Se puede trabajar con los numeros, pero el veredicto
+        #   de «es un LUT puro» no se ha emitido y no se pinta. Tiene que verse:
+        #   caerse a un sustituto esta bien, caerse en silencio no.
+        # * `aviso_no_disponible`: no hay resultado ninguno. La pantalla se
+        #   apaga y dice por que.
+        self.aviso_sustituto = Panel(cristal=True, margenes=(14, 10, 14, 10))
+        self.aviso_sustituto.caja.addWidget(
+            Rotulo("esto no lo ha calculado core.reverse", acento=True)
+        )
+        self.texto_sustituto = QLabel("")
+        self.texto_sustituto.setWordWrap(True)
+        self.texto_sustituto.setMinimumWidth(0)
+        self.texto_sustituto.setStyleSheet(f"color: {idn.BRAND_400};")
+        self.aviso_sustituto.caja.addWidget(self.texto_sustituto)
+        caja.addWidget(self.aviso_sustituto)
+        self.aviso_sustituto.setVisible(False)
 
         self.aviso_no_disponible = Panel(cristal=True)
         self.aviso_no_disponible.caja.addWidget(Rotulo("módulo no disponible", acento=True))
@@ -450,10 +480,13 @@ class PantallaReverse(QWidget):
         # --- capa 2: LUT ---
         panel_lut = Panel(margenes=(12, 12, 12, 12))
         panel_lut.caja.addWidget(Rotulo("capa 2 · lut (nodo 3)", acento=True))
+        # Igual que el CDL de «antes/despues»: con `setFont(fuente_cifra(12))`
+        # salia en Inter, porque la hoja de estilo pisa a `setFont()`. El id
+        # `cifraApagada` es el que trae la monoespaciada de verdad.
         self.datos_lut = QLabel("—")
-        self.datos_lut.setFont(idn.fuente_cifra(12))
-        self.datos_lut.setObjectName("apagado")
+        self.datos_lut.setObjectName("cifraApagada")
         self.datos_lut.setMinimumWidth(0)
+        self.datos_lut.setWordWrap(True)
         panel_lut.caja.addWidget(self.datos_lut)
         panel_lut.caja.addWidget(separador())
         panel_lut.caja.addWidget(Rotulo("control de calidad del lut"))
@@ -475,7 +508,13 @@ class PantallaReverse(QWidget):
 
     def _columna_cobertura(self) -> QWidget:
         envoltorio = QWidget()
-        envoltorio.setMinimumWidth(300)
+        # Sin `setMinimumWidth(300)`. Ese 300 estaba puesto a ojo y se quedaba
+        # corto: la columna necesita 366 px para que quepan los cuatro rotulos
+        # del diagnostico («cabe en un .cube», «ΔE medio», «ΔE p95», «ΔE peor»)
+        # en la misma fila. Con el 300, la ventana se podia encoger hasta 911
+        # px con el timeline vacio y ahi salian «cabe en …», «mapa de cobertu…»
+        # y «residuo espaci…». Ahora la anchura minima la calcula Qt a partir
+        # del contenido, que es lo que ya hace la columna de al lado.
         col = QVBoxLayout(envoltorio)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(12)
@@ -560,11 +599,12 @@ class PantallaReverse(QWidget):
             return
         tam = self.selector_tam.currentData() or TAM_REJILLA_PANEL
         try:
-            resultado, origen = invertir(self._original, self._coloreado, tam_lut=int(tam))
+            inversion = invertir(self._original, self._coloreado, tam_lut=int(tam))
         except Exception as exc:  # el modulo de otro puede lanzar lo que sea
             self._sin_modulo(f"la inversión ha fallado: {exc!r}")
             return
-        self._resultado, self._origen = resultado, origen
+        self._inversion = inversion
+        self._resultado, self._origen = inversion.resultado, inversion.origen
         self._pintar()
 
     def resultado(self) -> ReverseResult | None:
@@ -573,10 +613,25 @@ class PantallaReverse(QWidget):
     def origen(self) -> str:
         return self._origen
 
+    def inversion(self) -> Inversion | None:
+        """La inversion entera, con quien la ha calculado. Para los tests."""
+        return self._inversion
+
+    def veredicto_fiable(self) -> bool:
+        """¿Se puede pintar `is_pure_lut` como el veredicto de la app?
+
+        Solo si lo ha dado `core.reverse`. Si no, la pantalla dice que no lo
+        sabe; no lo decide ella, y menos hacia el lado optimista.
+        """
+        return self._inversion is not None and self._inversion.veredicto_fiable
+
     def _sin_par(self) -> None:
         self._sin_modulo("No hay par original/coloreado que invertir.")
 
     def _sin_modulo(self, motivo: str) -> None:
+        self._inversion = None
+        self._resultado = None
+        self.aviso_sustituto.setVisible(False)
         self.aviso_no_disponible.setVisible(True)
         self.texto_no_disponible.setText(
             f"{motivo}\n\nEl resto de la aplicación sigue funcionando: esta pantalla es la "
@@ -585,11 +640,22 @@ class PantallaReverse(QWidget):
         self.division.setEnabled(False)
         self.insignia.setVisible(False)
         self.origen_texto.setText("no disponible")
+        self.texto_diag.setPlainText(SIN_VEREDICTO)
 
     def _pintar(self) -> None:
         res = self._resultado
         assert res is not None
+        fiable = self.veredicto_fiable()
         self.aviso_no_disponible.setVisible(False)
+        self.aviso_sustituto.setVisible(not fiable)
+        if not fiable:
+            fallo = self._inversion.fallo if self._inversion is not None else ""
+            self.texto_sustituto.setText(
+                f"Lo que se ve aquí lo ha calculado el sustituto de la GUI. {fallo}\n"
+                f"Los números son medidos y sirven para trabajar, pero el veredicto de "
+                f"«es un LUT puro» NO se ha emitido: ese lo da sólo core.reverse, y hasta "
+                f"que conteste la pantalla dice que no lo sabe."
+            )
         self.division.setEnabled(True)
         self.insignia.setVisible(True)
         self.origen_texto.setText(self._origen)
@@ -639,12 +705,20 @@ class PantallaReverse(QWidget):
         self._de_p95.setText(f"{res.delta_e_p95:.2f}")
         self._de_max.setText(f"{res.delta_e_max:.2f}")
 
+        # El veredicto se PINTA, no se decide. Y si no lo ha dado el nucleo, lo
+        # que se escribe es «no se ha podido decidir», que no es lo mismo que
+        # «no es un LUT puro» ni, sobre todo, que «es un LUT puro». Decir «es
+        # un LUT» cuando no lo es manda a Mario a llevarse un .cube que no
+        # reproduce el grado; decir «no lo se» solo le hace mirarlo.
         lineas = []
-        lineas.append(
-            "Es un LUT puro: todo el grado cabe en el .cube."
-            if diag.is_pure_lut
-            else "NO es un LUT puro: queda algo que depende de dónde está el píxel."
-        )
+        if not fiable:
+            lineas.append(SIN_VEREDICTO)
+        else:
+            lineas.append(
+                "Es un LUT puro: todo el grado cabe en el .cube."
+                if diag.is_pure_lut
+                else "NO es un LUT puro: queda algo que depende de dónde está el píxel."
+            )
         lineas += [f"· {n}" for n in diag.notes]
         for h in diag.hotspots:
             lineas.append(

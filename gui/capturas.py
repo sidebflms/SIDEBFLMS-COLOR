@@ -25,6 +25,7 @@ from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
 from gui import datos_demo as dd
+from gui import reverse_puente as rp
 from gui.ventana import VentanaPrincipal, crear_app
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -182,6 +183,34 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
     hechas.append(Captura(fichero.name,
                           "el mismo grado sin viñeta: el diagnóstico cambia · 1024×900"))
     ventana.close()
+
+    # --- core.reverse averiado: el sustituto TIENE que verse --------------
+    # Caerse a un sustituto esta bien para poder trabajar; caerse en silencio a
+    # uno que ademas diera veredictos mas flojos, no. Esta captura es la prueba
+    # de que se ve, y de que la pantalla dice que no sabe si es un LUT puro en
+    # vez de decidirlo ella.
+    original = rp._invertir_grado_core
+    disponible = rp.DISPONIBLE
+
+    def _revienta(*a, **k):
+        raise RuntimeError("avería simulada de core.reverse para la captura")
+
+    rp._invertir_grado_core = _revienta
+    rp.DISPONIBLE = True
+    try:
+        ventana = _ventana(app, dd.estado_demo(), 3)
+        _asentar(app, ventana)
+        fichero = destino / "16-reverse-sustituto.png"
+        _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
+        hechas.append(Captura(
+            fichero.name,
+            "core.reverse averiado: se avisa de que lo ha calculado el sustituto y la "
+            "pantalla NO dice si es un LUT puro · 1024×900",
+        ))
+        ventana.close()
+    finally:
+        rp._invertir_grado_core = original
+        rp.DISPONIBLE = disponible
 
     return hechas
 
