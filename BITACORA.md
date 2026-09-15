@@ -135,11 +135,15 @@ Habla con un Resolve falso. No puede tocar tu material ni aunque quiera.
    más complejo del proyecto y el que menos red tiene.
 3. **`gui` no tiene ni un test ni `NOTAS.md`**, por lo mismo. Lo que sí hay son 25
    capturas que miré una a una, y dos bugs que arreglé después de mirarlas.
-4. **Una viñeta sola no se etiqueta como «viñeta».** Se detecta que no es un LUT puro
-   (reproducible 0.851), pero no se emite el hotspot: el perfil radial da R²=0.076 y el
-   detector pide 0.30, porque el residuo lo domina el desajuste general del LUT y no la
-   caída radial. Está como `xfail(strict=True)` en `tests/test_entregables.py` **con el
-   diagnóstico ya escrito**, para que sea un rato y no una tarde.
+4. **Una viñeta sola no se etiqueta como «viñeta».** Se detecta que no es un LUT puro,
+   pero no se emite el hotspot. Está como `xfail(strict=True)` en
+   `tests/test_entregables.py`.
+   **CORREGIDO EL DÍA 2:** las dos cifras que había aquí —«reproducible 0.851» y
+   «R²=0.076»— **eran falsas**, medidas sobre un montaje distinto del que usa el test.
+   Las cazó la auditoría independiente. Las reales son **0.7319** y **R²=0.2887**, y el
+   diagnóstico cambia de sentido: no es que el residuo no sea radial, es que **de las
+   tres puertas del detector pasan dos** (monotonía 0.8803 ≥ 0.80 y recorrido 9.1073 ≥
+   1.0) y sólo cierra la del ajuste, por un 4%. Ver `AUDITORIA-DIA2.md`, caso 4.
 5. **La ida y vuelta de un plano sin gradar no vuelve exacta**: 0.312 ΔE2000 de media y
    6.36 en el peor píxel, con el CDL saliendo identidad exacta. Lo que no vuelve exacto
    es el LUT, porque el relleno de huecos suaviza y ese suavizado se cuela en las celdas

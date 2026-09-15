@@ -633,11 +633,16 @@ def test_T2_sin_nada_espacial_dice_que_SI_es_un_lut(estudio_trabajo):
     strict=True,
     reason=(
         "LIMITE REAL, no un test mal escrito: una vineta SOLA se detecta como "
-        "no-reproducible (lut_reproducible=0.851) pero NO se etiqueta como "
-        "'vineta'. El perfil radial da R2=0.076, muy por debajo del 0.30 que "
-        "pide el detector, porque el residuo lo domina el desajuste general del "
-        "LUT y no la caida radial. El agente F murio por limite de API antes de "
-        "poder probar esta rama. Ver BITACORA.md, apartado 'sin resolver'."
+        "no-reproducible (lut_reproducible=0.7319) pero NO se etiqueta como "
+        "'vineta'. De las tres puertas del detector radial, DOS PASAN "
+        "(monotonia 0.8803 >= 0.80, recorrido 9.1073 >= 1.0) y solo cierra la "
+        "del ajuste: R2=0.2887 frente al 0.30 que se pide, o sea que falla por "
+        "un 4%. El agente F murio por limite de API antes de poder probar esta "
+        "rama. Ver BITACORA.md, dia 2. "
+        "AVISO: la version anterior de esta razon decia 0.851 y R2=0.076. "
+        "Las dos cifras eran FALSAS -- estaban medidas sobre otro montaje -- y "
+        "las cazo la auditoria del dia 2. Pintaban un problema estructural "
+        "donde hay un umbral que se queda a un 4%."
     ),
 )
 def test_T2_una_vineta_sola_se_etiqueta_como_vineta(estudio_trabajo):
