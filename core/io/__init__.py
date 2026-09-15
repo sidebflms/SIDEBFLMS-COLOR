@@ -9,6 +9,9 @@ Cinco cosas:
 2. **HALD CLUT** (`hald.py`) — el LUT como imagen, ida y vuelta exacta.
 3. **QC de LUT** (`qc.py`) — `qc_lut()` dice qué le pasa a un LUT y **dónde**.
    Un LUT identidad pasa limpio; eso no se negocia.
+   Y `remuestreo.py`, que escribe el mismo LUT sobre otra rejilla: es por donde
+   se exporta a 65 para una entrega final. **Nunca por defecto, y no añade
+   información**: el tamaño de la app sigue siendo 33.
 4. **ASC CDL** (`cdl_xml.py`) — `.cc`, `.ccc` y `.cdl`, leer y escribir.
 5. **`.sidebcolor`** (`bundle.py`) — la sesión entera en un zip.
 
@@ -79,12 +82,21 @@ from .qc import (
     CODIGO_LUT_PLANO,
     CODIGO_NO_FINITO,
     CODIGO_NO_MONOTONIA,
+    EXPLICACION_MEDIOS,
+    EXPLICACION_SOMBRAS,
     MAX_PROBLEMAS_POR_CODIGO,
     SALTO_MINIMO_BANDING,
     UMBRAL_BANDING,
+    UMBRAL_SOMBRAS,
     LUTQualityReport,
     ProblemaQC,
     qc_lut,
+)
+from .remuestreo import (
+    TAMANO_ENTREGA_FINAL,
+    explicacion_remuestreo,
+    rejilla_del_dominio,
+    remuestrear_lut,
 )
 
 __all__ = [
@@ -120,7 +132,15 @@ __all__ = [
     "CODIGO_CANALES_INVERTIDOS",
     "UMBRAL_BANDING",
     "SALTO_MINIMO_BANDING",
+    "UMBRAL_SOMBRAS",
+    "EXPLICACION_SOMBRAS",
+    "EXPLICACION_MEDIOS",
     "MAX_PROBLEMAS_POR_CODIGO",
+    # remuestreo (exportar a 65 para una entrega final; NUNCA por defecto)
+    "remuestrear_lut",
+    "explicacion_remuestreo",
+    "rejilla_del_dominio",
+    "TAMANO_ENTREGA_FINAL",
     # LUT malos (para probar el QC y para el test entregable T4)
     "catalogo_luts_malos",
     "lut_desde_curvas",

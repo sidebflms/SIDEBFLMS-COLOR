@@ -160,6 +160,110 @@ quiebro de pendiente (0,6/255 de segunda derivada), no un escalón duro. El
 detector está del lado sensible. **Si a Mario le cansa**, el botón es
 `SALTO_MINIMO_BANDING`; pero entonces hay que volver a mirar el punto 2.
 
+### Día 2: el aviso estaba bien detectado y mal contado
+
+Mario lo zanjó, y tenía razón la parte que no habíamos mirado: el problema no
+era **que** avisara, era **qué decía**. El mensaje mandaba a arreglar algo que,
+en un LUT de salida, no está roto. Sus palabras: *si el LUT incluye la
+conversión a Rec.709, los escalones en sombras son esperables y no son un
+defecto.*
+
+Así que **el detector no se ha tocado** —ni un umbral, ni un número, y está
+comprobado con un test que el recuento de escalones de la gamma de salida sigue
+siendo exactamente el mismo (3, uno por eje, en 17, 33 y 65)— y se ha reescrito
+el mensaje. Ahora dice dónde está el escalón, cuánto mide, y **qué significa que
+esté ahí**:
+
+- **En sombras** (`EXPLICACION_SOMBRAS`): que si el LUT lleva la conversión a
+  Rec.709 o cualquier gamma de salida, eso es esperable y no es un defecto,
+  porque la curva sube casi en vertical pegada al negro y una rejilla uniforme
+  no puede seguirla ni con 65 puntos. Y que es un aviso, no un error: no bloquea
+  nada, y sólo hay algo que arreglar si la banda se ve en la imagen.
+- **En los medios** (`EXPLICACION_MEDIOS`): lo contrario, que eso no es el
+  achatamiento normal de una gamma y sí merece un vistazo.
+
+Lo segundo es lo que hace que lo primero sirva de algo: un mensaje que dijera
+«tranquilo, esto es normal» en todos los casos es un mensaje que nadie vuelve a
+leer.
+
+**`UMBRAL_SOMBRAS = 0.125`** decide cuál de las dos frases sale, y **sólo eso**.
+Es un octavo del recorrido de la rejilla: con 17 puntos son los dos primeros
+intervalos, con 33 los cuatro primeros y con 65 los ocho primeros, o sea la
+misma zona de la imagen mida lo que mida el LUT. Medido: la gamma de salida cae
+en la posición 0 en los tres tamaños, así que se explica como sombras en los
+tres. Hay un test que fija la frontera con un solo LUT (la celda 4 de un 33 cae
+dentro, la 5 fuera) y otro que comprueba que mover esto no cambia ni un escalón
+detectado.
+
+Y de paso se comprobó lo que el aviso dice de sí mismo, porque decirlo en el
+texto no basta: `gravedad == "aviso"` en todos, `hay_errores` sigue siendo
+`False`, y el `.cube` se escribe y se vuelve a leer sin que nadie proteste. Tres
+tamaños, tres formas de comprobarlo.
+
+---
+
+## 3.bis Exportar a 65³: dónde está y por qué no es un parámetro de `escribir_cube`
+
+**33 se queda.** Mario lo confirmó con su razón: es el estándar de facto, y 65
+sobre todo infla el archivo y da problemas de compatibilidad con cámaras y
+monitores de campo. `LUT_SIZE_DEFAULT` sigue siendo 33 y además vive en
+`core/contracts.py`, que no es de este agente.
+
+Lo que sí hace falta es poder entregar un 65 cuando lo piden. Está en
+**`core/io/remuestreo.py`**: `remuestrear_lut(lut, TAMANO_ENTREGA_FINAL)`.
+
+**Por qué una función y no `escribir_cube(..., tamano=65)`**, que era la otra
+opción sobre la mesa. Porque remuestrear es una operación con nombre propio y
+tiene que verse en la línea que la pide. Un `tamano=65` colado entre los
+parámetros de un escritor da a entender que el fichero *se escribe* con más
+resolución, y lo que pasa de verdad es que **se interpola**. La firma de
+`escribir_cube` no ha cambiado y hay un test que lo vigila: si mañana acepta un
+tamaño, remuestrear deja de verse y alguien exportará a 65 creyendo que ha
+ganado precisión.
+
+**Y no gana ninguna.** Ésta es la parte que hay que tener clara antes de
+enseñársela a nadie: un LUT de 33 **ya es** una función —`apply()` interpola
+trilinealmente— y pasar a 65 es preguntarle esa misma función en más puntos.
+Además, como 65 = 2·33 − 1, los puntos nuevos caen justo sobre los viejos y sus
+puntos medios, así que la función resultante es **idéntica**, no parecida.
+
+Medido sobre 200.000 colores aleatorios, `lut33.apply(x)` contra
+`remuestrear_lut(lut33, 65).apply(x)`:
+
+| LUT de partida (33) | diferencia máxima | en unidades de 255 |
+|---|---|---|
+| identidad | 2,2e-16 | 0,00000006 |
+| curva en S de contraste | 2,2e-16 | 0,00000006 |
+| gamma de salida `x**(1/2.2)` | 3,0e-08 | 0,0000076 |
+| **CDL realista** (el peor) | **5,7e-08** | **0,0000146** |
+
+O sea: cinco millonésimas de un nivel de 8 bits, que es el error de escribir el
+mismo número en `float32`. Lo único que se gana de verdad es un fichero 7,6
+veces más grande (medido con este CDL y 6 decimales: 0,93 MB → 7,07 MB) que
+algunas cámaras y monitores de
+campo no saben leer.
+
+El test que lo fija tolera 1e-6, y hay **otro** que exige que siga siendo del
+orden de 5,7e-08, para que la cifra escrita aquí no se convierta en mentira sin
+que nadie se entere.
+
+**Bajar sí pierde**, y por eso `explicacion_remuestreo()` dice cosas distintas
+en cada dirección. Medido, 33 → 17: la curva en S y el CDL pierden 0,7/255
+(nada), pero **la gamma de salida pierde 0,065, o sea 16,6 niveles de 255**.
+Eso no es simétrico con lo de subir y no se puede contar igual.
+
+Tres cosas que decidí solo aquí:
+
+1. **Se permite bajar de tamaño**, en vez de prohibirlo. Alguien tendrá un
+   cacharro que sólo lee 17, y negarse sin más no le sirve; lo que hace falta es
+   que sepa lo que pierde, y eso lo dice la explicación.
+2. **La frase para el usuario vive aquí, no en la GUI** (`explicacion_remuestreo`).
+   El que sabe lo que cuesta remuestrear es este módulo; si la frase la escribe
+   quien pone el botón, acaba diciendo lo que él creía.
+3. **Se valida el tamaño contra 2..129, no contra `LUT_SIZES_SOPORTADOS`**, por
+   coherencia con la lectura: si aceptamos leer un LUT de 64 que viene de fuera,
+   no tiene sentido negarnos a escribir uno.
+
 ### El recuento: un escalón no son doce mil celdas (D-1, lo que SÍ arreglé)
 
 Lo que de verdad estaba mal no era el umbral, era **el número**. Un escalón vive

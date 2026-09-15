@@ -54,6 +54,7 @@ from core.resolve.bridge import (
     OperacionNoDisponible,
     ResolveNoConectado,
     TimelineNoAbierto,
+    nombre_de_version,
     validar_nombre_version,
 )
 from core.resolve.incognitas import (
@@ -257,23 +258,26 @@ class LiveResolve(BaseResolveBridge):
     def current_version(self, clip_id: str) -> str:
         """Nombre de la version activa, o cadena vacia si no hay forma de saberlo.
 
-        La regla de oro llama a esto en CADA escritura, asi que es la llamada
-        mas critica de todo el puente y la que menos se ha probado: nadie la ha
-        visto contestar contra Resolve de verdad. Si revienta, se devuelve
-        cadena vacia y quien decide es `_exigir_version_propia`, que bloquea con
-        `VersionIndeterminada` y un mensaje que explica que mirar. Aqui no se
-        adivina un nombre ni se inventa un `SIDEB COLOR` por defecto: eso
-        convertiria un fallo de la API en una escritura encima del usuario.
+        La regla de oro pregunta esto en CADA escritura, asi que es la llamada
+        mas critica de todo el puente y la que menos se ha probado: **nadie la
+        ha visto contestar contra Resolve de verdad.**
+
+        Aqui no se decide nada: se traduce. `nombre_de_version()` (de
+        `bridge.py`) es el unico sitio del proyecto que interpreta la respuesta
+        —una cadena, o un diccionario con `versionName`— y devuelve `""` para
+        todo lo demas. Quien decide es `_exigir_version_propia`, que con un `""`
+        bloquea con `VersionIndeterminada` y un mensaje que explica que mirar.
+
+        Aqui no se adivina un nombre ni se inventa un `SIDEB COLOR` por defecto:
+        eso convertiria un fallo de la API en una escritura encima del usuario.
+
+        **Si la llamada revienta, la excepcion sale.** No se traga: para las
+        escrituras ya la recoge `_version_activa_o_rota()`, que la convierte en
+        el mismo `VersionIndeterminada` que las otras tres respuestas raras; y
+        para quien pregunte por su cuenta (`asegurar_version`, la GUI) es mejor
+        ver el error de verdad que un `""` que parece una respuesta.
         """
-        try:
-            actual = self._item(clip_id).GetCurrentVersion()
-        except ResolveError:
-            raise
-        except Exception:  # noqa: BLE001 - la API puede lanzar cualquier cosa
-            return ""
-        if isinstance(actual, dict):
-            return str(actual.get("versionName") or "")
-        return str(actual or "")
+        return nombre_de_version(self._item(clip_id).GetCurrentVersion())
 
     def add_version(self, clip_id: str, name: str = VERSION_NAME) -> bool:
         return bool(self._item(clip_id).AddVersion(validar_nombre_version(name), VERSION_LOCAL))
@@ -288,14 +292,14 @@ class LiveResolve(BaseResolveBridge):
     def set_cdl(self, clip_id: str, node_index: int, cdl: CDL) -> bool:
         item = self._item(clip_id)
         idx = self._validar_nodo(node_index, int(self._grafo(item).GetNumNodes()))
-        self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_cdl")
+        self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_cdl")
         return bool(item.SetCDL(cdl.as_resolve_payload(idx)))
 
     def set_lut(self, clip_id: str, node_index: int, lut_rel_path: str) -> bool:
         item = self._item(clip_id)
         idx = self._validar_nodo(node_index, int(self._grafo(item).GetNumNodes()))
         ruta = self._validar_lut(lut_rel_path)
-        self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_lut")
+        self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_lut")
         return bool(item.SetLUT(idx, ruta))
 
     def get_lut(self, clip_id: str, node_index: int) -> str | None:
@@ -306,7 +310,7 @@ class LiveResolve(BaseResolveBridge):
     def set_node_enabled(self, clip_id: str, node_index: int, enabled: bool) -> bool:
         grafo = self._grafo(self._item(clip_id))
         idx = self._validar_nodo(node_index, int(grafo.GetNumNodes()))
-        self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_node_enabled")
+        self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_node_enabled")
         return bool(grafo.SetNodeEnabled(idx, bool(enabled)))
 
     def copy_grades(self, source_clip_id: str, target_clip_ids: list[str]) -> bool:
@@ -316,11 +320,11 @@ class LiveResolve(BaseResolveBridge):
         # CopyGrades reemplaza el arbol de nodos del destino entero: se
         # comprueban TODOS antes de tocar ninguno.
         for cid in target_clip_ids:
-            self._exigir_version_propia(cid, self.current_version(cid), "copy_grades")
+            self._exigir_version_propia(cid, self._version_activa_o_rota(cid), "copy_grades")
         return bool(self._item(source_clip_id).CopyGrades(destinos))
 
     def reset_all_grades(self, clip_id: str) -> bool:
-        self._exigir_version_propia(clip_id, self.current_version(clip_id), "reset_all_grades")
+        self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "reset_all_grades")
         return bool(self._grafo(self._item(clip_id)).ResetAllGrades())
 
     def refresh_lut_list(self) -> bool:
@@ -351,6 +355,34 @@ class LiveResolve(BaseResolveBridge):
         return bool(self._proyecto().DeleteColorGroup(grupo))
 
     def set_group_post_clip_lut(self, group: str, node_index: int, lut_rel_path: str) -> bool:
+        """Pone un LUT en el grafo post-clip de un GRUPO de color.
+
+        ESTE CAMINO QUEDA FUERA DE LA REGLA DE ORO, Y NO PUEDE ESTAR DENTRO
+        -----------------------------------------------------------------
+        Las cinco escrituras de grado de un clip comprueban la version activa
+        antes de tocar nada. Esta **no**, porque un grafo post-clip de un grupo
+        no es de ningun clip: no tiene versiones, asi que no hay nada que
+        comprobar. No es un descuido del arreglo R-0; es que aqui esa red de
+        seguridad no existe.
+
+        Lo que eso significa en la practica, y hay que decirlo claro: **escribir
+        el LUT de un grupo pisa lo que el usuario tuviera en ese nodo, sin red y
+        sin deshacer.** El grado de los clips no se toca (eso sigue a salvo en
+        sus versiones), pero el look del grupo sí.
+
+        Lo que SÍ protege aqui:
+
+        * el grupo tiene que existir (si no, `GrupoNoEncontrado`);
+        * el indice de nodo se valida contra los nodos que hay de verdad, y en
+          un post-clip de grupo **el look es el nodo 1, no `NODE_LOOK`**;
+        * la ruta del LUT se valida igual que en todas partes.
+
+        Y lo que se puede hacer desde fuera, que es lo unico que hay: leer antes
+        lo que hubiera con `GetLUT` sobre ese mismo grafo y apuntarlo, para
+        poder devolverlo. La app no lo hace hoy porque no usa grupos.
+
+        Ver NOTAS.md, apartado 2.8.
+        """
         grafo = self._grupo(group).GetPostClipNodeGraph()
         if grafo is None:
             raise ResolveError(f"el grupo {group!r} no devuelve su grafo post-clip")

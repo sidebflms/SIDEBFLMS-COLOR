@@ -37,11 +37,32 @@ COMO SE FINGE UNA AVERIA
     fake.fallar_en("set_lut")                      # lanza ResolveError siempre
     fake.fallar_en("set_cdl", "disco lleno", veces=1)  # una vez y se cura
     fake.devolver_false_en("add_version")          # devuelve False, sin excepcion
+    fake.devolver_en("current_version", None)      # contesta eso, tal cual
     fake.dejar_de_fallar("set_lut")                # o dejar_de_fallar() para todo
 
 El nombre de la operacion es el del metodo del `Protocol`. Si te equivocas al
 escribirlo salta un `ValueError`, para que un typo no haga que el test pase por
 el motivo equivocado.
+
+LAS CUATRO RESPUESTAS RARAS DE `GetCurrentVersion()`
+-----------------------------------------------------
+Es la llamada mas critica del puente —la regla de oro la hace antes de CADA
+escritura— y la que menos se ha probado: nadie la ha visto contestar contra
+Resolve de verdad. Si se porta raro, la app no escribe en ningun sitio.
+
+Las cuatro formas plausibles de portarse raro se piden con el mismo mecanismo de
+siempre, sin inventar nada nuevo:
+
+    fake.devolver_en("current_version", "")                  # cadena vacia
+    fake.devolver_en("current_version", None)                # None
+    fake.devolver_en("current_version", {"version": "x"})    # dict sin la clave
+    fake.fallar_en("current_version")                        # revienta
+
+Las cuatro acaban en `VersionIndeterminada` y **ninguna** escribe nada. Un
+diccionario que SI traiga el nombre (`{"versionName": "SIDEB COLOR"}`) se
+entiende y se escribe con normalidad: si manana la API contesta asi, la app
+funciona. Quien lo interpreta es `bridge.nombre_de_version()`, que es el mismo
+que usa `LiveResolve`.
 """
 
 from __future__ import annotations
@@ -173,11 +194,18 @@ class _Still:
     label: str = ""
 
 
+#: Marca "aqui no hay nada simulado". Hace falta un centinela y no un `None`
+#: porque `None` es justamente una de las respuestas raras que se quieren poder
+#: simular.
+SIN_SIMULAR: object = object()
+
+
 @dataclass
 class _Fallo:
-    modo: str  # "lanzar" | "false"
+    modo: str  # "lanzar" | "false" | "devolver"
     mensaje: str
     restantes: int | None  # None = para siempre
+    valor: object = None  # solo para modo "devolver"
 
 
 @dataclass(frozen=True)
@@ -290,6 +318,24 @@ class FakeResolve(BaseResolveBridge):
             )
         self._registrar_fallo(operacion, "false", "", veces)
 
+    def devolver_en(self, operacion: str, valor: object, veces: int | None = None) -> None:
+        """Hace que `operacion` conteste `valor` **tal cual**, sin lanzar.
+
+        Es el hermano de `devolver_false_en` para las operaciones que no
+        devuelven un bool, y existe por una razon concreta: poder simular las
+        respuestas raras de `GetCurrentVersion()`, que es la llamada de la que
+        depende que la app escriba o no escriba y la unica que nadie ha visto
+        funcionar de verdad.
+
+            fake.devolver_en("current_version", None)
+            fake.devolver_en("current_version", {"version": "SIDEB COLOR"})
+
+        No se comprueba el tipo del valor **a proposito**: la gracia es poder
+        contestar algo que el `Protocol` no permite, porque eso es exactamente
+        lo que se teme que haga Resolve.
+        """
+        self._registrar_fallo(operacion, "devolver", "", veces, valor=valor)
+
     def dejar_de_fallar(self, operacion: str | None = None) -> None:
         """Quita un fallo simulado, o todos si no se dice cual."""
         if operacion is None:
@@ -305,20 +351,34 @@ class FakeResolve(BaseResolveBridge):
         """Simula que Resolve se ha cerrado a media faena."""
         self._conectado = False
 
-    def _registrar_fallo(self, operacion: str, modo: str, mensaje: str, veces: int | None) -> None:
+    def _registrar_fallo(
+        self,
+        operacion: str,
+        modo: str,
+        mensaje: str,
+        veces: int | None,
+        valor: object = None,
+    ) -> None:
         _validar_operacion(operacion)
         if veces is not None and veces < 1:
             raise ValueError("'veces' tiene que ser >= 1, o None para siempre")
-        self._fallos[operacion] = _Fallo(modo=modo, mensaje=mensaje, restantes=veces)
+        self._fallos[operacion] = _Fallo(
+            modo=modo, mensaje=mensaje, restantes=veces, valor=valor
+        )
 
     def _guardia(self, operacion: str) -> bool:
         """Registra la llamada y aplica el fallo simulado si lo hay.
 
         Devuelve True si la operacion tiene que contestar False.
+
+        Los de modo "devolver" NO se consumen aqui: los consume
+        `_respuesta_simulada`, que es quien sabe que hacer con el valor. Si se
+        consumieran en los dos sitios, un `veces=1` se gastaria antes de
+        contestar y la respuesta rara no llegaria nunca a probarse.
         """
         self._llamadas.append(operacion)
         fallo = self._fallos.get(operacion)
-        if fallo is None:
+        if fallo is None or fallo.modo == "devolver":
             return False
         if fallo.restantes is not None:
             fallo.restantes -= 1
@@ -327,6 +387,17 @@ class FakeResolve(BaseResolveBridge):
         if fallo.modo == "lanzar":
             raise ResolveError(fallo.mensaje)
         return True
+
+    def _respuesta_simulada(self, operacion: str) -> object:
+        """El valor que se haya pedido con `devolver_en()`, o `SIN_SIMULAR`."""
+        fallo = self._fallos.get(operacion)
+        if fallo is None or fallo.modo != "devolver":
+            return SIN_SIMULAR
+        if fallo.restantes is not None:
+            fallo.restantes -= 1
+            if fallo.restantes <= 0:
+                del self._fallos[operacion]
+        return fallo.valor
 
     def _exigir_conexion(self) -> None:
         if not self._conectado:
@@ -402,8 +473,25 @@ class FakeResolve(BaseResolveBridge):
         return list(self._clip(clip_id).versiones)
 
     def current_version(self, clip_id: str) -> str:
+        """El `GetCurrentVersion()` del falso. **Puede mentir a peticion.**
+
+        Normalmente devuelve el nombre de la version activa, que es lo que hace
+        Resolve cuando todo va bien. Pero si se ha pedido una respuesta rara con
+        `devolver_en("current_version", ...)`, devuelve **eso**, sea lo que sea
+        y aunque no sea una cadena: un `None`, un diccionario, lo que se le pida.
+
+        Es a proposito y es el sentido de todo esto: la anotacion dice `str`
+        porque el `Protocol` dice `str`, pero la API de verdad no ha firmado
+        ningun contrato con nosotros y nadie la ha visto contestar. Un falso que
+        sea incapaz de mentir aqui no sirve para probar lo unico que hay que
+        probar: que la app no escribe cuando no se puede fiar de la respuesta.
+        """
         self._guardia("current_version")
-        return self._clip(clip_id).actual
+        clip = self._clip(clip_id)
+        simulada = self._respuesta_simulada("current_version")
+        if simulada is not SIN_SIMULAR:
+            return simulada  # type: ignore[return-value]
+        return clip.actual
 
     def add_version(self, clip_id: str, name: str = VERSION_NAME) -> bool:
         if self._guardia("add_version"):
@@ -443,7 +531,7 @@ class FakeResolve(BaseResolveBridge):
         idx = self._validar_nodo(node_index, len(version.nodos))
         if not isinstance(cdl, CDL):
             raise ResolveError(f"set_cdl espera un CDL, llego {type(cdl).__name__}")
-        self._exigir_version_propia(clip_id, version.nombre, "set_cdl")
+        self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_cdl")
         # `as_resolve_payload` valida de paso que el indice es 1-based y deja el
         # diccionario tal cual se lo pasariamos a Resolve.
         cdl.as_resolve_payload(idx)
@@ -460,7 +548,7 @@ class FakeResolve(BaseResolveBridge):
         version = self._version_actual(clip)
         idx = self._validar_nodo(node_index, len(version.nodos))
         ruta = self._validar_lut(lut_rel_path)
-        self._exigir_version_propia(clip_id, version.nombre, "set_lut")
+        self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_lut")
         version.nodos[idx - 1].lut_path = ruta
         return True
 
@@ -477,7 +565,9 @@ class FakeResolve(BaseResolveBridge):
         clip = self._clip(clip_id)
         version = self._version_actual(clip)
         idx = self._validar_nodo(node_index, len(version.nodos))
-        self._exigir_version_propia(clip_id, version.nombre, "set_node_enabled")
+        self._exigir_version_propia(
+            clip_id, self._version_activa_o_rota(clip_id), "set_node_enabled"
+        )
         version.nodos[idx - 1].enabled = bool(enabled)
         return True
 
@@ -494,7 +584,9 @@ class FakeResolve(BaseResolveBridge):
         # asi que se comprueban TODOS antes de tocar ninguno.
         for destino in destinos:
             self._exigir_version_propia(
-                destino.ref.clip_id, self._version_actual(destino).nombre, "copy_grades"
+                destino.ref.clip_id,
+                self._version_activa_o_rota(destino.ref.clip_id),
+                "copy_grades",
             )
         nodos = self._version_actual(origen).nodos
         for destino in destinos:
@@ -516,7 +608,9 @@ class FakeResolve(BaseResolveBridge):
         if self._guardia("reset_all_grades"):
             return False
         clip = self._clip(clip_id)
-        self._exigir_version_propia(clip_id, self._version_actual(clip).nombre, "reset_all_grades")
+        self._exigir_version_propia(
+            clip_id, self._version_activa_o_rota(clip_id), "reset_all_grades"
+        )
         for n in self._version_actual(clip).nodos:
             n.cdl = None
             n.lut_path = None
@@ -565,6 +659,26 @@ class FakeResolve(BaseResolveBridge):
         return True
 
     def set_group_post_clip_lut(self, group: str, node_index: int, lut_rel_path: str) -> bool:
+        """Pone un LUT en el grafo post-clip de un GRUPO de color.
+
+        ESTE CAMINO QUEDA FUERA DE LA REGLA DE ORO, Y NO PUEDE ESTAR DENTRO
+        -----------------------------------------------------------------
+        Las cinco escrituras de grado de un clip comprueban la version activa
+        antes de tocar nada. Esta **no**: un grafo post-clip de un grupo no es
+        de ningun clip, o sea que no tiene versiones y no hay nada que
+        comprobar. No es un agujero del arreglo R-0; es que aqui esa red no
+        existe.
+
+        En la practica: **escribir el LUT de un grupo pisa lo que hubiera en ese
+        nodo, sin red y sin deshacer.** El grado de los clips sigue a salvo en
+        sus versiones; el look del grupo no.
+
+        Lo que si se comprueba: que el grupo existe, que el indice de nodo cabe
+        (y en un post-clip de grupo **el look es el nodo 1, no `NODE_LOOK`**) y
+        que la ruta del LUT es relativa y con extension aceptada.
+
+        Ver NOTAS.md, apartado 2.8.
+        """
         if self._guardia("set_group_post_clip_lut"):
             return False
         self._exigir_conexion()

@@ -66,6 +66,28 @@ una rampa, ese LUT se desvía 11/255 de la curva que dice representar. Ver el
 punto 3 de `NOTAS.md` para los números y para por qué el umbral se queda como
 está.
 
+EL AVISO INFORMA, NO BLOQUEA (y el mensaje tiene que decir POR QUÉ)
+-------------------------------------------------------------------
+Eso de arriba estaba bien detectado y mal contado. El aviso mandaba a arreglar
+algo que en un LUT de salida **no está roto**, y Mario lo aclaró con estas
+palabras: *si el LUT incluye la conversión a Rec.709, los escalones en sombras
+son esperables y no son un defecto*.
+
+Así que el mensaje ahora dice dónde está el escalón, cuánto mide, y **qué
+significa que esté ahí**:
+
+* si está en sombras (nivel de entrada <= `UMBRAL_SOMBRAS`), el texto
+  `EXPLICACION_SOMBRAS` dice que en un LUT con gamma de salida eso es normal y
+  no es un defecto;
+* si está en los medios, `EXPLICACION_MEDIOS` dice que eso no es el
+  achatamiento normal de una gamma y sí merece un vistazo.
+
+Las dos dicen que es **un aviso y no un error**, porque lo es: `gravedad` es
+`"aviso"`, `hay_errores` sigue siendo False y ni `escribir_cube` ni nadie
+bloquea nada por esto. El detector no ha cambiado: lo que ha cambiado es lo que
+se lee. Lo que decide la redacción es `UMBRAL_SOMBRAS`, que no toca en absoluto
+lo que se marca ni cuánto.
+
 EL RECUENTO: UN ESCALÓN NO SON MIL CELDAS
 -----------------------------------------
 Esto es el arreglo D-1 de la revisión de la ola 1, y es una lección que merece
@@ -108,6 +130,9 @@ __all__ = [
     "CODIGO_CANALES_INVERTIDOS",
     "UMBRAL_BANDING",
     "SALTO_MINIMO_BANDING",
+    "UMBRAL_SOMBRAS",
+    "EXPLICACION_SOMBRAS",
+    "EXPLICACION_MEDIOS",
     "MAX_PROBLEMAS_POR_CODIGO",
 ]
 
@@ -125,6 +150,37 @@ UMBRAL_BANDING: float = 3.0
 #: Cambio de pendiente mínimo, en unidades de salida, para que cuente. 0.02 son
 #: ~5/255: por debajo no se ve una banda ni buscándola.
 SALTO_MINIMO_BANDING: float = 0.02
+
+#: Hasta qué nivel de ENTRADA se considera que un escalón está "en sombras".
+#: 0.125 es un octavo del recorrido de la rejilla. Con 17 puntos son los dos
+#: primeros intervalos, con 33 los cuatro primeros y con 65 los ocho primeros:
+#: siempre la misma zona de la imagen, mida lo que mida el LUT.
+#:
+#: No es un umbral de detección —no cambia lo que se marca ni cuánto— sino de
+#: REDACCIÓN: decide si el aviso lleva la explicación de "esto es normal en un
+#: LUT de salida" o la de "esto no es lo normal, míralo". Medido: la curva de
+#: gamma de salida `x**(1/2.2)` marca exactamente un escalón por eje y siempre
+#: en la posición 0, en 17, 33 y 65. O sea que cae del lado de "sombras" en los
+#: tres tamaños, que es lo que Mario quiere que diga.
+UMBRAL_SOMBRAS: float = 0.125
+
+#: La frase que explica un escalón pegado al negro. Es lo que Mario pidió que
+#: dijera, con sus palabras: si el LUT lleva la conversión a Rec.709, los
+#: escalones en sombras son esperables y no son un defecto.
+EXPLICACION_SOMBRAS = (
+    "Si este LUT incluye la conversión a Rec.709 (o cualquier otra gamma de salida), los "
+    "escalones en sombras son ESPERABLES y no son un defecto: la curva sube casi en vertical "
+    "pegada al negro y una rejilla de puntos igual de separados no puede seguirla, ni con 65 "
+    "puntos. Es un aviso, no un error: no bloquea nada, el LUT se escribe y se aplica igual. "
+    "Sólo hay algo que arreglar si la banda se ve en la imagen."
+)
+
+#: Y la de un escalón que NO está pegado al negro, que es la que sí pide mirar.
+EXPLICACION_MEDIOS = (
+    "Este escalón no está pegado al negro, así que no es el achatamiento normal de una gamma "
+    "de salida: en los medios una rejilla uniforme suele seguir bien la curva. Merece un "
+    "vistazo a de dónde salió el LUT. Aun así es un aviso, no un error: no bloquea nada."
+)
 
 #: Suelo de la mediana de pasos, para no dividir por cero en un LUT plano.
 _PISO_ESCALA: float = 1e-6
@@ -377,17 +433,25 @@ def _banding(
                 celda = list(indice)
                 celda[eje] += 1  # la celda que comparten los dos pasos
                 repeticiones = int(por_posicion[pos])
-                donde = (
-                    "el primer intervalo de la rejilla (pegado al negro)"
-                    if pos == 0
-                    else f"el intervalo {int(pos)} de la rejilla"
-                )
+                # El nivel de entrada de la celda que comparten los dos pasos.
+                # Es lo que decide si el aviso se redacta como "normal en un LUT
+                # de salida" o como "esto pide un vistazo". Ver UMBRAL_SOMBRAS.
+                n_eje = int(table.shape[eje])
+                nivel_entrada = (int(pos) + 1) / (n_eje - 1)
+                en_sombras = nivel_entrada <= UMBRAL_SOMBRAS
+                if pos == 0:
+                    donde = "el primer intervalo de la rejilla (pegado al negro)"
+                elif en_sombras:
+                    donde = f"el intervalo {int(pos)} de la rejilla (todavía en sombras)"
+                else:
+                    donde = f"el intervalo {int(pos)} de la rejilla"
                 extra = (
                     ""
                     if repeticiones == 1
                     else (
-                        f"; es UN escalón, pero se repite en {repeticiones} líneas paralelas "
-                        "del cubo (son la misma discontinuidad vista desde cada una)"
+                        f" Es UN escalón, no {repeticiones}: se repite en {repeticiones} "
+                        "líneas paralelas del cubo porque son la misma discontinuidad vista "
+                        "desde cada una."
                     )
                 )
                 problemas.append(
@@ -398,8 +462,11 @@ def _banding(
                             f"eje {NOMBRE_CANAL[eje]}, canal {NOMBRE_CANAL[canal]}: en "
                             f"{donde}, alrededor de la celda {tuple(celda)}, el paso entre "
                             f"celdas cambia {abs(salto):.4f} de golpe (el paso típico de este "
-                            f"eje es {escala:.4f}); en un degradado eso se ve como una "
-                            f"banda{extra}"
+                            f"eje es {escala:.4f}), y eso en un degradado puede verse como una "
+                            f"banda.{extra} "
+                            + (
+                                EXPLICACION_SOMBRAS if en_sombras else EXPLICACION_MEDIOS
+                            )
                         ),
                         celda=(celda[0], celda[1], celda[2]),
                         eje=eje,

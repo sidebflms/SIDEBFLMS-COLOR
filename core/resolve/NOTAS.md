@@ -149,9 +149,13 @@ se entera de nada.
 
 1. Mirar la V-0 del informe del probe: dice en crudo qué contestó Resolve en
    cada clip.
-2. Si contesta un diccionario con otra clave (no `versionName`), es un cambio de
-   la API entre versiones: se arregla en `LiveResolve.current_version()`, que es
-   el único sitio que lo interpreta.
+2. Si contesta un diccionario con otra clave (no `versionName` ni `name`), es un
+   cambio de la API entre versiones: se arregla en **`bridge.nombre_de_version()`**,
+   que desde el día 2 es el único sitio del proyecto que interpreta esa respuesta
+   —lo usan el falso y el vivo, y por eso lo que se pruebe en uno vale para el
+   otro—. Se toca la tupla `CLAVES_NOMBRE_VERSION` y ya está. El mensaje de
+   error, además, dice qué claves traía el diccionario, así que no hay ni que
+   adivinar.
 3. Si no contesta nada útil en ningún caso, hay que buscar otra forma de saber la
    versión activa. La única otra vía que veo es `GetVersionNameList()` más alguna
    marca propia, y no es fiable. En ese caso hablamos: puede que toque cambiar la
@@ -159,6 +163,63 @@ se entera de nada.
    que es más agresivo pero también seguro.
 4. Mientras tanto, y sólo si hay prisa: `PELIGRO_escribir_fuera_de_la_version`
    deja pasar todo, con el riesgo dicho.
+
+### 2.5.bis Y ahora ya está probado: las cuatro respuestas raras (día 2)
+
+Lo de arriba estaba decidido y argumentado, pero probado con poco: había cuatro
+tests que llamaban a `_exigir_version_propia()` a mano con `""`, `None` y poco
+más. O sea que estaba probada la *decisión*, no el *camino*: nadie había
+comprobado que una respuesta rara de `GetCurrentVersion()` recorra de verdad las
+cinco escrituras y las pare. Y el camino es lo que importa, porque es donde
+puede haber un atajo.
+
+**`FakeResolve` ya sabe mentir.** Con el mismo mecanismo de siempre, sin
+inventar otro: `fallar_en()` ya existía para "lanza" y `devolver_false_en()`
+para "contesta False"; ahora hay `devolver_en(operacion, valor)` para "contesta
+esto, tal cual, aunque el `Protocol` diga que no puede".
+
+```python
+fake.devolver_en("current_version", "")                   # cadena vacía
+fake.devolver_en("current_version", None)                 # None
+fake.devolver_en("current_version", {"version": 2})       # dict sin las claves
+fake.fallar_en("current_version")                         # revienta
+```
+
+Qué hace el código en cada una, y es lo mismo en las cuatro: **`VersionIndeterminada`
+y cero escrituras**. Está probado con las cuatro (más cuatro variantes: sólo
+espacios, `{}`, `{"versionName": ""}`, un entero) **por** las cinco escrituras,
+y mirando que `_grados_escritos` queda vacío y que el LUT del nodo 3 sigue sin
+poner: no basta con que lance, tiene que no haber escrito.
+
+Tres cosas que cambiaron para que esto fuera posible, y las tres son mejores que
+lo que había:
+
+- **`FakeResolve` pregunta la versión de verdad.** Antes miraba su propio
+  diccionario interno (`version.nombre`). Ahora las cinco escrituras llaman a
+  `self._version_activa_o_rota(clip_id)`, que pasa por `current_version()`,
+  igual que `LiveResolve`. Un falso que no puede mentir en la llamada más
+  delicada de la API no sirve para probarla. Hay un test que lo vigila contando
+  llamadas (`test_el_falso_pregunta_la_version_en_cada_escritura_...`).
+- **La respuesta la interpreta un solo sitio**: `bridge.nombre_de_version()`.
+  Lo usan el falso y el vivo. Antes, la traducción de un `dict` a un nombre
+  vivía sólo dentro de `LiveResolve.current_version()`, o sea que el falso
+  probaba una semántica distinta de la que tendría el de verdad.
+  Y de paso: **un diccionario que SÍ traiga `versionName` se entiende y se
+  escribe con normalidad**. Bloquear también eso sería fácil y sería inútil: lo
+  que bloquea es no encontrar el nombre, no que venga envuelto. Hay un test por
+  cada lado.
+- **Si la llamada revienta, la excepción no se propaga en crudo**: se envuelve
+  en `RespuestaRota` y entra por el mismo sitio que las otras tres. La escritura
+  tampoco ocurriría dejándola salir, pero el que lo leyera vería un error de la
+  API en vez de la explicación de qué mirar, y ese era medio problema.
+
+**El mensaje**, que es la otra mitad del encargo. Ahora dice, por este orden:
+qué llamada falló y **qué contestó en crudo, con su tipo** (`''` y `None` y `{}`
+se parecen demasiado escritos); que el sospechoso es la API y no el usuario;
+por qué no se arriesga (si fuera la versión del usuario, se pierde su grado y no
+hay undo); y **qué ejecutar**: `python3 probe/api_probe.py`, pregunta V-0. Si lo
+que contestó fue un diccionario, el mensaje dice **con qué claves venía** y en
+qué función se arregla, que es literalmente lo único que hace falta saber.
 
 ### 2.6 El agujero que queda, y creo que no tiene arreglo
 
@@ -186,6 +247,51 @@ es:
 
 El paso 6 no se puede hacer con el CDL, y esa es la primera cosa importante de
 esta nota.
+
+### 2.8 La excepción de la regla de oro: `set_group_post_clip_lut`
+
+Lo encontró el auditor del día 2 y tiene razón en las dos mitades: **no es un
+bug, y no estaba escrito en ninguna parte.** Lo segundo sí era un problema,
+porque la frase que se repite por todo el repo —«el puente se niega en redondo a
+escribir grado fuera de la versión»— tenía una excepción silenciosa.
+
+La regla de oro cubre las cinco escrituras de grado **de un clip**. Hay un sexto
+camino que escribe algo que el usuario ve: poner un LUT en el grafo post-clip de
+un **grupo** de color. Ése no pasa por `_exigir_version_propia` y **no puede
+pasar**: un grafo post-clip de grupo no es de ningún clip, así que no tiene
+versiones que comprobar. No hay nada que preguntar ahí.
+
+Lo que eso significa, dicho claro: **escribir el LUT de un grupo pisa lo que
+hubiera en ese nodo, sin red y sin deshacer.** El grado de los clips sigue a
+salvo en sus versiones —eso no cambia—, pero el look del grupo no.
+
+Está escrito ahora en cuatro sitios, y hay un test que comprueba que sigue
+estándolo (`test_el_hueco_de_set_group_post_clip_lut_esta_ESCRITO_en_los_dos_puentes`):
+en el docstring del método en `fake.py`, en el de `live.py`, en el docstring de
+módulo de `bridge.py` y aquí.
+
+**¿Hay alguna protección alternativa que sí tenga sentido ahí?** Lo he pensado y
+la respuesta es *poca, y la que hay no la pongo hoy*:
+
+- **Crear una versión antes**: no existe. Un grupo no tiene versiones. Descartado
+  por imposible, no por criterio.
+- **Leer lo que había y guardarlo para poder devolverlo.** Esto sí se puede:
+  `GetLUT` funciona sobre el grafo post-clip igual que sobre el de un clip, y
+  cuesta una llamada. Sería el equivalente honesto de la versión: no impide
+  pisar, pero deja con qué volver. **No lo he implementado** porque la app no usa
+  grupos hoy y montar un "deshacer" que nadie ejerce es código sin probar
+  haciéndose pasar por una red de seguridad. Si un día la app usa grupos, esto es
+  lo primero que hay que hacer, y está dicho también en el docstring del método.
+- **Negarse si el nodo ya tenía un LUT puesto**, y exigir un `forzar=True`. Es la
+  más tentadora y la he descartado: convierte "el usuario ya tenía algo" en un
+  error en un sitio donde reescribir el look del grupo es *justo* lo que uno
+  quiere hacer la segunda vez que pasa la app. Sería el aviso que todo el mundo
+  aprende a saltarse, y eso es peor que no tenerlo.
+
+Lo que sí se comprueba ahí, que no es nada: que el grupo existe, que el índice de
+nodo cabe (y ojo, que en un post-clip de grupo **el look es el nodo 1, no
+`NODE_LOOK`** — apartado 3.7) y que la ruta del LUT es relativa y con extensión
+aceptada.
 
 ---
 

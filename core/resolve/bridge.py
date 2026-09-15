@@ -31,6 +31,25 @@ La via de escape existe, se llama `PELIGRO_escribir_fuera_de_la_version`, es un
 atributo del puente y tiene ese nombre para que se vea de lejos. La app no la
 usa nunca; los tests si, cuando montan "el grado que el usuario ya tenia".
 
+Y HAY UNA EXCEPCION, QUE CONVIENE SABER
+----------------------------------------
+`set_group_post_clip_lut` **no** pasa por la regla de oro, y no puede: escribe
+en el grafo post-clip de un GRUPO de color, que no es de ningun clip y por tanto
+no tiene versiones que comprobar. Esta escrito en `NOTAS.md` (apartado 2.8) y en
+el docstring del metodo, en las dos implementaciones. No es un descuido: es el
+unico camino de escritura que la regla no cubre, y por eso esta dicho en tres
+sitios en vez de en ninguno.
+
+CUANDO NO SE PUEDE NI PREGUNTAR
+--------------------------------
+La regla de oro llama a `GetCurrentVersion()` en cada escritura y **nadie ha
+visto esa llamada contestar contra Resolve de verdad**. Las cuatro formas que
+tiene de portarse mal —devolver `""`, devolver `None`, devolver un diccionario
+sin las claves esperadas, o reventar— acaban todas en `VersionIndeterminada`, o
+sea en "no escribo". Quien interpreta la respuesta es `nombre_de_version()`, que
+es el unico sitio del proyecto que lo hace; quien la pide sin que un fallo se
+cuele es `BaseResolveBridge._version_activa_o_rota()`.
+
 CUANDO SE LANZA Y CUANDO SE DEVUELVE False
 -------------------------------------------
 * **Lanza `ResolveError`** todo lo que es un error de programa o una precondicion
@@ -114,7 +133,8 @@ class VersionIndeterminada(EscrituraFueraDeVersion):
 
     Es distinto de `EscrituraFueraDeVersion` a secas: alli SABEMOS que la version
     es del usuario; aqui no sabemos nada. `GetCurrentVersion()` ha devuelto una
-    cadena vacia, un `None` o algo que no es un nombre.
+    cadena vacia, un `None`, un diccionario del que no sale ningun nombre, o ha
+    reventado directamente. Las cuatro acaban aqui.
 
     **Aun asi bloquea**, y hereda de `EscrituraFueraDeVersion` para que quien ya
     capturaba aquella siga capturando esta. El razonamiento esta entero en
@@ -212,6 +232,120 @@ def validar_nombre_version(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+#: Claves por las que puede venir el nombre si `GetCurrentVersion()` devolviera
+#: un diccionario. La API de Resolve devuelve diccionarios en varios sitios
+#: (`GetSetting`, los marcadores, los metadatos), asi que es un modo de fallo
+#: plausible y no una paranoia. Nadie ha visto esta llamada contestar de verdad,
+#: asi que se aceptan los dos nombres razonables y se bloquea con todo lo demas.
+CLAVES_NOMBRE_VERSION: tuple[str, ...] = ("versionName", "name")
+
+
+class RespuestaRota:
+    """Marcador: `GetCurrentVersion()` no contesto nada, REVENTO.
+
+    No es un valor de la API: es como se mete "la llamada ha lanzado" en el
+    mismo sitio por donde pasan las otras tres respuestas raras (`""`, `None` y
+    un diccionario sin las claves buenas), para que las cuatro acaben en la
+    misma decision y en el mismo mensaje, que es lo unico que importa: **no se
+    escribe**.
+
+    Su `repr` sale tal cual en el mensaje de error, asi que dice el tipo y el
+    texto de la excepcion. Eso es justo lo que hace falta para diagnosticar.
+    """
+
+    __slots__ = ("excepcion",)
+
+    def __init__(self, excepcion: BaseException) -> None:
+        self.excepcion = excepcion
+
+    def __repr__(self) -> str:
+        return f"<lanzo {type(self.excepcion).__name__}: {self.excepcion}>"
+
+
+def nombre_de_version(respuesta: object) -> str:
+    """Traduce lo que conteste `GetCurrentVersion()` a un nombre, o a `""`.
+
+    **Este es el unico sitio de todo el proyecto que interpreta esa respuesta**,
+    y esta aqui a proposito: `FakeResolve` y `LiveResolve` tienen que entender
+    lo mismo, o el falso estaria probando otra cosa distinta de lo que hara el
+    de verdad.
+
+    Lo que se admite:
+
+    * una cadena -> es el nombre (se devuelve tal cual, con sus espacios);
+    * un diccionario con `versionName` (o `name`) -> ese valor. Es plausible:
+      la API devuelve diccionarios en varios sitios. Un diccionario SIN esas
+      claves devuelve `""`, o sea que bloquea.
+
+    Todo lo demas -> `""`, o sea "no se". `None`, un entero, una lista, un
+    `RespuestaRota`... Aqui no se adivina un nombre ni se inventa un
+    `SIDEB COLOR` por defecto: eso convertiria un fallo de la API en una
+    escritura encima del grado del usuario, que es exactamente lo que este
+    modulo existe para que no pase.
+    """
+    if isinstance(respuesta, str):
+        return respuesta
+    if isinstance(respuesta, dict):
+        for clave in CLAVES_NOMBRE_VERSION:
+            valor = respuesta.get(clave)
+            if isinstance(valor, str) and valor.strip():
+                return valor
+    return ""
+
+
+def _que_contesto(version_activa: object) -> str:
+    """Una frase que dice, en crudo, que devolvio `GetCurrentVersion()`.
+
+    El tipo va SIEMPRE, porque distinguir `''` de `None` de `{}` es la mitad del
+    diagnostico y los tres se parecen demasiado escritos.
+    """
+    if isinstance(version_activa, RespuestaRota):
+        return (
+            f"GetCurrentVersion() no ha contestado: ha lanzado "
+            f"{type(version_activa.excepcion).__name__}: {version_activa.excepcion}"
+        )
+    tipo = type(version_activa).__name__
+    if isinstance(version_activa, dict):
+        claves = ", ".join(repr(k) for k in list(version_activa)[:8]) or "(ninguna)"
+        return (
+            f"GetCurrentVersion() ha devuelto un diccionario (claves: {claves}) y no trae "
+            f"ninguna de las claves por las que se puede sacar el nombre "
+            f"({', '.join(CLAVES_NOMBRE_VERSION)}): {version_activa!r}"
+        )
+    return f"GetCurrentVersion() ha devuelto {version_activa!r} (tipo {tipo})"
+
+
+def _mensaje_version_indeterminada(
+    clip_id: str, version_activa: object, operacion: str
+) -> str:
+    """El texto del error que Mario va a leer con Resolve abierto.
+
+    Tiene que hacer tres cosas, y este orden es a proposito: decir **que
+    contesto la API** (para que no parezca magia), decir **que el sospechoso es
+    la API y no el**, y decir **que ejecutar** para saberlo en treinta segundos
+    en vez de en una tarde.
+    """
+    return (
+        f"{operacion}: no he podido saber en que version de color esta el clip {clip_id!r}, "
+        f"asi que no escribo nada.\n"
+        f"{_que_contesto(version_activa)}. De ahi no sale un nombre de version.\n"
+        f"ESTO NO ES CULPA TUYA NI DE TU PROYECTO: el sospechoso es la API de Resolve. La app "
+        f"pregunta en que version esta el clip antes de CADA escritura, justo para no pisarte el "
+        f"grado, y es esa pregunta la que no contesta.\n"
+        f"No escribo porque, si el clip estuviera en TU version, te borraria el grado en "
+        f"silencio, y la API de Resolve no tiene deshacer.\n"
+        f"QUE HACER, por orden:\n"
+        f"  1. Con Resolve y tu proyecto abiertos, ejecuta:  python3 probe/api_probe.py\n"
+        f"     Mira la pregunta V-0 del informe, que es exactamente esta: dice en crudo que "
+        f"contesta GetCurrentVersion() en cada clip y de que tipo.\n"
+        f"  2. Si V-0 dice que va bien y esto sigue saliendo, mandame el informe: es un caso "
+        f"que no habiamos visto.\n"
+        f"  3. Si hay prisa y sabes lo que haces, la via de escape apaga esta proteccion (y "
+        f"entonces se escribe donde sea que este el clip, con lo que eso implica):\n"
+        f"     bridge.PELIGRO_escribir_fuera_de_la_version = True"
+    )
+
+
 def es_version_nuestra(nombre: str) -> bool:
     """¿Esa version la ha creado la app?
 
@@ -262,36 +396,62 @@ class BaseResolveBridge:
     def _validar_nodo(node_index: int, n_nodos: int | None = None) -> int:
         return validar_indice_nodo(node_index, n_nodos)
 
-    def _exigir_version_propia(self, clip_id: str, version_activa: str, operacion: str) -> None:
+    def _version_activa_o_rota(self, clip_id: str) -> object:
+        """Pregunta la version activa **sin dejar que un fallo se cuele**.
+
+        Es el `GetCurrentVersion()` de la regla de oro, y devuelve lo que
+        conteste **tal cual**, sin convertirlo a cadena: quien decide que
+        significa es `_exigir_version_propia`, y para decidirlo necesita ver el
+        valor crudo.
+
+        Si la llamada REVIENTA, no se propaga la excepcion: se envuelve en un
+        `RespuestaRota`, que por lo que a la regla de oro respecta es una
+        respuesta rara mas. Asi las cuatro formas de portarse mal que tiene esta
+        llamada —cadena vacia, `None`, diccionario sin nombre y excepcion—
+        acaban en el mismo sitio, con el mismo mensaje y con la misma decision:
+        **no se escribe**. Si se dejara salir la excepcion, la escritura
+        tampoco ocurriria (bien), pero el que lo leyera veria un error de la API
+        en crudo en vez de la explicacion de que mirar (mal).
+
+        Ojo, que esto se traga tambien un `ResolveError` legitimo (un clip que
+        no existe, por ejemplo). No pasa: las cinco escrituras resuelven el clip
+        ANTES de llegar aqui, asi que a esta altura lo unico que puede fallar es
+        la consulta de la version. Y aunque se colara, el resultado seria
+        negarse a escribir y decir que mirar, que es la direccion segura.
+        """
+        try:
+            return self.current_version(clip_id)  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001 - la API puede lanzar cualquier cosa
+            return RespuestaRota(exc)
+
+    def _exigir_version_propia(self, clip_id: str, version_activa: object, operacion: str) -> None:
         """LA REGLA DE ORO. Nada de escribir encima del grado de nadie.
 
         Se llama al final de las validaciones de cada escritura, justo antes de
         tocar nada: asi un indice de nodo malo o una ruta de LUT mala siguen
         saliendo como lo que son, y no disfrazados de problema de version.
+
+        `version_activa` es **lo que conteste la API, en crudo**, no una cadena
+        ya limpia: puede ser un `None`, un diccionario o un `RespuestaRota`. Se
+        interpreta aqui (con `nombre_de_version`) para que el mensaje de error
+        pueda decir que contesto exactamente, que es la mitad del valor que
+        tiene el mensaje.
         """
         if self.PELIGRO_escribir_fuera_de_la_version:
             return
+        nombre = nombre_de_version(version_activa)
         # Caso 1: no se puede SABER en que version estamos. Nadie ha visto
         # nunca `GetCurrentVersion()` contestar contra Resolve de verdad, asi
         # que este camino es perfectamente posible manana por la mañana.
-        if not isinstance(version_activa, str) or not version_activa.strip():
+        if not nombre.strip():
             raise VersionIndeterminada(
-                f"{operacion}: no he podido saber en que version de color esta el clip "
-                f"{clip_id!r}. GetCurrentVersion() ha devuelto {version_activa!r}, que no es un "
-                f"nombre de version.\n"
-                f"No escribo nada: si resultara que el clip esta en la version del usuario, le "
-                f"borraria el grado y no hay forma de deshacerlo.\n"
-                f"Esto huele a la API, no a ti. Ejecuta `python3 probe/api_probe.py` y mira la "
-                f"pregunta V-0, que es justo esta. Si el probe dice que GetCurrentVersion va bien "
-                f"en tu Resolve y aun asi sale esto, avisame.\n"
-                f"Para salir del paso a sabiendas: "
-                f"`bridge.PELIGRO_escribir_fuera_de_la_version = True`."
+                _mensaje_version_indeterminada(clip_id, version_activa, operacion)
             )
         # Caso 2: se sabe, y no es nuestra.
-        if es_version_nuestra(version_activa):
+        if es_version_nuestra(nombre):
             return
         raise EscrituraFueraDeVersion(
-            f"{operacion}: la version activa del clip {clip_id!r} es {version_activa!r}, que no "
+            f"{operacion}: la version activa del clip {clip_id!r} es {nombre!r}, que no "
             f"es de la app. Ahi esta el grado del usuario y no se toca.\n"
             f"Antes de escribir hay que crear o seleccionar la version {VERSION_NAME!r}: la "
             f"forma buena es `aplicar_grado_seguro(bridge, clip_id, ...)`, que ya lo hace, o "
@@ -568,6 +728,7 @@ def resumen_nodos(nodos: list[NodeInfo]) -> str:
 
 
 __all__ = [
+    "CLAVES_NOMBRE_VERSION",
     "BaseResolveBridge",
     "ClipNoEncontrado",
     "EscrituraFueraDeVersion",
@@ -575,6 +736,7 @@ __all__ = [
     "NodoInvalido",
     "OperacionNoDisponible",
     "ResolveNoConectado",
+    "RespuestaRota",
     "ResultadoAplicacion",
     "RutaLUTInvalida",
     "TimelineNoAbierto",
@@ -585,6 +747,7 @@ __all__ = [
     "asegurar_version",
     "copiar_grado_seguro",
     "es_version_nuestra",
+    "nombre_de_version",
     "resumen_nodos",
     "validar_indice_nodo",
     "validar_nombre_version",
