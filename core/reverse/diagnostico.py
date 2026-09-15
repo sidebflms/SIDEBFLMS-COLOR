@@ -135,6 +135,22 @@ from core.contracts import (
     Hotspot,
     ReverseDiagnosis,
 )
+from core.umbrales import (
+    AREA_MINIMA_HOTSPOT,
+    FRACCION_DE_PICO,
+    SUELO_GANANCIA_LOCAL,
+    UMBRAL_COBERTURA_BAJA,
+    UMBRAL_DE_HOTSPOT,
+    UMBRAL_DE_PURO,
+    UMBRAL_MONOTONIA_RADIAL,
+    UMBRAL_MOVIMIENTO_NULO,
+    UMBRAL_R2_LINEAL,
+    UMBRAL_R2_RADIAL,
+    UMBRAL_RECORRIDO_GANANCIA,
+    UMBRAL_RECORRIDO_LINEAL,
+    UMBRAL_REPRODUCIBLE_PURO,
+    UMBRAL_TEXTURA,
+)
 
 __all__ = [
     "AREA_MINIMA_HOTSPOT",
@@ -162,16 +178,13 @@ __all__ = [
     "mapa_de_residuo",
 ]
 
-#: Un ΔE2000 de 1.0 es el umbral clasico de "dos colores que no se distinguen
-#: puestos uno al lado del otro". Por debajo de eso no hay nada que senalar.
-UMBRAL_DE_HOTSPOT: float = 1.0
-
-#: Lo mismo, aplicado al percentil 95 del residuo, para decidir `is_pure_lut`.
-#: O sea: "el 95% de la imagen esta por debajo de lo que el ojo distingue".
-UMBRAL_DE_PURO: float = 1.0
-
-#: Y ademas hay que haberse llevado casi todo el grado.
-UMBRAL_REPRODUCIBLE_PURO: float = 0.95
+# Los umbrales que deciden un veredicto que Mario lee ("es un LUT puro",
+# "esto es una vineta", "esto es textura") viven en `core.umbrales`, que es el
+# unico sitio donde se escriben. Aqui se reexportan con el mismo nombre de
+# siempre para no romper a quien los importe de este modulo, pero el valor y su
+# porque estan alli. Los `SIGMA_*` NO son umbrales: son la escala de suavizado
+# con la que se mira cada campo, o sea implementacion de este modulo, y por eso
+# se quedan aqui.
 
 #: Sigma de la gaussiana con la que se suaviza el campo de ganancia para buscar
 #: la vineta, en **fraccion de `min(alto, ancho)`**. Una vineta es lo mas de
@@ -186,51 +199,6 @@ SIGMA_LOCAL: float = 0.03
 
 #: Y lo mismo para separar la alta de la baja frecuencia del residuo ΔE2000.
 SIGMA_TEXTURA: float = 0.02
-
-#: Cuanta varianza del campo de ganancia tiene que explicar el perfil radial.
-#: **Se mide sobre el campo de ganancia, no sobre el ΔE2000.** El mismo numero
-#: sobre el ΔE2000 era la puerta que se quedaba a un 4% de abrirse.
-UMBRAL_R2_RADIAL: float = 0.30
-
-#: Y cuanto tiene que depender del radio (|Pearson| del perfil contra el radio).
-#: En valor absoluto: una vineta que aclara hacia fuera es igual de imposible de
-#: meter en un LUT que una que oscurece, y el signo se reporta aparte.
-UMBRAL_MONOTONIA_RADIAL: float = 0.55
-
-#: Recorrido minimo del perfil radial del logaritmo de la ganancia de luma.
-#: 0.12 en logaritmo son unas 0.17 paradas de luz entre el centro y el borde.
-#: Medido: "nada espacial" da 0.000 y "grano fuerte" 0.004; la vineta mas floja
-#: que se ha probado (0.35) da 0.27 y una ventana sola 0.19 (pero suspende las
-#: otras dos puertas).
-UMBRAL_RECORRIDO_GANANCIA: float = 0.12
-
-#: Cuanta varianza tiene que explicar un plano inclinado para llamarlo degradado.
-UMBRAL_R2_LINEAL: float = 0.50
-
-#: Y cuanto tiene que recorrer ese plano, en logaritmo de ganancia.
-UMBRAL_RECORRIDO_LINEAL: float = 0.10
-
-#: Suelo absoluto del umbral de zona local, en norma del residuo de ganancia por
-#: canal. 0.08 es un 8% de ganancia local, algo mas de un octavo de parada. Por
-#: debajo de eso no se distingue del grano: el grano mas fuerte que se ha medido
-#: (sigma 0.012 sobre el coloreado) llega a 0.045 de pico.
-SUELO_GANANCIA_LOCAL: float = 0.08
-
-#: El contorno de la zona se traza a esta fraccion de la altura del pico sobre
-#: la mediana. Es un criterio **sin escala**: una ventana floja se recorta igual
-#: de bien que una fuerte, y no hay ningun numero calibrado contra un caso.
-FRACCION_DE_PICO: float = 0.40
-
-#: Desviacion tipica del residuo de ALTA frecuencia, en ΔE2000, por encima de la
-#: cual se declara textura (grano, enfoque, reduccion de ruido, halacion).
-#: Medido: sin nada 0.11, compresion h264 fuerte 0.5-0.9, vineta o ventana
-#: 1.3-1.7 (es el error del ajuste del LUT en los bordes del contenido), grano
-#: de verdad 3.8.
-UMBRAL_TEXTURA: float = 2.5
-
-#: Area minima de una componente conexa, en fraccion de la imagen. Por debajo es
-#: grano, no una zona.
-AREA_MINIMA_HOTSPOT: float = 0.002
 
 #: Mas de esto no se ensena: la GUI no cabe y nadie lee doce cajas.
 MAX_HOTSPOTS: int = 8
@@ -647,9 +615,9 @@ def diagnosticar(
             "Hay pixeles no finitos (NaN o infinito) en la pareja; el diagnostico solo mira "
             "los finitos y la fraccion reproducible no es de fiar."
         )
-    elif mov_medio < 0.05:
+    elif mov_medio < UMBRAL_MOVIMIENTO_NULO:
         # El grado no mueve el color: no hay fraccion que calcular.
-        reproducible = 1.0 if res_medio < 0.05 else 0.0
+        reproducible = 1.0 if res_medio < UMBRAL_MOVIMIENTO_NULO else 0.0
         notas.append(
             f"El coloreado apenas se mueve respecto al original ({mov_medio:.3f} dE2000 de media). "
             f"Esto no es un grado, es el mismo plano."
@@ -759,7 +727,7 @@ def diagnosticar(
         )
 
     fraccion = cobertura.coverage_fraction()
-    if fraccion < 0.005 and not puro:
+    if fraccion < UMBRAL_COBERTURA_BAJA and not puro:
         notas.append(
             f"Ojo: el plano solo cubre el {fraccion * 100:.2f}% de las celdas del cubo. Parte del "
             f"residuo puede ser falta de datos y no algo espacial."

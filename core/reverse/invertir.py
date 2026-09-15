@@ -86,6 +86,12 @@ from core.reverse.relleno import (
     proyectar_monotona,
     rejilla_de_entradas,
 )
+from core.umbrales import (
+    MUESTRAS_MINIMAS_CDL,
+    MUESTRAS_MINIMAS_CELDA,
+    UMBRAL_COBERTURA_BAJA,
+    UMBRAL_FUERA_DE_DOMINIO_AVISO,
+)
 
 __all__ = [
     "ITERACIONES_REFINADO",
@@ -94,9 +100,10 @@ __all__ = [
     "invertir_grado",
 ]
 
-#: Por debajo de esto no se ajusta CDL: diez parametros con cuatro pixeles es
-#: ruido con forma de grado. Se devuelve la identidad y se dice.
-MUESTRAS_MINIMAS_CDL: int = 64
+# `MUESTRAS_MINIMAS_CDL`, `UMBRAL_COBERTURA_BAJA`, `UMBRAL_FUERA_DE_DOMINIO_AVISO`
+# y `MUESTRAS_MINIMAS_CELDA` deciden lo que Mario lee en pantalla, asi que viven
+# en `core.umbrales`. Se reexporta `MUESTRAS_MINIMAS_CDL` con su nombre de
+# siempre porque lo importa `core.reverse` y los tests.
 
 #: El ajuste del CDL es no lineal y no mejora nada por encima de este numero de
 #: pixeles. El LUT si usa TODOS los pixeles: ahi cada muestra cuenta.
@@ -138,7 +145,7 @@ def invertir_grado(
     *,
     tam_lut: int = LUT_SIZE_DEFAULT,
     space: ColorSpaceName = WORKING_SPACE,
-    min_muestras: int = 4,
+    min_muestras: int = MUESTRAS_MINIMAS_CELDA,
 ) -> ReverseResult:
     """Recupera el grado que lleva `original` a `coloreado`.
 
@@ -196,7 +203,7 @@ def invertir_grado(
 
     fuente = cdl.apply(src)
     fuera = fraccion_fuera_de_dominio(fuente)
-    if fuera > 0.001:
+    if fuera > UMBRAL_FUERA_DE_DOMINIO_AVISO:
         notas.append(
             f"El {fuera * 100:.2f}% de los pixeles, despues del CDL, se sale del dominio 0..1 del "
             f"LUT. Ahi el LUT sujeta al borde (igual que Resolve) y el color no se transforma."
@@ -417,7 +424,7 @@ def _con_razones_de_cobertura(
     razones y metricas que el que lee la GUI necesita para entender el numero.
     """
     razones = list(confianza.reasons)
-    if fraccion < 0.005:
+    if fraccion < UMBRAL_COBERTURA_BAJA:
         razones.append(
             f"El plano solo cubre el {fraccion * 100:.2f}% del cubo: casi todo el LUT esta "
             f"extrapolado. Vale para este plano; para otro con colores distintos, no."

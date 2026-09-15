@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from core.umbrales import UMBRAL_CORRELACION_FIABLE
+
 __all__ = [
     "MAX_DESPLAZAMIENTO_PX",
     "MARGEN_MEJORA",
@@ -50,10 +52,12 @@ MAX_DESPLAZAMIENTO_PX: int = 32
 #: desplazamiento. Sin margen, el ruido decide y se desplaza por nada.
 MARGEN_MEJORA: float = 0.01
 
-#: Por debajo de esta correlacion de gradientes decimos que no nos fiamos de que
-#: sean el mismo encuadre. Medido: el mismo plano da >0.9; un retrato contra un
-#: exterior da ~0.0.
-UMBRAL_CORRELACION_FIABLE: float = 0.50
+# `UMBRAL_CORRELACION_FIABLE` decide la frase "no puedo garantizar que sean el
+# mismo encuadre", que Mario lee como razon de confianza, asi que vive en
+# `core.umbrales`. Aqui se reexporta con el nombre de siempre.
+#
+# `MAX_DESPLAZAMIENTO_PX` y `MARGEN_MEJORA` se quedan: no son veredictos, son
+# los limites de la busqueda de desplazamiento de este modulo.
 
 
 def redimensionar(img: np.ndarray, alto: int, ancho: int) -> np.ndarray:

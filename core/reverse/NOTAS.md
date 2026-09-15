@@ -565,3 +565,75 @@ Por orden de probabilidad de que le pase a Mario:
 
 De extremo a extremo prueba `tests/test_entregables.py` (T1 y T2), que es del
 orquestador y es el contrato de este módulo.
+
+
+---
+
+## DÍA 3 · dónde viven ahora los umbrales de decisión
+
+El hallazgo más grave del día 2 no fue ninguno de los cuatro casos auditados:
+fue que **`gui/reverse_puente.py` tenía su propia definición, más floja, de
+«esto es un LUT puro»** (0.92 a secas, frente al 0.95 **y** el percentil 95 por
+debajo de 1.0 ΔE2000 que pide el núcleo), y que la GUI caía a ese criterio ante
+cualquier excepción. Eso no es un bug suelto: es una clase de bug, la de un
+criterio que se puede escribir dos veces.
+
+Los umbrales de este módulo que **deciden un veredicto que Mario lee** se han
+mudado a **`core/umbrales.py`**, que es desde hoy el único sitio donde se
+escribe un criterio de decisión. Aquí se reexportan con el mismo nombre de
+siempre, así que nada de lo que importaba de este módulo se ha roto.
+
+**Ni un valor se ha movido.** Lo afirma `tests/test_umbrales.py`, que lleva la
+tabla de valores de origen tecleada desde el código anterior al barrido, y lo
+confirman las cuatro cifras de titular de `tests/test_entregables.py`, que
+salen idénticas.
+
+Lo que **no** se ha mudado son los parámetros de implementación: sólo le
+importan a este módulo y llevarlos a un archivo común habría creado un
+módulo-Dios que acopla todo con todo.
+
+`tests/test_umbrales_literales.py` recorre el AST de `core/` y se pone rojo si
+vuelve a aparecer un literal de umbral suelto.
+
+**De este módulo se han mudado**: `UMBRAL_DE_HOTSPOT`, `UMBRAL_DE_PURO`,
+`UMBRAL_REPRODUCIBLE_PURO`, las cinco puertas de viñeta y degradado
+(`UMBRAL_R2_RADIAL`, `UMBRAL_MONOTONIA_RADIAL`, `UMBRAL_RECORRIDO_GANANCIA`,
+`UMBRAL_R2_LINEAL`, `UMBRAL_RECORRIDO_LINEAL`), `SUELO_GANANCIA_LOCAL`,
+`FRACCION_DE_PICO`, `UMBRAL_TEXTURA`, `AREA_MINIMA_HOTSPOT`,
+`MUESTRAS_MINIMAS_CDL` y `UMBRAL_CORRELACION_FIABLE` — todas deciden una
+etiqueta o una frase que sale en pantalla.
+
+**Y tres que no tenían nombre siquiera**, que es de lo que iba el encargo:
+
+- el `0.05` de `mov_medio < 0.05`, escrito **dos veces seguidas** en la misma
+  condición de `diagnostico.py`, que es lo que decide «esto no es un grado, es
+  el mismo plano». Hoy es `UMBRAL_MOVIMIENTO_NULO`. Sigue sin saberse de dónde
+  sale (§9);
+- el `0.005` de cobertura del cubo, **escrito dos veces**: en
+  `diagnostico.py` y en `invertir.py`, con dos frases distintas y sin nada que
+  garantizara que seguían coincidiendo. Hoy es `UMBRAL_COBERTURA_BAJA`. Es
+  exactamente la forma del bug de `gui/reverse_puente.py`;
+- el `0.001` de `fuera > 0.001` en `invertir.py`. Hoy es
+  `UMBRAL_FUERA_DE_DOMINIO_AVISO`.
+
+Y el **`4` de «esta celda tiene datos suficientes»**, que estaba escrito
+**tres** veces: como defecto de `min_muestras` en `acumulacion.py`, como
+defecto de `min_muestras` en `invertir.py` y como defecto de
+`CoverageMap.min_samples` en `core/contracts.py`. Los dos de aquí apuntan ya a
+`MUESTRAS_MINIMAS_CELDA`; **el de los contratos sigue siendo una tercera
+escritura del mismo número** y ese archivo es del orquestador, así que se ha
+dejado un test (`test_el_cuatro_de_la_cobertura_sigue_cuadrando_con_el_de_los_contratos`)
+que salta si los dos se separan.
+
+**Se quedan aquí**, porque no deciden ningún veredicto: los tres `SIGMA_*` (son
+la escala de suavizado con la que se mira cada campo), `CORONAS`,
+`MAX_HOTSPOTS` (es un tope de presentación), `RADIO_MAXIMO_CENTRO` (es una
+condición de validez del modelo, no un umbral sobre una medida), `_EPS_LOG`,
+`PESO_DE_MUESTRA` (es el peso geométrico mínimo de un nodo, 1/8: no es
+calibrable, sólo tiene sentido dentro del reparto trilineal), `MAX_PIXELES_CDL`,
+`ITERACIONES_REFINADO`, `BARRIDOS_SUAVIZADO`, `RIDGE_BASE`, `LAMBDA_SUAVIDAD`,
+`PESO_MINIMO`, `MAX_DESPLAZAMIENTO_PX` y `MARGEN_MEJORA`.
+
+La lista de §9 —lo que no se pudo deducir— **se ha respetado entera**: los
+«no se sabe» van copiados tal cual en `core/umbrales.py`, sin inventar ninguna
+justificación que suene bien.

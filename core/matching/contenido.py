@@ -146,6 +146,12 @@ from typing import Any
 import numpy as np
 
 from core.contracts import LUMA_REC709, PERCENTILE_LEVELS
+from core.umbrales import (
+    UMBRAL_CROMA_EXPLICABLE,
+    UMBRAL_DESAJUSTE,
+    UMBRAL_HUELLA,
+    UMBRAL_PERFIL_EXPLICABLE,
+)
 
 __all__ = [
     "ALFA_SUAVIZADO",
@@ -173,16 +179,11 @@ ALFA_SUAVIZADO: float = 0.5
 PESO_PERFIL: float = 1.0
 PESO_CROMA: float = 1.0
 
-#: Por encima de esto, las dos escenas no se consideran comparables **cuando no
-#: hay huella**. Calibrado: ver NOTAS.md §4. Es la via debil: el hueco medido es
-#: de solo 0.14 (de 0.612 a 0.753) y un grado muy agresivo lo cruza.
-UMBRAL_DESAJUSTE: float = 0.70
-
-#: Maxima distancia de huella tolerada, con `distancia = 1 - parecido`. O sea:
-#: se exige un parecido de al menos 0.50. Punto medio del hueco MEDIDO con la
-#: huella del agente B: peor par comparable 0.756, mejor par no comparable 0.219.
-#: Ver NOTAS.md §4 para la tabla completa.
-UMBRAL_HUELLA: float = 0.50
+# `UMBRAL_DESAJUSTE` y `UMBRAL_HUELLA` deciden `content_mismatch`, o sea la
+# frase "estas dos escenas no son comparables" que la GUI tiene que ensenar
+# aunque la confianza salga alta; y los dos `*_EXPLICABLE` deciden que razones
+# se escriben. Los cuatro viven en `core.umbrales` y aqui se reexportan con el
+# nombre de siempre.
 
 _I_P5 = PERCENTILE_LEVELS.index(5.0)
 _I_P50 = PERCENTILE_LEVELS.index(50.0)
@@ -373,7 +374,7 @@ def desajuste_de_contenido(
                 f"{parecido:.0%} en composicion, encuadre y reparto del detalle.",
             )
         )
-    if d_croma > 0.35:
+    if d_croma > UMBRAL_CROMA_EXPLICABLE:
         razones.append(
             (
                 d_croma,
@@ -387,7 +388,7 @@ def desajuste_de_contenido(
                 ),
             )
         )
-    if d_perfil > 0.12:
+    if d_perfil > UMBRAL_PERFIL_EXPLICABLE:
         razones.append(
             (
                 d_perfil,

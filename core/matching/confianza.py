@@ -56,40 +56,15 @@ from __future__ import annotations
 import numpy as np
 
 from core.contracts import Confidence, confidence_level
+from core.umbrales import PENA_DESAJUSTE, UMBRAL_SUBNOTA_EXPLICABLE
+from core.umbrales import RAMPAS_DE_CONFIANZA as UMBRALES
 
 __all__ = ["METRICAS_ACEPTADAS", "PENA_DESAJUSTE", "UMBRALES", "puntuar_confianza"]
 
-#: Los dos extremos de cada rampa: (valor con subnota 1, valor con subnota 0).
-UMBRALES: dict[str, tuple[float, float]] = {
-    # Muestras: la rampa va en log10. 24 pixeles no es nada; 20.000 ya es de
-    # sobra para diez parametros.
-    "n_muestras": (20000.0, 24.0),
-    # Solape de los histogramas reales DESPUES del transporte (ver
-    # `solape_de_distribuciones`). Medido: el mismo plano a otra exposicion da
-    # 0.99, el mismo decorado con otra persona 0.78-0.92, medio fotograma 0.88,
-    # y un exterior contra un retrato 0.45. El corte va entre medias.
-    "solape": (0.90, 0.40),
-    # Condicion de la covarianza del origen, en log10. Medido sobre el material
-    # del generador: un retrato de estudio da 1.1e3, un exterior 1.3e3, una
-    # carta de color 77 y un campo de ruido 5. O sea que 1e3 NO es una nube
-    # degenerada, es una escena normal: en una imagen de verdad la variacion de
-    # luma es mil veces la de croma y eso no tiene nada de malo. El corte esta
-    # donde deja de haber informacion: un degradado de un solo tono da 1.1e10 y
-    # una rampa de gris (rango 1 de verdad) 1e299.
-    "condicion": (1e5, 1e10),
-    # Residuo del ajuste en ΔE2000 medio. 1.0 es el umbral clasico de "no se
-    # distingue"; 8.0 es un error que se ve desde la puerta.
-    "residuo_de": (1.0, 8.0),
-    # Fraccion de la referencia fuera del rango observado en el origen.
-    "extrapolacion": (0.02, 0.40),
-    # Estirado maximo de la matriz de transporte.
-    "ganancia": (4.0, 100.0),
-    # Fraccion de pixeles que venian con NaN o infinito.
-    "fraccion_no_finita": (0.0, 0.25),
-}
-
-#: Cuanto multiplica un desajuste de contenido. Ver el docstring.
-PENA_DESAJUSTE: float = 0.35
+# `UMBRALES` (las siete rampas) y `PENA_DESAJUSTE` deciden la nota, y la nota
+# decide el alta/media/baja que Mario lee en la lista de clips. O sea que viven
+# en `core.umbrales`, como `RAMPAS_DE_CONFIANZA`. Aqui se reexportan con el
+# nombre de siempre para no romper a quien los importe de este modulo.
 
 METRICAS_ACEPTADAS: tuple[str, ...] = (
     *UMBRALES.keys(),
@@ -255,7 +230,7 @@ def _razones(
         )
 
     for clave, _ in sorted(subnotas.items(), key=lambda par: par[1]):
-        if subnotas[clave] < 0.85 and clave in frases:
+        if subnotas[clave] < UMBRAL_SUBNOTA_EXPLICABLE and clave in frases:
             fuera.append(frases[clave])
 
     if not fuera:

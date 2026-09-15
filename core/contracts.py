@@ -34,17 +34,25 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 import numpy as np
 
+from core.umbrales import (
+    CONFIDENCE_ALTA,
+    CONFIDENCE_MEDIA,
+    LUT_SIZE_DEFAULT,
+    MUESTRAS_MINIMAS_CELDA,
+)
+
 # ---------------------------------------------------------------------------
 # Constantes congeladas
 # ---------------------------------------------------------------------------
+#
+# Las tres que deciden un veredicto que el usuario ve --CONFIDENCE_ALTA,
+# CONFIDENCE_MEDIA y LUT_SIZE_DEFAULT-- se DEFINEN en `core/umbrales.py`, que es
+# el unico sitio donde se escribe un criterio de decision, y se reexportan desde
+# aqui para no romper a nadie. `core.umbrales` no importa nada de `core/`, asi
+# que no hay ciclo.
 
 #: Espacio en el que opera todo el nucleo.
 WORKING_SPACE: str = "davinci_wg_intermediate"
-
-#: Tamano de rejilla por defecto de los LUT 3D que genera la app.
-#: 33 y no 65: 33**3 = 35.937 celdas, suficiente para un look y con muchisimas
-#: mas muestras por celda al invertir un grado. Ver BITACORA punto 4.
-LUT_SIZE_DEFAULT: int = 33
 
 #: Tamanos de rejilla que sabemos leer y escribir.
 LUT_SIZES_SOPORTADOS: tuple[int, ...] = (17, 33, 65)
@@ -315,11 +323,6 @@ class Confidence:
     metrics: dict[str, float] = field(default_factory=dict)
 
 
-#: Umbrales unicos de toda la app. No los redefinas en tu modulo.
-CONFIDENCE_ALTA: float = 0.75
-CONFIDENCE_MEDIA: float = 0.45
-
-
 def confidence_level(score: float) -> ConfidenceLevel:
     """Unico sitio donde un numero se convierte en alta/media/baja."""
     if score >= CONFIDENCE_ALTA:
@@ -382,7 +385,10 @@ class CoverageMap:
 
     counts: Array  # (N, N, N) int32
     variance: Array  # (N, N, N) float32, varianza del residuo por celda
-    min_samples: int = 4
+    #: Cuantas muestras reales necesita una celda para no contar como inventada.
+    #: El valor vive en `core.umbrales`, no aqui: era una segunda escritura del
+    #: mismo criterio, que es la forma exacta del bug de `reverse_puente`.
+    min_samples: int = MUESTRAS_MINIMAS_CELDA
 
     @property
     def size(self) -> int:

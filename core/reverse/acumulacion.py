@@ -64,6 +64,7 @@ from __future__ import annotations
 import numpy as np
 
 from core.contracts import LUT3D, LUT_SIZE_DEFAULT, CoverageMap
+from core.umbrales import MUESTRAS_MINIMAS_CELDA
 
 __all__ = [
     "DOMINIO_MAX",
@@ -132,7 +133,7 @@ def acumular_correspondencias(
     coloreado: np.ndarray,
     tam_lut: int = LUT_SIZE_DEFAULT,
     *,
-    min_muestras: int = 4,
+    min_muestras: int = MUESTRAS_MINIMAS_CELDA,
     tabla: LUT3D | np.ndarray | None = None,
 ) -> tuple[np.ndarray, CoverageMap]:
     """Reparte los pares (origen -> destino) por el cubo.

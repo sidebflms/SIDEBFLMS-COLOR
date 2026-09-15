@@ -408,3 +408,45 @@ dejo apuntadas en vez de hacerlas:
    dentro del test.
 
 Ninguna de las dos bloquea nada.
+
+
+---
+
+## DÍA 3 · dónde viven ahora los umbrales de decisión
+
+El hallazgo más grave del día 2 no fue ninguno de los cuatro casos auditados:
+fue que **`gui/reverse_puente.py` tenía su propia definición, más floja, de
+«esto es un LUT puro»** (0.92 a secas, frente al 0.95 **y** el percentil 95 por
+debajo de 1.0 ΔE2000 que pide el núcleo), y que la GUI caía a ese criterio ante
+cualquier excepción. Eso no es un bug suelto: es una clase de bug, la de un
+criterio que se puede escribir dos veces.
+
+Los umbrales de este módulo que **deciden un veredicto que Mario lee** se han
+mudado a **`core/umbrales.py`**, que es desde hoy el único sitio donde se
+escribe un criterio de decisión. Aquí se reexportan con el mismo nombre de
+siempre, así que nada de lo que importaba de este módulo se ha roto.
+
+**Ni un valor se ha movido.** Lo afirma `tests/test_umbrales.py`, que lleva la
+tabla de valores de origen tecleada desde el código anterior al barrido, y lo
+confirman las cuatro cifras de titular de `tests/test_entregables.py`, que
+salen idénticas.
+
+Lo que **no** se ha mudado son los parámetros de implementación: sólo le
+importan a este módulo y llevarlos a un archivo común habría creado un
+módulo-Dios que acopla todo con todo.
+
+`tests/test_umbrales_literales.py` recorre el AST de `core/` y se pone rojo si
+vuelve a aparecer un literal de umbral suelto.
+
+**De este módulo se han mudado** los tres que deciden un aviso que Mario lee en
+la lista de clips: `FRACCION_PIEL_MINIMA` y `PIXELES_PIEL_MINIMOS` (deciden si
+`skin_locus` sale `None` y si se avisa de que no hay piel suficiente) y el
+`0.999` de `saturation_hist[0] >= 0.999`, que **no tenía nombre** y decide el
+aviso «la imagen es prácticamente neutra entera». Hoy es `UMBRAL_NEUTRA_TOTAL`,
+y va con lo que dice §4.5 tal cual: es un umbral a ojo.
+
+**Se quedan aquí**: `PERCENTIL_NEGRO` y `PERCENTIL_BLANCO` (definen qué *es* el
+punto negro y el blanco, no deciden nada), `MAX_PIXELES_ESTADISTICA`,
+`MAX_PIXELES_POR_DEFECTO`, `SEMILLA_MUESTREO`, `N_FOTOGRAMAS_POR_DEFECTO`,
+`TIMEOUT_S`, `REJILLA_LUMA`, `BINS_ORIENTACION`, `REJILLA_DETALLE`,
+`LADO_GRADIENTE` y `PESOS`. Todos son parámetros de implementación.

@@ -470,3 +470,52 @@ tercero, se mueve tal cual.
 7. **El `TITLE` del `.cube` se recorta a 100 caracteres** y las comillas se
    convierten en apóstrofos. Dentro del bundle el título va aparte en el JSON,
    así que ahí no se pierde nada.
+
+
+---
+
+## DÍA 3 · dónde viven ahora los umbrales de decisión
+
+El hallazgo más grave del día 2 no fue ninguno de los cuatro casos auditados:
+fue que **`gui/reverse_puente.py` tenía su propia definición, más floja, de
+«esto es un LUT puro»** (0.92 a secas, frente al 0.95 **y** el percentil 95 por
+debajo de 1.0 ΔE2000 que pide el núcleo), y que la GUI caía a ese criterio ante
+cualquier excepción. Eso no es un bug suelto: es una clase de bug, la de un
+criterio que se puede escribir dos veces.
+
+Los umbrales de este módulo que **deciden un veredicto que Mario lee** se han
+mudado a **`core/umbrales.py`**, que es desde hoy el único sitio donde se
+escribe un criterio de decisión. Aquí se reexportan con el mismo nombre de
+siempre, así que nada de lo que importaba de este módulo se ha roto.
+
+**Ni un valor se ha movido.** Lo afirma `tests/test_umbrales.py`, que lleva la
+tabla de valores de origen tecleada desde el código anterior al barrido, y lo
+confirman las cuatro cifras de titular de `tests/test_entregables.py`, que
+salen idénticas.
+
+Lo que **no** se ha mudado son los parámetros de implementación: sólo le
+importan a este módulo y llevarlos a un archivo común habría creado un
+módulo-Dios que acopla todo con todo.
+
+`tests/test_umbrales_literales.py` recorre el AST de `core/` y se pone rojo si
+vuelve a aparecer un literal de umbral suelto.
+
+**De este módulo se han mudado** los cuatro que deciden un código de problema
+que Mario lee antes de que se escriba nada en Resolve: `UMBRAL_BANDING`,
+`SALTO_MINIMO_BANDING`, `UMBRAL_SOMBRAS`, `TOL_MONOTONIA` y `TOL_GAMUT`.
+
+**Y uno que no tenía nombre**: el `1e-6` de `if recorrido > 1e-6` de
+`_lut_plano`, que es lo que decide el error «este LUT aplasta la imagen entera a
+un solo color». Hoy es `UMBRAL_RECORRIDO_LUT_PLANO`. Estaba a doscientas líneas
+de un `_PISO_ESCALA = 1e-6` que vale lo mismo y significa otra cosa (una guarda
+de división), que es justo cómo se confunden dos criterios.
+
+**Se quedan aquí**: `_PISO_ESCALA` (guarda de división),
+`MAX_PROBLEMAS_POR_CODIGO` (tope de presentación), `MAX_BYTES_CUBE`,
+`MAX_BYTES_CDL`, `MAX_DESCOMPRIMIDO`, `MAX_ENTRADAS`, `LUT_SIZE_MIN`,
+`LUT_SIZE_MAX_LECTURA` y `TAMANO_ENTREGA_FINAL` — son límites de formato y de
+seguridad de fichero, no criterios de calidad.
+
+El punto 1 de «lo que dejo sin cerrar» sigue en pie tal cual: si algún día los
+avisos de banding cansan, lo que hay que tocar es `SALTO_MINIMO_BANDING`, que
+ahora está en `core/umbrales.py` con toda su historia escrita al lado.
