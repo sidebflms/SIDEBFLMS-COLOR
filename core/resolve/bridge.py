@@ -20,6 +20,17 @@ suya. Esto importa especialmente porque `ApplyGradeFromDRX` **reemplaza el arbol
 de nodos entero**: si algun dia la app lo usa, sin version previa se cargaria el
 trabajo de alguien.
 
+**Y no depende de que nadie se acuerde.** El puente se niega en redondo a
+escribir grado en un clip cuya version activa no sea una de la app: `set_cdl`,
+`set_lut`, `set_node_enabled`, `copy_grades` y `reset_all_grades` lanzan
+`EscrituraFueraDeVersion`. Hasta la revision de la ronda 1 esto era solo una
+convencion que vivia dentro de `aplicar_grado_seguro()`, y una convencion la
+rompe cualquiera que tenga el puente a mano. Ahora es un `if`.
+
+La via de escape existe, se llama `PELIGRO_escribir_fuera_de_la_version`, es un
+atributo del puente y tiene ese nombre para que se vea de lejos. La app no la
+usa nunca; los tests si, cuando montan "el grado que el usuario ya tenia".
+
 CUANDO SE LANZA Y CUANDO SE DEVUELVE False
 -------------------------------------------
 * **Lanza `ResolveError`** todo lo que es un error de programa o una precondicion
@@ -87,6 +98,17 @@ class VersionInvalida(ResolveError):
     """Nombre de version vacio o que no existe cuando tendria que existir."""
 
 
+class EscrituraFueraDeVersion(ResolveError):
+    """Se ha intentado escribir grado en una version que no es la de la app.
+
+    Esta es **la regla de oro convertida en error**. Hasta la ronda 1 de revision
+    la regla vivia solo dentro de `aplicar_grado_seguro()`, o sea que se cumplia
+    si el que llamaba se acordaba. Ahora la impone el propio puente: `set_cdl`,
+    `set_lut`, `set_node_enabled`, `copy_grades` y `reset_all_grades` se niegan a
+    escribir si la version activa del clip no es una nuestra.
+    """
+
+
 class OperacionNoDisponible(ResolveError):
     """La API no tiene esto, o una incognita F0-n dice que hoy asumimos que no."""
 
@@ -103,10 +125,21 @@ def validar_indice_nodo(node_index: int, n_nodos: int | None = None) -> int:
     un indice fuera de rango, devuelve False sin decir por que; preferimos
     lanzar y que se vea donde estaba el fallo.
     """
-    try:
-        idx = int(node_index)
-    except (TypeError, ValueError) as exc:
-        raise NodoInvalido(f"el indice de nodo tiene que ser un entero, llego {node_index!r}") from exc
+    # Un entero de verdad y nada mas. NO se admite un float, ni una cadena, ni
+    # un bool, y sobre todo NO se trunca: `int(2.9999999999)` es 2, o sea que un
+    # indice calculado que para cualquiera es el nodo 3 acabaria escribiendo en
+    # el 2 sin decir ni mu. Escribir en el nodo equivocado en silencio es justo
+    # el fallo que este modulo existe para evitar. Si a alguien le llega un
+    # indice decimal, que decida EL si es el 2 o el 3, y que lo redondee donde
+    # se pueda ver. Aqui no se adivina.
+    if isinstance(node_index, bool) or not isinstance(node_index, int):
+        raise NodoInvalido(
+            f"el indice de nodo tiene que ser un entero, y llego {node_index!r} "
+            f"({type(node_index).__name__}). No se convierte solo a proposito: truncar un "
+            f"2.9999999999 daria el nodo 2 cuando se queria el 3, y nadie se enteraria. "
+            f"Redondealo tu con round() antes de llamar."
+        )
+    idx = node_index
     if idx < 1:
         raise NodoInvalido(
             f"los indices de nodo de Resolve son 1-based: {idx} no es un nodo valido"
@@ -160,15 +193,48 @@ def validar_nombre_version(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def es_version_nuestra(nombre: str) -> bool:
+    """¿Esa version la ha creado la app?
+
+    Por convenio de nombre, y no hay otra forma: la API no marca de ningun modo
+    quien creo una version. Valen `SIDEB COLOR` y cualquiera que empiece por
+    `SIDEB COLOR ` (la del probe es `SIDEB COLOR PROBE`). `Version 1`, `Cliente`
+    o lo que sea que tenga Mario, no.
+
+    Si alguien llama a una version suya `SIDEB COLOR loquesea`, la app se la
+    creera. Es el precio de no tener forma de preguntarlo; el nombre es lo
+    bastante raro como para que no pase por accidente.
+    """
+    return nombre == VERSION_NAME or nombre.startswith(VERSION_NAME + " ")
+
+
 class BaseResolveBridge:
     """Lo que `FakeResolve` y `LiveResolve` hacen igual.
 
     No es un `Protocol` ni pretende serlo: es solo para no escribir dos veces
     las mismas cuatro validaciones. Quien manda sigue siendo
     `core.contracts.ResolveBridge`.
+
+    Aqui vive tambien **la regla de oro**, que ya no es una convencion: es un
+    `if`. Ver `_exigir_version_propia`.
     """
 
     incognitas: Incognitas = INCOGNITAS_CONSERVADORAS
+
+    #: VIA DE ESCAPE. Ponlo a True y el puente deja de proteger la version del
+    #: usuario: se escribe donde sea que este, y si eso pisa el grado de alguien,
+    #: es cosa tuya. Se llama asi de feo A PROPOSITO, para que salte a la vista
+    #: en una revision y para que se pueda buscar con grep en dos segundos.
+    #:
+    #: Usos legitimos, que los hay:
+    #:   * los tests, cuando montan "el grado que el usuario ya tenia";
+    #:   * una herramienta de diagnostico que tenga que tocar la version actual
+    #:     a sabiendas (el probe, por ejemplo).
+    #: Uso ilegitimo: la app. Si la app lo necesita, el diseno esta mal.
+    #:
+    #: Es un atributo y no un metodo para que se vea en el sitio donde se pone,
+    #: y para que no se pueda llamar de pasada desde otro modulo.
+    PELIGRO_escribir_fuera_de_la_version: bool = False
 
     def _validar_lut(self, lut_rel_path: str) -> str:
         return validar_ruta_lut_relativa(lut_rel_path, self.incognitas)
@@ -176,6 +242,27 @@ class BaseResolveBridge:
     @staticmethod
     def _validar_nodo(node_index: int, n_nodos: int | None = None) -> int:
         return validar_indice_nodo(node_index, n_nodos)
+
+    def _exigir_version_propia(self, clip_id: str, version_activa: str, operacion: str) -> None:
+        """LA REGLA DE ORO. Nada de escribir encima del grado de nadie.
+
+        Se llama al final de las validaciones de cada escritura, justo antes de
+        tocar nada: asi un indice de nodo malo o una ruta de LUT mala siguen
+        saliendo como lo que son, y no disfrazados de problema de version.
+        """
+        if self.PELIGRO_escribir_fuera_de_la_version:
+            return
+        if es_version_nuestra(version_activa):
+            return
+        raise EscrituraFueraDeVersion(
+            f"{operacion}: la version activa del clip {clip_id!r} es {version_activa!r}, que no "
+            f"es de la app. Ahi esta el grado del usuario y no se toca.\n"
+            f"Antes de escribir hay que crear o seleccionar la version {VERSION_NAME!r}: la "
+            f"forma buena es `aplicar_grado_seguro(bridge, clip_id, ...)`, que ya lo hace, o "
+            f"`asegurar_version(bridge, clip_id)` si quieres escribir tu a mano.\n"
+            f"Si de verdad sabes lo que haces y quieres escribir encima, pon "
+            f"`bridge.PELIGRO_escribir_fuera_de_la_version = True`."
+        )
 
     @staticmethod
     def _validar_version(name: str) -> str:
@@ -330,6 +417,11 @@ def aplicar_grado_seguro(
     """
     if lut_rel_path is not None:
         lut_rel_path = validar_ruta_lut_relativa(lut_rel_path, incognitas)
+    if not es_version_nuestra(validar_nombre_version(version)):
+        raise VersionInvalida(
+            f"la app solo escribe en versiones suyas, y {version!r} no lo es. Tiene que ser "
+            f"{VERSION_NAME!r} o empezar por {VERSION_NAME + ' '!r}."
+        )
 
     asegurar_pagina_color(bridge, incognitas)
     activa = asegurar_version(bridge, clip_id, version)
@@ -379,6 +471,53 @@ def aplicar_grado_seguro(
     )
 
 
+def copiar_grado_seguro(
+    bridge: ResolveBridge,
+    clip_origen: str,
+    clips_destino: list[str],
+    *,
+    version: str = VERSION_NAME,
+) -> ResultadoAplicacion:
+    """Copia el grado de un clip a otros SIN pisarle el grado a nadie.
+
+    `CopyGrades` reemplaza el arbol de nodos entero del destino, en la version
+    que tenga activa. Llamarlo a pelo sobre clips que estan en la version del
+    usuario es la forma mas rapida de cargarse una tarde de trabajo. Asi que
+    aqui se le crea (o se le selecciona) la version `SIDEB COLOR` a **cada
+    destino** antes de copiar nada.
+
+    Si algun destino no se puede preparar, no se copia a ninguno.
+    """
+    if not clips_destino:
+        return ResultadoAplicacion(
+            clip_id=clip_origen,
+            version=bridge.current_version(clip_origen),
+            cdl_escrito=False,
+            lut_escrito=False,
+            avisos=("no se ha dado ningun clip de destino: no se ha copiado nada",),
+        )
+    for destino in clips_destino:
+        asegurar_version(bridge, destino, version)
+    origen_version = bridge.current_version(clip_origen)
+    avisos: list[str] = []
+    if not es_version_nuestra(origen_version):
+        avisos.append(
+            f"el clip de origen {clip_origen!r} esta en la version {origen_version!r}, que no es "
+            f"de la app: se copia el grado que haya ahi, que es el del usuario"
+        )
+    if not bridge.copy_grades(clip_origen, list(clips_destino)):
+        raise ResolveError(
+            f"Resolve no ha copiado el grado de {clip_origen!r} a {clips_destino}"
+        )
+    return ResultadoAplicacion(
+        clip_id=clip_origen,
+        version=origen_version,
+        cdl_escrito=True,
+        lut_escrito=True,
+        avisos=tuple(avisos),
+    )
+
+
 def resumen_nodos(nodos: list[NodeInfo]) -> str:
     """Una linea legible por nodo, para la GUI y para los informes."""
     if not nodos:
@@ -395,6 +534,7 @@ def resumen_nodos(nodos: list[NodeInfo]) -> str:
 __all__ = [
     "BaseResolveBridge",
     "ClipNoEncontrado",
+    "EscrituraFueraDeVersion",
     "GrupoNoEncontrado",
     "NodoInvalido",
     "OperacionNoDisponible",
@@ -406,6 +546,8 @@ __all__ = [
     "aplicar_grado_seguro",
     "asegurar_pagina_color",
     "asegurar_version",
+    "copiar_grado_seguro",
+    "es_version_nuestra",
     "resumen_nodos",
     "validar_indice_nodo",
     "validar_nombre_version",

@@ -63,8 +63,12 @@ def test_escribe_el_cdl_en_el_2_y_el_lut_en_el_3(fake):
 def test_el_grado_original_queda_intacto_en_su_version(fake):
     """Lo que Mario tenia hecho sigue donde estaba."""
     original = CDL(slope=(0.4, 0.4, 0.4), saturation=0.2)
+    # El grado que Mario ya tenia, en SU version. Montarlo requiere la via de
+    # escape, porque el puente protege esa version de todo lo demas.
+    fake.PELIGRO_escribir_fuera_de_la_version = True
     fake.set_cdl("clip001", NODE_BALANCE, original)
     fake.set_lut("clip001", NODE_LOOK, "DELCLIENTE/suyo.cube")
+    fake.PELIGRO_escribir_fuera_de_la_version = False
 
     aplicar_grado_seguro(fake, "clip001", cdl=CDL_PRUEBA, lut_rel_path=LUT_OK)
 
@@ -143,7 +147,9 @@ def test_si_la_version_nueva_empieza_en_blanco_se_para_antes_de_escribir():
 
 
 def test_aviso_si_el_nodo_de_normalizacion_esta_apagado(fake):
+    fake.PELIGRO_escribir_fuera_de_la_version = True  # lo apago el usuario, no la app
     fake.set_node_enabled("clip001", NODE_NORMALIZACION, False)
+    fake.PELIGRO_escribir_fuera_de_la_version = False
     res = aplicar_grado_seguro(fake, "clip001", cdl=CDL_PRUEBA)
     assert any("desactivado" in a for a in res.avisos)
     assert res.cdl_escrito is True  # avisar no es impedir

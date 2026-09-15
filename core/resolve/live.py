@@ -10,6 +10,11 @@ AVISO, Y VA EN SERIO
   seis preguntas, esto no se toca.
 =============================================================================
 
+La regla de oro la hereda de `BaseResolveBridge`, igual que `FakeResolve`: si la
+version activa del clip no es de la app, las cinco escrituras de grado lanzan
+`EscrituraFueraDeVersion` antes de llamar a Resolve. Cuesta una llamada de mas a
+`GetCurrentVersion` por escritura, y merece la pena.
+
 Este es el UNICO archivo de `core/` que importa `DaVinciResolveScript`, y lo
 importa **dentro de una funcion**. `core.resolve.__init__` no lo importa, asi
 que abrir la app no roza Resolve. Para usarlo hay que pedirlo a proposito:
@@ -254,12 +259,15 @@ class LiveResolve(BaseResolveBridge):
     def set_cdl(self, clip_id: str, node_index: int, cdl: CDL) -> bool:
         item = self._item(clip_id)
         idx = self._validar_nodo(node_index, int(self._grafo(item).GetNumNodes()))
+        self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_cdl")
         return bool(item.SetCDL(cdl.as_resolve_payload(idx)))
 
     def set_lut(self, clip_id: str, node_index: int, lut_rel_path: str) -> bool:
         item = self._item(clip_id)
         idx = self._validar_nodo(node_index, int(self._grafo(item).GetNumNodes()))
-        return bool(item.SetLUT(idx, self._validar_lut(lut_rel_path)))
+        ruta = self._validar_lut(lut_rel_path)
+        self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_lut")
+        return bool(item.SetLUT(idx, ruta))
 
     def get_lut(self, clip_id: str, node_index: int) -> str | None:
         item = self._item(clip_id)
@@ -269,15 +277,21 @@ class LiveResolve(BaseResolveBridge):
     def set_node_enabled(self, clip_id: str, node_index: int, enabled: bool) -> bool:
         grafo = self._grafo(self._item(clip_id))
         idx = self._validar_nodo(node_index, int(grafo.GetNumNodes()))
+        self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_node_enabled")
         return bool(grafo.SetNodeEnabled(idx, bool(enabled)))
 
     def copy_grades(self, source_clip_id: str, target_clip_ids: list[str]) -> bool:
         if not target_clip_ids:
             return False
         destinos = [self._item(cid) for cid in target_clip_ids]
+        # CopyGrades reemplaza el arbol de nodos del destino entero: se
+        # comprueban TODOS antes de tocar ninguno.
+        for cid in target_clip_ids:
+            self._exigir_version_propia(cid, self.current_version(cid), "copy_grades")
         return bool(self._item(source_clip_id).CopyGrades(destinos))
 
     def reset_all_grades(self, clip_id: str) -> bool:
+        self._exigir_version_propia(clip_id, self.current_version(clip_id), "reset_all_grades")
         return bool(self._grafo(self._item(clip_id)).ResetAllGrades())
 
     def refresh_lut_list(self) -> bool:

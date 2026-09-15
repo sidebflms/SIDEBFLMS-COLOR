@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from core.contracts import NODE_LOOK
-from core.resolve import FakeResolve, Incognitas
+from core.resolve import FakeResolve, Incognitas, asegurar_version
 from core.resolve.bridge import RutaLUTInvalida
 from core.resolve.incognitas import (
     INCOGNITAS_CONSERVADORAS,
@@ -101,9 +101,12 @@ def test_extensiones_aceptadas_hoy_y_manana():
 
 
 def test_cambiar_f0_3_cambia_lo_que_traga_el_puente():
+    estricto = FakeResolve(n_clips=1)
+    asegurar_version(estricto, "clip001")
     with pytest.raises(RutaLUTInvalida):
-        FakeResolve(n_clips=1).set_lut("clip001", NODE_LOOK, "x.dctl")
+        estricto.set_lut("clip001", NODE_LOOK, "x.dctl")
     permisivo = FakeResolve(n_clips=1, incognitas=Inc(setlut_acepta_dctl=True))
+    asegurar_version(permisivo, "clip001")
     assert permisivo.set_lut("clip001", NODE_LOOK, "x.dctl") is True
 
 

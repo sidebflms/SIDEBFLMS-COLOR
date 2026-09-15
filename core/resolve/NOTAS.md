@@ -29,8 +29,62 @@ si algún día a alguien se le ocurre enganchar `live.py` al `__init__`.
 si ya estaba) la versión `SIDEB COLOR`, y todo se escribe ahí. El grado que tenía
 Mario se queda intacto en su versión.
 
-Eso vive en `bridge.aplicar_grado_seguro()`, que es el único camino por el que la
-app debería escribir color. El orden es:
+### 2.1 Ya no es una promesa: es un `if` (hallazgo R-0 de la revisión)
+
+El revisor encontró el agujero grande de la primera versión de este módulo: la
+regla de oro vivía **sólo dentro de `aplicar_grado_seguro()`**. O sea que se
+cumplía si el que llamaba se acordaba de usar esa función. Y no es teórico: la
+GUI la escribe otro, que tiene el puente entero a mano y no ha leído esto.
+
+Peor todavía: `copy_grades` **reemplaza el árbol de nodos entero del destino**.
+Llamarlo a pelo sobre clips que están en la versión del usuario es la forma más
+rápida que hay de cargarse una tarde de trabajo.
+
+Ahora lo impone el propio puente. Las cinco escrituras de grado —`set_cdl`,
+`set_lut`, `set_node_enabled`, `copy_grades` y `reset_all_grades`— comprueban la
+versión activa del clip antes de tocar nada y lanzan `EscrituraFueraDeVersion` si
+no es una nuestra. Está en `BaseResolveBridge._exigir_version_propia()`, así que
+lo heredan **`FakeResolve` y `LiveResolve` igual**: no es una red que sólo exista
+en las pruebas.
+
+Tres detalles que decidí y conviene saber:
+
+- **Lanza, no crea la versión sola.** El coordinador ofrecía las dos. Elegí
+  lanzar por coherencia: este módulo rechaza una ruta de LUT absoluta y un índice
+  decimal en vez de apañarlos, y crear una versión a espaldas de quien llama es
+  exactamente la clase de magia silenciosa que rechazo en todo lo demás. Además,
+  quien se salta `aplicar_grado_seguro` se salta también la comprobación de los
+  tres nodos y los avisos; el mensaje de error le manda allí, que es donde
+  están. El mensaje dice qué hacer, no sólo que no.
+- **`copy_grades` mira TODOS los destinos antes de copiar a ninguno.** Si el
+  tercero de la lista está en la versión del usuario, no se copia ni al primero.
+- **Qué cuenta como versión nuestra:** `SIDEB COLOR` y cualquiera que empiece por
+  `SIDEB COLOR ` (así vale la del probe, `SIDEB COLOR PROBE`). Por convenio de
+  nombre, porque la API no marca de ninguna forma quién creó una versión. Está en
+  `es_version_nuestra()`.
+
+### 2.2 La vía de escape
+
+Se llama `PELIGRO_escribir_fuera_de_la_version`, es un **atributo** del puente
+(no un método, para que quede escrito en la línea donde se pone y no se pueda
+llamar de pasada) y se puede pedir también en el constructor de `FakeResolve`.
+Con él a `True` el puente deja de proteger nada.
+
+Usos legítimos: los tests, cuando montan «el grado que el usuario ya tenía», y
+una herramienta de diagnóstico que tenga que tocar la versión actual a sabiendas.
+Uso ilegítimo: la app. Si la app lo necesita, el diseño está mal. El nombre es
+feo a propósito: se ve en una revisión y se encuentra con `grep` en dos segundos.
+
+### 2.3 Y para copiar de un clip a otros, `copiar_grado_seguro()`
+
+Le crea o selecciona la versión `SIDEB COLOR` a **cada destino** antes de copiar
+nada, y si algún destino no se puede preparar, no copia a ninguno. Es el
+equivalente de `aplicar_grado_seguro` para `CopyGrades`.
+
+### 2.4 El camino bueno
+
+`bridge.aplicar_grado_seguro()` sigue siendo por donde debe ir la app. El orden
+es:
 
 1. Abrir la página de color (si la incógnita F0-5 dice que hace falta).
 2. Crear o seleccionar la versión `SIDEB COLOR`. **Nada se escribe antes de esto.**
@@ -175,6 +229,16 @@ cargar una versión que no está, copiar a una lista vacía de clips. Son respue
 no averías. Todas las excepciones heredan de `ResolveError`, que es lo único que la
 GUI captura.
 
+**Los índices de nodo son enteros de verdad, y no se trunca nada** (hallazgo E-1
+de la revisión). Antes, `validar_indice_nodo` hacía `int(node_index)`, que se
+traga un float, una cadena y un booleano. Y con un float no redondea: **trunca**.
+Un índice que valiera 2,9999999999 —que para cualquiera es el nodo 3— acababa
+escribiendo en el 2, sin lanzar y sin avisar, que es justo el fallo que este
+módulo existe para evitar. Ahora se rechaza cualquier cosa que no sea un `int`
+(el `bool` incluido, que para Python es un entero y aquí es un bug de tipos), y
+el mensaje dice que redondee quien sepa lo que quiere. No adivinamos si un 2,99
+era el 2 o el 3.
+
 **Ser estricto con las rutas de LUT relativas.** Resolve se traga una ruta absoluta
 y luego el nodo se queda sin LUT, sin decir nada. Es el peor fallo posible, así que
 el puente corta antes: absolutas, `~`, `..` y extensiones no aceptadas lanzan.
@@ -213,12 +277,35 @@ comprueba que no se multiplican
 
 Mañana: cambias los seis valores por defecto de `Incognitas` y no tocas nada más.
 
+### Dos que ya tienen evidencia, aunque sigan en el valor conservador
+
+Al probar el probe con `--solo-diagnostico` (que no se conecta a Resolve: para
+antes) resultó que **Resolve sí está instalado en este Mac**. Lo comprobamos el
+agente G y yo, por separado, con el Python 3.12.14 arm64 del entorno virtual del
+proyecto, y con `pgrep` verificamos que Resolve no estaba corriendo, así que no
+se conectó a nada:
+
+- **F0-6 sale SÍ.** El módulo de scripting se importa limpiamente desde
+  `/Applications/DaVinci Resolve/.../Libraries/Fusion/fusionscript.so`. O sea que
+  `LiveResolve` puede vivir dentro de la app, con nuestro propio intérprete, sin
+  montar un proceso aparte. Es la respuesta buena.
+- **F0-4 sale «descarga directa».** Existe
+  `/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT` y no existe
+  la del contenedor del Mac App Store.
+
+**Los dos siguen puestos en el valor conservador a propósito**, hasta que el probe
+lo confirme con Resolve abierto. Lo de hoy dice dónde está instalado Resolve, no
+que la API conteste lo que esperamos.
+
 ---
 
 ## 7. Lo que NO está probado, y hay que decirlo
 
 - **`live.py` entero.** Ni una línea se ha ejecutado nunca. No hay ningún test que
-  lo importe siquiera. Es un punto de partida, no código que funcione.
+  lo importe siquiera. Es un punto de partida, no código que funcione. La regla de
+  oro está puesta también ahí, en las cinco escrituras, pero tampoco se ha
+  ejecutado: cuesta una llamada extra a `GetCurrentVersion` por escritura y, si
+  mañana eso resulta caro en un timeline largo, se cachea, pero no se quita.
 - **Todo lo que el probe hace con Resolve delante.** Lo que sí está probado del
   probe: que compila, que `--help` va, que sólo usa la biblioteca estándar, que no
   importa Resolve al cargarse, que el medidor de brillo de stills (con el que se

@@ -19,17 +19,23 @@ QUE NECESITAS ANTES DE EMPEZAR
      puesto en **Local**. Si esta en "None", nada de esto funciona.
 
 COMO SE EJECUTA
-  Lo mas prudente primero, que no toca nada:
+  Lo mas prudente primero, que no toca nada de nada:
 
       python3 probe/api_probe.py --solo-diagnostico
 
-  Eso te dice si encuentra Resolve y si tu Python puede hablar con el. Si sale
-  bien, la pasada completa:
+  Eso te dice si encuentra Resolve y si tu Python puede hablar con el. Ni se
+  conecta, ni escribe un solo fichero: te lo cuenta por pantalla y se va. Si
+  sale bien, la pasada completa:
 
       python3 probe/api_probe.py --informe ~/Desktop/informe_resolve.json
 
   Te va a preguntar antes de escribir nada. Hasta que contestes "s", el script
   solo lee.
+
+  SOBRE LOS FICHEROS QUE DEJA: **sin `--informe` no escribe ninguno.** Nada de
+  encontrarte dos ficheros sueltos en la carpeta desde la que lo ejecutaste. Si
+  se te olvida poner `--informe` en la pasada completa, el informe cae dentro
+  del directorio de pruebas (que ya has autorizado) y te dice donde.
 
 QUE VA A TOCAR (y solo si dices que si)
   - Crea una version de color nueva llamada "SIDEB COLOR PROBE" en UN clip (el
@@ -1043,15 +1049,15 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--informe",
-        default="informe_probe_resolve.json",
-        help="donde dejar el informe JSON (al lado se escribe el .txt). Por defecto, la "
-        "carpeta desde la que ejecutas.",
+        default=None,
+        help="donde dejar el informe JSON (al lado se escribe el .txt). SIN esto no se "
+        "escribe ningun fichero: el resumen sale solo por pantalla.",
     )
     p.add_argument(
         "--solo-diagnostico",
         action="store_true",
-        help="mira el entorno y si el modulo se importa, y PARA. No se conecta a Resolve, no "
-        "escribe nada. Empieza siempre por aqui.",
+        help="mira el entorno y si el modulo se importa, y PARA. No se conecta a Resolve y no "
+        "escribe ningun fichero (salvo que pidas --informe). Empieza siempre por aqui.",
     )
     p.add_argument(
         "--no-escribir",
@@ -1145,6 +1151,12 @@ def main(argv: list[str] | None = None) -> int:
         linea("  Te dejo el informe con lo que he podido contestar leyendo.")
         return terminar(inf, args)
 
+    # Ya ha dado permiso para escribir en `dir_pruebas`, asi que si no ha pedido
+    # informe a ningun sitio, el informe cae ahi y no en su carpeta actual.
+    if not args.informe:
+        args.informe = os.path.join(dir_pruebas, "informe_probe_resolve.json")
+        linea(f"  El informe lo dejare en {args.informe}")
+
     item = items[args.clip - 1]
     original, medidas = crear_version_probe(inf, item)
     pregunta_extra_nodos(inf, medidas)
@@ -1159,14 +1171,19 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def terminar(inf: Informe, args) -> int:
-    try:
-        ruta_json, ruta_txt = inf.escribir(args.informe)
-    except OSError as exc:
-        titulo("no he podido escribir el informe")
-        linea(f"  {exc}")
-        linea()
-        linea(inf.a_texto())
-        return 2
+    # Sin --informe NO se escribe nada, ni un fichero. Este script se ejecuta
+    # desde donde a uno le pille (normalmente desde el propio repo) y no va a
+    # dejar cosas sueltas por ahi sin que se las hayan pedido.
+    ruta_json = ruta_txt = None
+    if args.informe:
+        try:
+            ruta_json, ruta_txt = inf.escribir(args.informe)
+        except OSError as exc:
+            titulo("no he podido escribir el informe")
+            linea(f"  {exc}")
+            linea()
+            linea(inf.a_texto())
+            return 2
     titulo("resumen")
     sin_responder = [k for k, v in inf.datos["preguntas"].items() if v["respuesta"] is None]
     for clave, p in inf.datos["preguntas"].items():
@@ -1180,10 +1197,15 @@ def terminar(inf: Informe, args) -> int:
         for a in inf.datos["avisos"]:
             linea(f"    - {a}")
     linea()
-    linea(f"  Informe JSON: {ruta_json}")
-    linea(f"  Informe texto: {ruta_txt}")
-    linea()
-    linea("  Mandame el .json y ya cambio yo las seis constantes.")
+    if ruta_json:
+        linea(f"  Informe JSON: {ruta_json}")
+        linea(f"  Informe texto: {ruta_txt}")
+        linea()
+        linea("  Mandame el .json y ya cambio yo las seis constantes.")
+    else:
+        linea("  No he escrito ningun fichero: no me has pedido informe.")
+        linea("  Para guardarlo, vuelve a ejecutar lo mismo anadiendo:")
+        linea("      --informe ~/Desktop/informe_resolve.json")
     return 1 if (inf.datos["errores"] or sin_responder) else 0
 
 

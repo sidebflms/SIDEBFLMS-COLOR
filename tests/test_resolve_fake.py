@@ -21,7 +21,7 @@ from core.contracts import (
     ResolveError,
     StillRef,
 )
-from core.resolve import FakeResolve, Incognitas
+from core.resolve import FakeResolve, Incognitas, asegurar_version
 from core.resolve.bridge import (
     ClipNoEncontrado,
     GrupoNoEncontrado,
@@ -39,6 +39,40 @@ LUT_OK = "SIDEB/look.cube"
 @pytest.fixture
 def fake() -> FakeResolve:
     return FakeResolve(n_clips=3)
+
+
+@pytest.fixture
+def listo() -> FakeResolve:
+    """Un fake con la version `SIDEB COLOR` ya activa en todos sus clips.
+
+    Desde la revision de la ronda 1 el puente se niega a escribir grado fuera de
+    una version de la app, asi que para probar `set_cdl` y compania a pelo hay
+    que estar en la nuestra. Es a proposito: ver R-0 en NOTAS.md.
+    """
+    f = FakeResolve(n_clips=3)
+    for clip in f.list_clips():
+        asegurar_version(f, clip.clip_id)
+    f._llamadas.clear()
+    return f
+
+
+def como_el_usuario(fake: FakeResolve):
+    """Contexto para montar 'el grado que Mario ya tenia' en su propia version.
+
+    Es el unico uso legitimo de la via de escape dentro de los tests, y por eso
+    se hace por aqui y no poniendo el atributo a mano en veinte sitios.
+    """
+    import contextlib
+
+    @contextlib.contextmanager
+    def _ctx():
+        fake.PELIGRO_escribir_fuera_de_la_version = True
+        try:
+            yield fake
+        finally:
+            fake.PELIGRO_escribir_fuera_de_la_version = False
+
+    return _ctx()
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +200,9 @@ def test_indice_de_nodo_por_encima_del_numero_de_nodos(fake):
     assert "3 nodos" in str(exc.value)
 
 
-def test_activar_y_desactivar_un_nodo(fake):
-    assert fake.set_node_enabled("clip001", 1, False) is True
-    assert fake.list_nodes("clip001")[0].enabled is False
+def test_activar_y_desactivar_un_nodo(listo):
+    assert listo.set_node_enabled("clip001", 1, False) is True
+    assert listo.list_nodes("clip001")[0].enabled is False
 
 
 def test_los_nodos_no_traen_etiqueta_porque_la_api_no_deja_ponerla(fake):
@@ -219,7 +253,8 @@ def test_cargar_una_version_que_no_existe_devuelve_false(fake):
 
 
 def test_el_grado_va_a_la_version_activa_y_la_otra_no_se_entera(fake):
-    fake.set_cdl("clip001", NODE_BALANCE, CDL(slope=(0.5, 0.5, 0.5)))
+    with como_el_usuario(fake):
+        fake.set_cdl("clip001", NODE_BALANCE, CDL(slope=(0.5, 0.5, 0.5)))
     fake.add_version("clip001", VERSION_NAME)
     fake.set_cdl("clip001", NODE_BALANCE, CDL(slope=(3.0, 3.0, 3.0)))
     fake.set_lut("clip001", NODE_LOOK, LUT_OK)
@@ -263,9 +298,9 @@ def test_ruta_de_lut_que_resolve_no_aceptaria(fake, ruta):
         fake.set_lut("clip001", NODE_LOOK, ruta)
 
 
-def test_ruta_de_lut_relativa_correcta(fake):
-    assert fake.set_lut("clip001", NODE_LOOK, "SIDEB/look 01.cube") is True
-    assert fake.get_lut("clip001", NODE_LOOK) == "SIDEB/look 01.cube"
+def test_ruta_de_lut_relativa_correcta(listo):
+    assert listo.set_lut("clip001", NODE_LOOK, "SIDEB/look 01.cube") is True
+    assert listo.get_lut("clip001", NODE_LOOK) == "SIDEB/look 01.cube"
 
 
 def test_el_dctl_no_entra_hoy(fake):
@@ -276,6 +311,7 @@ def test_el_dctl_no_entra_hoy(fake):
 
 def test_el_dctl_entraria_si_la_incognita_f0_3_saliera_que_si():
     fake = FakeResolve(n_clips=1, incognitas=Incognitas(setlut_acepta_dctl=True))
+    asegurar_version(fake, "clip001")
     assert fake.set_lut("clip001", NODE_LOOK, "SIDEB/look.dctl") is True
 
 
@@ -289,32 +325,32 @@ def test_extension_desconocida(fake):
 # ---------------------------------------------------------------------------
 
 
-def test_copiar_grado_a_varios_clips(fake):
-    fake.set_cdl("clip001", NODE_BALANCE, CDL(saturation=0.25))
-    fake.set_lut("clip001", NODE_LOOK, LUT_OK)
-    assert fake.copy_grades("clip001", ["clip002", "clip003"]) is True
+def test_copiar_grado_a_varios_clips(listo):
+    listo.set_cdl("clip001", NODE_BALANCE, CDL(saturation=0.25))
+    listo.set_lut("clip001", NODE_LOOK, LUT_OK)
+    assert listo.copy_grades("clip001", ["clip002", "clip003"]) is True
     for cid in ("clip002", "clip003"):
-        assert fake.get_lut(cid, NODE_LOOK) == LUT_OK
-        assert fake._cdl_escrito(cid, NODE_BALANCE).saturation == 0.25
+        assert listo.get_lut(cid, NODE_LOOK) == LUT_OK
+        assert listo._cdl_escrito(cid, NODE_BALANCE).saturation == 0.25
 
 
-def test_copiar_grado_a_una_lista_vacia_no_es_un_error_pero_devuelve_false(fake):
-    assert fake.copy_grades("clip001", []) is False
+def test_copiar_grado_a_una_lista_vacia_no_es_un_error_pero_devuelve_false(listo):
+    assert listo.copy_grades("clip001", []) is False
 
 
-def test_copiar_grado_a_un_clip_que_no_existe(fake):
+def test_copiar_grado_a_un_clip_que_no_existe(listo):
     with pytest.raises(ClipNoEncontrado):
-        fake.copy_grades("clip001", ["clip002", "fantasma"])
+        listo.copy_grades("clip001", ["clip002", "fantasma"])
 
 
-def test_resetear_deja_el_clip_limpio(fake):
-    fake.set_cdl("clip001", NODE_BALANCE, CDL(saturation=0.0))
-    fake.set_lut("clip001", NODE_LOOK, LUT_OK)
-    fake.set_node_enabled("clip001", 1, False)
-    assert fake.reset_all_grades("clip001") is True
-    assert fake.get_lut("clip001", NODE_LOOK) is None
-    assert fake._cdl_escrito("clip001", NODE_BALANCE) is None
-    assert fake.list_nodes("clip001")[0].enabled is True
+def test_resetear_deja_el_clip_limpio(listo):
+    listo.set_cdl("clip001", NODE_BALANCE, CDL(saturation=0.0))
+    listo.set_lut("clip001", NODE_LOOK, LUT_OK)
+    listo.set_node_enabled("clip001", 1, False)
+    assert listo.reset_all_grades("clip001") is True
+    assert listo.get_lut("clip001", NODE_LOOK) is None
+    assert listo._cdl_escrito("clip001", NODE_BALANCE) is None
+    assert listo.list_nodes("clip001")[0].enabled is True
 
 
 def test_refrescar_la_lista_de_luts(fake):
@@ -428,20 +464,20 @@ def test_el_drx_exportaria_si_la_incognita_f0_1_saliera_que_si(salida):
 # ---------------------------------------------------------------------------
 
 
-def test_fallar_en_lanza_resolve_error(fake):
-    fake.fallar_en("set_lut", "el disco esta lleno")
+def test_fallar_en_lanza_resolve_error(listo):
+    listo.fallar_en("set_lut", "el disco esta lleno")
     with pytest.raises(ResolveError) as exc:
-        fake.set_lut("clip001", NODE_LOOK, LUT_OK)
+        listo.set_lut("clip001", NODE_LOOK, LUT_OK)
     assert "disco" in str(exc.value)
-    fake.dejar_de_fallar("set_lut")
-    assert fake.set_lut("clip001", NODE_LOOK, LUT_OK) is True
+    listo.dejar_de_fallar("set_lut")
+    assert listo.set_lut("clip001", NODE_LOOK, LUT_OK) is True
 
 
-def test_fallar_solo_unas_veces(fake):
-    fake.fallar_en("set_cdl", veces=1)
+def test_fallar_solo_unas_veces(listo):
+    listo.fallar_en("set_cdl", veces=1)
     with pytest.raises(ResolveError):
-        fake.set_cdl("clip001", NODE_BALANCE, CDL())
-    assert fake.set_cdl("clip001", NODE_BALANCE, CDL()) is True
+        listo.set_cdl("clip001", NODE_BALANCE, CDL())
+    assert listo.set_cdl("clip001", NODE_BALANCE, CDL()) is True
 
 
 def test_devolver_false_sin_excepcion(fake):
@@ -460,9 +496,9 @@ def test_nombre_de_operacion_mal_escrito(fake):
         fake.fallar_en("set_lut_look")
 
 
-def test_dejar_de_fallar_del_todo(fake):
-    fake.fallar_en("set_lut")
-    fake.fallar_en("set_cdl")
-    fake.dejar_de_fallar()
-    assert fake.set_cdl("clip001", NODE_BALANCE, CDL()) is True
-    assert fake.set_lut("clip001", NODE_LOOK, LUT_OK) is True
+def test_dejar_de_fallar_del_todo(listo):
+    listo.fallar_en("set_lut")
+    listo.fallar_en("set_cdl")
+    listo.dejar_de_fallar()
+    assert listo.set_cdl("clip001", NODE_BALANCE, CDL()) is True
+    assert listo.set_lut("clip001", NODE_LOOK, LUT_OK) is True

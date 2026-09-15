@@ -6,6 +6,23 @@ version nueva se queda seleccionada, se queja de las rutas de LUT absolutas
 igual que se quejara Resolve, y sabe fingir averias para que la GUI pueda probar
 el camino de error.
 
+LA REGLA DE ORO LA IMPONE EL PUENTE
+-----------------------------------
+`set_cdl`, `set_lut`, `set_node_enabled`, `copy_grades` y `reset_all_grades` se
+niegan a escribir si la version activa del clip no es de la app, y lanzan
+`EscrituraFueraDeVersion`. O sea que esto no cuela:
+
+    fake = FakeResolve(n_clips=1)
+    fake.set_cdl("clip001", 2, mi_cdl)      # EscrituraFueraDeVersion
+
+Lo que se hace es esto, que ademas es una linea mas corto:
+
+    aplicar_grado_seguro(fake, "clip001", cdl=mi_cdl)
+
+Para montar en un test "el grado que el usuario ya tenia" esta la via de escape:
+`FakeResolve(n_clips=1, PELIGRO_escribir_fuera_de_la_version=True)`, o poner el
+atributo a True y volver a ponerlo a False despues.
+
 QUE NO HACE, A PROPOSITO
 ------------------------
 **No hay `get_cdl()`.** La API real no sabe leer el grado de un clip: `SetCDL`
@@ -200,6 +217,7 @@ class FakeResolve(BaseResolveBridge):
         resolve_version: str = "21.1.0 (FakeResolve)",
         is_studio: bool = True,
         home: str | None = None,
+        PELIGRO_escribir_fuera_de_la_version: bool = False,
     ) -> None:
         """
         `version_hereda_grafo` es la septima incognita, la que no esta numerada:
@@ -211,6 +229,8 @@ class FakeResolve(BaseResolveBridge):
         de color empieza con UN nodo, asi que ahi el look es el nodo 1, no el 3.
         """
         self.incognitas = incognitas
+        # Via de escape de la regla de oro. Ver `BaseResolveBridge`.
+        self.PELIGRO_escribir_fuera_de_la_version = PELIGRO_escribir_fuera_de_la_version
         self._conectado = conectado
         self._timeline_abierto = timeline_abierto
         self._version_hereda_grafo = version_hereda_grafo
@@ -423,6 +443,7 @@ class FakeResolve(BaseResolveBridge):
         idx = self._validar_nodo(node_index, len(version.nodos))
         if not isinstance(cdl, CDL):
             raise ResolveError(f"set_cdl espera un CDL, llego {type(cdl).__name__}")
+        self._exigir_version_propia(clip_id, version.nombre, "set_cdl")
         # `as_resolve_payload` valida de paso que el indice es 1-based y deja el
         # diccionario tal cual se lo pasariamos a Resolve.
         cdl.as_resolve_payload(idx)
@@ -439,6 +460,7 @@ class FakeResolve(BaseResolveBridge):
         version = self._version_actual(clip)
         idx = self._validar_nodo(node_index, len(version.nodos))
         ruta = self._validar_lut(lut_rel_path)
+        self._exigir_version_propia(clip_id, version.nombre, "set_lut")
         version.nodos[idx - 1].lut_path = ruta
         return True
 
@@ -455,6 +477,7 @@ class FakeResolve(BaseResolveBridge):
         clip = self._clip(clip_id)
         version = self._version_actual(clip)
         idx = self._validar_nodo(node_index, len(version.nodos))
+        self._exigir_version_propia(clip_id, version.nombre, "set_node_enabled")
         version.nodos[idx - 1].enabled = bool(enabled)
         return True
 
@@ -466,6 +489,13 @@ class FakeResolve(BaseResolveBridge):
             # Lista vacia: no se ha copiado a nadie. No es una averia, es un no.
             return False
         destinos = [self._clip(cid) for cid in target_clip_ids]
+        # CopyGrades REEMPLAZA el arbol de nodos del destino entero. Si el
+        # destino esta en la version del usuario, se lleva su grado por delante,
+        # asi que se comprueban TODOS antes de tocar ninguno.
+        for destino in destinos:
+            self._exigir_version_propia(
+                destino.ref.clip_id, self._version_actual(destino).nombre, "copy_grades"
+            )
         nodos = self._version_actual(origen).nodos
         for destino in destinos:
             actual = self._version_actual(destino)
@@ -486,6 +516,7 @@ class FakeResolve(BaseResolveBridge):
         if self._guardia("reset_all_grades"):
             return False
         clip = self._clip(clip_id)
+        self._exigir_version_propia(clip_id, self._version_actual(clip).nombre, "reset_all_grades")
         for n in self._version_actual(clip).nodos:
             n.cdl = None
             n.lut_path = None
