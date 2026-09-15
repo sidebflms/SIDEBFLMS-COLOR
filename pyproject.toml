@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sidebflms-color"
+version = "0.1.0"
+description = "Color asistido para DaVinci Resolve Studio - SIDEBFLMS"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "opencv-python-headless>=4.9",
+    "colour-science>=0.4.4",
+    "PySide6>=6.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+include = ["core*", "gui*", "probe*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "lento: test que tarda mas de 5s (generacion de material, LUTs grandes)",
+    "gui: requiere PySide6 con QT_QPA_PLATFORM=offscreen",
+    "entregable: los cuatro tests T1-T4 de la seccion 6 del encargo",
+]
+filterwarnings = [
+    "ignore::UserWarning:colour",
+    "ignore:.*Matplotlib.*:UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
