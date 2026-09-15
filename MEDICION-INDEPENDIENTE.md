@@ -230,6 +230,93 @@ como pide la regla de las cifras de `CONTRATOS.md`. Se lee entero con:
 .venv/bin/python -m pytest "tests/medicion/test_t1_t2.py::test_T2_la_zona_senalada_cae_donde_esta_mi_ventana" -rx
 ```
 
+### El aviso de `XPASS` intermitente: investigado, y **no es aleatorio**
+
+Otro agente vio este `xfail` salir `XPASS(strict)` en una pasada y `XFAIL` en las
+tres siguientes, con la hipótesis de que el desempate entre las dos cajas se lo
+volteaba el último bit. **Lo he medido y no es eso.**
+
+| Qué se probó | Resultado |
+|---|---|
+| 18 ejecuciones seguidas de la misma medida | **las dos magnitudes, bit a bit iguales**: `12.725531826505737` y `11.377186278350779` (los 17 dígitos) |
+| `OMP_NUM_THREADS` / `OPENBLAS` / `MKL` / `VECLIB` en 1, 2, 8 y sin fijar | idénticas en las cuatro configuraciones |
+| Árbol de trabajo contra copia limpia de `git archive HEAD` | idénticas |
+| Antes y después del commit `1d4330e` (umbrales) | idénticas — ese commit es un puro movimiento de constantes, sin cambio de valor |
+| Aleatoriedad dentro de `core` | **toda sembrada**: `SEMILLA = 20260915` en `core/matching/cdl_fit.py` y `core/analysis/stats.py`. Mi escena, también |
+| `pytest-randomly` | **no está instalado** en este venv (`pip list` da `pytest 9.1.1` y `pytest-cov 7.1.0` y nada más) |
+
+Ese último punto importa y conviene que se sepa: **`-p no:randomly` es un no-op
+aquí**, porque el plugin no existe. El orden de recogida es siempre el orden de
+fichero, así que "con y sin `-p no:randomly`" es literalmente la misma
+ejecución, y ni el mío ni el de nadie cambia por esa bandera.
+
+Y el margen entre las dos cajas no es un empate de coma flotante: es del
+**11.85%** (12.7255 / 11.3772 = 1.1185). Un 12% no lo voltea un redondeo.
+
+**Qué lo provocaba entonces.** No lo puedo demostrar, y lo digo así: la única
+variable que cambió entre su pasada y las mías es **el estado de `core/`**, que
+ha sido un blanco móvil toda la tarde. A las 21:5x vi `core/reverse/diagnostico.py`
+con 84 líneas modificadas sin comitear; a las 22:06 ya estaba idéntico a HEAD;
+a las 23:12 aterrizó como `1d4330e`. **Ese estado intermedio no se comiteó nunca
+y ya no existe**, así que no puedo correr mi arnés contra él. Lo más probable,
+con lo que se puede observar, es que su `XPASS` saliera de una versión en vuelo
+del extractor de hotspots, no de ruido numérico.
+
+Un `XPASS` de ese `xfail` **no es cosmético**: significa que el módulo declaró
+principal otra caja. Por eso, aunque no consiga reproducirlo, lo he aferrado.
+
+### Cómo queda aferrado, sin aflojar el criterio
+
+El criterio del `xfail` **no se toca**: sigue afirmando que **la zona que se
+declara principal** solapa >0.80 con la ventana real. No mira "alguna de las
+cajas", porque el hallazgo es precisamente que la principal es la equivocada.
+
+Dos cambios, los dos de robustez y ninguno de criterio:
+
+1. **Desempate fijo.** Donde había `max(locales, key=magnitude)` —que en un
+   empate exacto devolvería el primero de la tupla, o sea lo que el módulo
+   decidiera meter antes— ahora hay `sorted(key=(-magnitude, x, y, w, h))`. Con
+   las cifras de hoy no hay empate, pero el desempate ya no depende de nadie.
+2. **Un centinela en verde**: `test_T2_las_dos_cajas_y_su_desempate_estan_aferrados`.
+   Afirma que hay exactamente 2 hotspots, que los dos son `zona local`, sus dos
+   cajas, **sus dos magnitudes con `rel=1e-6`**, el orden entre ellas y que el
+   margen sigue entre el 10% y el 14%. Si mañana cambian, **salta ese test en
+   rojo diciendo qué cambió**, en vez de un `XPASS` misterioso que nadie sabe
+   si es "se ha arreglado" o "se ha movido el montaje por debajo".
+
+### Cinco ejecuciones seguidas, con cinco órdenes distintos
+
+```
+### 1) tal cual, orden de fichero
+.........x.............                                                  [100%]
+### 2) con -p no:randomly (no-op: el plugin no esta instalado)
+.........x.............                                                  [100%]
+### 3) orden invertido de ficheros
+..............x........                                                  [100%]
+### 4) T2 el primero de todo
+....x..................                                                  [100%]
+### 5) PYTHONHASHSEED distinto + sin cache
+.........x.............                                                  [100%]
+```
+
+Siempre **22 pasan y 1 `xfail`**, y cero fallos. La `x` se mueve de sitio porque
+se mueve el orden de los ficheros, que es lo único que se movió.
+
+Comandos:
+
+```bash
+cd "/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color"
+.venv/bin/python -m pytest tests/medicion/ -q
+.venv/bin/python -m pytest tests/medicion/ -q -p no:randomly
+.venv/bin/python -m pytest tests/medicion/test_t4.py tests/medicion/test_t3.py tests/medicion/test_t1_t2.py tests/medicion/test_metrica.py -q
+.venv/bin/python -m pytest tests/medicion/test_t1_t2.py tests/medicion/test_metrica.py tests/medicion/test_t4.py tests/medicion/test_t3.py -q
+PYTHONHASHSEED=777 .venv/bin/python -m pytest tests/medicion/ -q -p no:cacheprovider
+```
+
+**Si alguien vuelve a ver un `XPASS` aquí, lo primero que hay que mirar no es mi
+test: es si `core/reverse/diagnostico.py` ha cambiado.** El centinela lo dirá
+antes, y con números.
+
 ### Comando
 
 ```bash
@@ -593,7 +680,7 @@ cd "/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color"
 .venv/bin/python -m pytest tests/medicion -s -p no:randomly
 ```
 
-Resultado esperado hoy: **21 pasan, 1 `xfail`**
+Resultado esperado hoy: **22 pasan, 1 `xfail`**
 (`test_T2_la_zona_senalada_cae_donde_esta_mi_ventana`, con `strict=True`). Ese
 `xfail` es el resultado, no un pendiente ni un problema del arnés. **No lo
 arregles y vuelvas a medir en el mismo movimiento: eso es exactamente como se

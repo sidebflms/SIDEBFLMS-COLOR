@@ -172,6 +172,99 @@ def _solape_con(hp, caja) -> float:
     return (sx * sy) / float(hp.w * hp.h)
 
 
+def _por_magnitud(hotspots):
+    """Hotspots ordenados de mas fuerte a menos fuerte, con desempate FIJO.
+
+    `max(..., key=magnitude)` devuelve el primero de los maximos, o sea que en
+    un empate exacto el veredicto dependeria del orden en que el modulo los
+    haya metido en la tupla. Aqui el desempate es `(x, y, w, h)`, que no
+    depende de nada externo. Con las cifras de hoy no hay empate (12.7255
+    contra 11.3772, un 11.85% de diferencia), pero el que lee esto dentro de
+    seis meses no tiene por que saberlo.
+    """
+    return sorted(hotspots, key=lambda z: (-z.magnitude, z.x, z.y, z.w, z.h))
+
+
+#: Lo que sale HOY, medido y aferrado en
+#: `test_T2_las_dos_cajas_y_su_desempate_estan_aferrados`. Es el montaje del
+#: xfail de abajo: mi escena con viñeta y ventana aplicadas en luz lineal.
+#: (caja, magnitud) en orden de magnitud descendente.
+CAJAS_ESPERADAS_T2 = (
+    ((0, 284, 31, 29), 12.725531826505737),
+    ((89, 301, 251, 104), 11.377186278350779),
+)
+
+
+def test_T2_las_dos_cajas_y_su_desempate_estan_aferrados():
+    """EL CENTINELA DEL XFAIL DE ABAJO. Este test SI tiene que estar en verde.
+
+    POR QUE EXISTE
+    --------------
+    El `xfail(strict=True)` de abajo afirma algo sobre **cual es la zona que el
+    modulo declara principal**. Si las dos cajas candidatas se movieran, ese
+    xfail podria pasar a XPASS -- que con `strict=True` es rojo -- y nadie
+    sabria si es que el limite se ha cerrado o es que el montaje se ha movido
+    por debajo.
+
+    Asi que el desempate se aferra aqui, con los dos numeros. Si manana cambian,
+    **rojo en este test**, que dice exactamente que ha cambiado, en vez de un
+    XPASS misterioso alla abajo.
+
+    DETERMINISMO: MEDIDO, NO SUPUESTO (2026-09-15)
+    ----------------------------------------------
+    Las dos magnitudes salen **bit a bit iguales** (12.725531826505737 y
+    11.377186278350779, con los 17 digitos) en 18 ejecuciones seguidas, con
+    `OMP_NUM_THREADS` en 1, 2, 8 y sin fijar, contra el arbol de trabajo y
+    contra una copia limpia de HEAD, y antes y despues del commit de umbrales.
+    Ademas, toda la aleatoriedad de `core` esta sembrada (`SEMILLA = 20260915`
+    en `core/matching/cdl_fit.py` y `core/analysis/stats.py`) y mi escena
+    tambien. **Aqui no hay nada que dependa del ultimo bit.**
+
+    Y `pytest-randomly` NO esta instalado en este venv (`pip list` da pytest y
+    pytest-cov y nada mas), asi que `-p no:randomly` es un no-op y el orden de
+    recogida es siempre el orden de fichero: "con y sin `-p no:randomly`" es
+    literalmente la misma ejecucion.
+    """
+    original = E.escena_trabajo()
+    coloreado = E.coloreado_con_lo_espacial(original, E.tabla_lut_conocida())
+    d = invertir_grado(original, coloreado).diagnosis
+    hs = _por_magnitud(d.hotspots)
+
+    for i, hp in enumerate(hs):
+        print(
+            f"\n[MEDICION T2-aferrado] #{i} {hp.label!r} ({hp.x},{hp.y},{hp.w},{hp.h}) "
+            f"mag={hp.magnitude!r} solape={_solape_con(hp, E.CAJA_VENTANA):.4f}"
+        )
+    if len(hs) >= 2:
+        margen = hs[0].magnitude / hs[1].magnitude - 1.0
+        _informe("T2-aferrado-margen", margen_relativo=margen)
+
+    pista = (
+        "el montaje del xfail de T2 se ha movido. Mira MEDICION-INDEPENDIENTE.md "
+        "seccion 3 antes de tocar nada: si estas dos cajas cambian, el xfail de "
+        "abajo puede pasar a XPASS sin que el limite se haya cerrado"
+    )
+    assert len(hs) == 2, f"esperaba 2 hotspots y hay {len(hs)}: {pista}"
+    for i, (caja, magnitud) in enumerate(CAJAS_ESPERADAS_T2):
+        hp = hs[i]
+        assert hp.label == "zona local", f"el hotspot #{i} ya no es 'zona local': {pista}"
+        assert (hp.x, hp.y, hp.w, hp.h) == caja, (
+            f"el hotspot #{i} era {caja} y ahora es ({hp.x},{hp.y},{hp.w},{hp.h}): {pista}"
+        )
+        assert hp.magnitude == pytest.approx(magnitud, rel=1e-6), (
+            f"la magnitud del hotspot #{i} era {magnitud} y ahora es {hp.magnitude}: {pista}"
+        )
+
+    # Y el dato que de verdad importa para quien vaya a arreglarlo: las dos
+    # cajas estan al 11.85% una de otra. No es un empate de coma flotante --
+    # esto es determinista -- pero SI es un margen pequeño para una decision
+    # que la GUI enseña como "la zona principal".
+    margen = hs[0].magnitude / hs[1].magnitude - 1.0
+    assert 0.10 < margen < 0.14, (
+        f"el margen entre las dos cajas era del 11.85% y ahora es del {margen:.2%}: {pista}"
+    )
+
+
 #: El `reason` del xfail de abajo, escrito aparte porque es largo y porque la
 #: regla de las cifras de CONTRATOS.md pide que lleve numeros reproducibles.
 #: Todas las cifras que aparecen aqui estan MEDIDAS el 2026-09-15 sobre el
@@ -183,9 +276,21 @@ _RAZON_XFAIL_T2 = (
     "QUE FALLA: el recorte de la caja del hotspot, no el detector. "
     "CIFRAS, sobre el montaje de este mismo test (mi escena 720x405 semilla 20260915, "
     "viñeta 0.42 + ventana (96,250,190,110) ganancia 1.55 aplicadas EN LUZ LINEAL): "
-    "la 'zona local' mas fuerte es (0,284,31,29) con magnitud 12.7255 y solapa 0.0000 "
-    "con la ventana real, contra el umbral de 0.80 que afirma el repo en su propio T2; "
-    "la segunda, (89,301,251,104) con magnitud 11.3772, solapa 0.4294. "
+    "la 'zona local' mas fuerte es (0,284,31,29) con magnitud 12.725531826505737 y solapa "
+    "0.0000 con la ventana real, contra el umbral de 0.80 que afirma el repo en su propio T2; "
+    "la segunda, (89,301,251,104) con magnitud 11.377186278350779, solapa 0.4294. "
+    "LAS DOS CAJAS ESTAN AL 11.85% UNA DE OTRA, y eso es informacion de primer orden para "
+    "quien vaya a arreglarlo: NO basta con retocar un umbral de magnitud, porque el que "
+    "gana gana por poco y por el motivo equivocado. "
+    "ESTO ES DETERMINISTA, MEDIDO Y NO SUPUESTO: las dos magnitudes salen bit a bit iguales "
+    "(los 17 digitos) en 18 ejecuciones seguidas, con OMP_NUM_THREADS en 1, 2, 8 y sin "
+    "fijar, contra el arbol de trabajo y contra una copia limpia de HEAD, y antes y despues "
+    "del commit 1d4330e de umbrales (que es un puro movimiento de constantes). Toda la "
+    "aleatoriedad de core esta sembrada (SEMILLA=20260915) y mi escena tambien, y "
+    "pytest-randomly NO esta instalado en este venv, asi que '-p no:randomly' es un no-op y "
+    "el orden de recogida no cambia nunca. El desempate entre las dos cajas esta aferrado "
+    "en test_T2_las_dos_cajas_y_su_desempate_estan_aferrados, que es un test EN VERDE: si "
+    "se mueven, salta ese y no este. "
     "POR QUE ES LA CAJA Y NO EL DETECTOR: el 93.6% de los 500 pixeles de mayor residuo "
     "SI caen dentro de la ventana real, y el residuo medio dentro (0.3689) es 4.74 veces "
     "el de fuera (0.0779) -- o sea que el mapa de calor acierta y lo que se va al sitio "
@@ -276,7 +381,7 @@ def test_T2_la_zona_senalada_cae_donde_esta_mi_ventana():
             f"{sorted({hp.label for hp in d.hotspots})}"
         )
 
-    hp = max(locales, key=lambda z: z.magnitude)
+    hp = _por_magnitud(locales)[0]
     solape = _solape_con(hp, E.CAJA_VENTANA)
     _informe("T2-zona-mas-fuerte", solape=solape, magnitud=hp.magnitude)
     assert solape > 0.8, (
