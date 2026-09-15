@@ -420,3 +420,34 @@ def test_un_lut_de_65_va_y_viene(tmp_path):
     vuelto = leer_cube(escribir_cube(lut, tmp_path / "g65.cube"))
     assert vuelto.size == 65
     assert np.abs(vuelto.table - lut.table).max() < 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Cabeceras contradictorias (D-2 de la revisión de la ola 1)
+# ---------------------------------------------------------------------------
+
+
+def test_dos_lut_3d_size_contradictorios(tmp_path):
+    """Un exportador roto que corta y pega deja dos cabeceras. Quedarse con la
+    última en silencio significa leer una tabla que no es la que el fichero
+    declara."""
+    ruta = _escribe(tmp_path, "doble.cube", "LUT_3D_SIZE 2\nLUT_3D_SIZE 3\n" + "0.5 0.5 0.5\n" * 27)
+    with pytest.raises(ErrorFormatoCube) as e:
+        leer_cube(ruta)
+    msg = _mensaje(e)
+    assert "dos veces" in msg and "cuál de los dos" in msg
+    assert "línea 2" in msg  # dice dónde está la segunda
+
+
+def test_dos_lut_1d_size_contradictorios(tmp_path):
+    ruta = _escribe(tmp_path, "doble1d.cube", "LUT_1D_SIZE 4\nLUT_1D_SIZE 8\n" + "0 0 0\n" * 8)
+    with pytest.raises(ErrorFormatoCube) as e:
+        leer_cube(ruta)
+    assert "dos veces" in _mensaje(e)
+
+
+def test_la_misma_cabecera_repetida_con_el_mismo_valor_no_es_ambigua(tmp_path):
+    """No hay ambigüedad que resolver, así que no se rechaza: ser estricto
+    gratis es tan malo como ser laxo."""
+    ruta = _escribe(tmp_path, "rep.cube", "LUT_3D_SIZE 2\nLUT_3D_SIZE 2\n" + "0 0 0\n" * 8)
+    assert leer_cube(ruta).size == 2

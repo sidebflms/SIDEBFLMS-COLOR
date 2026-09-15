@@ -63,6 +63,22 @@ lo que hace el contrato *al generar*, pero rechazar un LUT de 64 que viene de
 fuera es hostil sin ganar nada. Al escribir tampoco se valida: si un test quiere
 un LUT de tamaño 2, que lo escriba.
 
+### Cabeceras de tamaño repetidas (revisión ola 1, D-2)
+
+Rechazaba `LUT_3D_SIZE` y `LUT_1D_SIZE` **a la vez** con un mensaje claro, pero
+dos `LUT_3D_SIZE` con valores **distintos** se los tragaba en silencio quedándose
+con el último. Es la misma ambigüedad y el mismo riesgo (un exportador roto que
+corta y pega, un fichero concatenado), y además el más traicionero de los dos:
+no da error, simplemente lee una tabla que no es la que el fichero declara.
+
+Ahora se rechaza, diciendo los dos valores y en qué líneas están. Vale para
+`LUT_3D_SIZE` y para `LUT_1D_SIZE`.
+
+**Lo que NO rechazo:** la misma cabecera repetida con el **mismo** valor. Ahí no
+hay ambigüedad que resolver, y ser estricto gratis es tan malo como ser laxo:
+Mario no puede abrir el `.cube` del cliente y da igual lo bien defendido que
+esté. Hay un test por cada uno de los tres casos.
+
 ---
 
 ## 3. Cómo se mide el banding, exactamente
@@ -103,11 +119,15 @@ debajo de eso una banda no se ve en un degradado limpio ni buscándola.
 identidad, una curva en S de contraste y un CDL realista convertido a LUT siguen
 pasando limpios en 17, 33 y 65 (hay un test por cada caso).
 
-### Lo que NO pasa limpio y es discutible
+### Lo que NO pasa limpio, y por qué el umbral se queda como está
 
-Una curva `t**0.45` (gamma fuerte, tipo log→lin) en rejilla uniforme **se marca
-como banding en los tres tamaños**, 65 incluido. Lo medí antes de decidir, sobre
-una rampa de 2001 muestras:
+**Revisión ola 1, D-1.** El revisor midió los falsos positivos sobre siete LUT
+legítimos. Cinco de siete pasan limpios en 17, 33 y 65. El que no pasa es la
+**curva de gamma de salida `x**(1/2.2)`**, que es el LUT más común que existe, y
+no pasa en ninguno de los tres tamaños.
+
+Lo medí antes de decidir nada, sobre una rampa de 2001 muestras (la curva
+gemela, `t**0.45`):
 
 | N | error máx. del LUT vs. la curva real | peor quiebro en la rampa |
 |---|---|---|
@@ -115,13 +135,59 @@ una rampa de 2001 muestras:
 | 33 | 0,060 (15/255) | 0,3/255 |
 | 65 | 0,044 (11/255) | 0,6/255 |
 
-O sea: el aviso es un **verdadero positivo** (el LUT se desvía 11/255 de la
-curva que dice representar, incluso con 65 puntos), pero el artefacto visible en
-la imagen es un quiebro de pendiente suave, no un escalón duro. El detector está
-del lado sensible a propósito. **Esto es lo primero que Mario podría querer
-cambiar**: subir `SALTO_MINIMO_BANDING` de 0.02 a 0.05 lo callaría casi todo.
-Está en `test_una_gamma_fuerte_cerca_del_negro_se_marca_como_banding`, escrito y
-explicado.
+**Decisión: NO subo el umbral.** Tres razones, en orden de peso:
+
+1. **Es un verdadero positivo.** Incluso con 65 puntos, el LUT se desvía 11/255
+   de la curva que dice representar. Eso no es ruido del detector: es que una
+   rejilla uniforme no puede con una pendiente casi infinita pegada al negro.
+   Callarlo sería esconder un defecto real del formato.
+2. **El contrapeso está probado.** `test_el_qc_encuentra_el_escalon_de_verdad_cuando_lo_hay`
+   (del revisor) exige que un salto de 0.3 en mitad de la rampa se siga
+   cazando. Subir `SALTO_MINIMO_BANDING` de 0.02 a 0.05 callaría la gamma...
+   y empezaría a acercarse peligrosamente a callar escalones de verdad en LUT
+   de 65, donde el paso típico es 0.0104.
+3. **Las dos vías que el revisor propone están cerradas por sus propios tests.**
+   Sugiere "excluir el primer y el último intervalo": eso dejaría la gamma
+   limpia y pondría rojo su
+   `test_cuantos_falsos_positivos_da_el_qc_sobre_luts_legitimos`, que **afirma**
+   que esa curva sale sucia en los tres tamaños. Y sugiere "contar posiciones
+   distintas del eje": eso cambiaría `celdas_con_banding`, que su otro test
+   **afirma** que vale `3*n*n`. La única salida compatible con las dos
+   afirmaciones es la que he tomado (ver abajo), y me parece además la correcta.
+
+Queda por escrito el matiz honesto: el artefacto visible en la imagen es un
+quiebro de pendiente (0,6/255 de segunda derivada), no un escalón duro. El
+detector está del lado sensible. **Si a Mario le cansa**, el botón es
+`SALTO_MINIMO_BANDING`; pero entonces hay que volver a mirar el punto 2.
+
+### El recuento: un escalón no son doce mil celdas (D-1, lo que SÍ arreglé)
+
+Lo que de verdad estaba mal no era el umbral, era **el número**. Un escalón vive
+en una *posición* de la rejilla, pero la tabla es un cubo: la misma
+discontinuidad aparece en las `n*n` líneas paralelas a ese eje. Contando celdas,
+un único escalón en un LUT de 65 salía como **12.675**. Ese número le dice a
+Mario que el LUT está roto cuando lo que hay es un escalón en un sitio.
+
+Antes: `LUT de 65: banding (20).` y veinte avisos en la GUI, todos el mismo
+defecto.
+Ahora: `LUT de 65: banding (3 escalones).` y tres avisos, uno por eje, cada uno
+diciendo *"en el primer intervalo de la rejilla (pegado al negro) ... es UN
+escalón, pero se repite en 4225 líneas paralelas del cubo"*.
+
+Concretamente:
+
+- Los `ProblemaQC` de banding van **agrupados por `(eje, canal, posición)`**, con
+  el campo nuevo `repeticiones` diciendo en cuántas líneas paralelas aparece, y
+  `celda` señalando la peor de ellas.
+- **`metricas["escalones_de_banding"]`** es el número honesto y es el que usa
+  `resumen()`. Es nuevo.
+- **`metricas["celdas_con_banding"]`** sigue existiendo, en bruto, sin tocar:
+  no es falso, simplemente no es para enseñarlo. (Y el revisor lo tiene fijado
+  en un test, que es otra razón para no cambiarlo.)
+- De paso, **`resumen()` ya no cuenta la lista recortada**. Antes, con un LUT
+  entero de NaN, decía "(20)" porque la lista se corta en
+  `MAX_PROBLEMAS_POR_CODIGO`; ahora coge el total real de `metricas` y dice
+  "14739 valores". Mismo pecado que el del banding, en otro sitio.
 
 ---
 
@@ -222,7 +288,8 @@ conocemos. Al abrirlo:
   añada un "extraer miniaturas a una carpeta". Test con cinco rutas distintas.
 - **Zip-bomba**: se suma el tamaño descomprimido que declara el índice y se corta
   en `MAX_DESCOMPRIMIDO` (256 MB). Y **como el índice puede mentir**, cada
-  entrada se lee además con un tope duro de bytes (`_leer_entrada`).
+  entrada se lee además con un tope duro ceñido a lo que esa entrada declara
+  (`_leer_entrada`).
 - **Número de entradas**: tope de 10.000, por el zip con un millón de ficheros
   vacíos.
 - **`np.load(..., allow_pickle=False)`**, siempre. Éste es el agujero de verdad:
@@ -236,22 +303,55 @@ conocemos. Al abrirlo:
 de texto cada uno en modo exacto) y muestras de píxeles grandes, y sigue cabiendo
 de sobra en la RAM de cualquier Mac.
 
+### Una corrección a la revisión, para que nadie construya encima
+
+El revisor fabricó un zip cuyo índice central **miente** (declara 10 bytes, trae
+400 MB), la defensa aguantó, y dejó escrito que el precio es que
+"un fichero de 400 KB obliga a leer un cuarto de giga a memoria antes de decir
+que no".
+
+**Lo medí y no es cierto**, ni con el código de antes ni con el de ahora.
+`zipfile.ZipExtFile` limita por su cuenta la lectura al `file_size` del
+directorio central —o sea, a los 10 bytes que declara el atacante— y verifica el
+CRC al llegar al final, que es donde salta. Con el zip del propio revisor: 300 MB
+reales, 299 KB en disco, `BadZipFile` en **0,057 s**, sin descomprimir nada.
+
+Lo digo porque es un dato del que alguien podría tirar para "optimizar" la
+lectura, y saldría a resolver un problema que no existe.
+
+Aun así he ceñido el tope de `_leer_entrada` a lo que declara la entrada, porque
+**sí** tapa un caso que el CRC no cubre: un atacante que controla el zip entero
+puede declarar 10 bytes *y* poner el CRC correcto de esos 10 bytes. Ahí no hay
+error de CRC y esta comprobación es la única que queda. Es cinturón y tirantes,
+no el cinturón. Test:
+`test_un_indice_mentiroso_se_rechaza_y_sale_baratisimo`, que fija tanto el
+rechazo como que sale barato.
+
+Y otra precisión del revisor que sí es correcta y conviene tener presente: el
+billion-laughs en UTF-16 no lo para el `re.search` de `<!DOCTYPE` (en UTF-16 no
+casa), lo para **la capa de antes**, que decodifica como UTF-8 estricto. O sea
+que la defensa está en dos sitios y el orden importa: si algún día alguien
+"mejora" la lectura del CDL aceptando otros encodings, tiene que mover el filtro
+de DOCTYPE a después de la decodificación, no antes. Ya está así (se filtra sobre
+el texto ya decodificado), pero dejarlo escrito cuesta dos líneas.
+
 ---
 
-## 9. Un tipo mío que quizá debería estar en `contracts.py`
+## 9. `LUTQualityReport` y `ProblemaQC` se quedan en `core/io/qc.py`
 
-`LUTQualityReport` y `ProblemaQC` los defino en `core/io/qc.py` porque no existen
-en `core/contracts.py` y **no puedo tocar ese fichero**. Pero aparecen en la
-firma pública de `qc_lut()`, que va a llamar la GUI, y CONTRATOS dice que lo que
-cruza una frontera entre módulos vive en `contracts.py`. **Se lo dejo dicho al
-orquestador**: si los quiere ahí, que los mueva; la forma es ésta y no cambia.
+Lo pregunté en la ronda 1 y está resuelto: **se quedan aquí**. `contracts.py` es
+para lo que cruza entre agentes; este informe sólo viaja de `io` a la GUI, y la
+GUI ya importa `core.io`. Es la opción reversible: si mañana lo necesita un
+tercero, se mueve tal cual.
 
 ---
 
 ## 10. Cosas que decidí solo y Mario podría querer cambiar
 
-1. **`SALTO_MINIMO_BANDING = 0.02`** — el punto 3. Si los avisos de banding
-   cansan, esto es lo que hay que subir.
+1. **`SALTO_MINIMO_BANDING = 0.02`** — el punto 3. La revisión de la ola 1 lo
+   confirmó con números y decidí **no subirlo** (argumentado allí). Si aun así
+   los avisos de banding cansan, esto es lo que hay que tocar, pero mirando
+   antes el contrapeso del escalón de 0.3.
 2. **Salirse de gamut es *aviso*, no *error*.** Un LUT de look puede salirse a
    propósito y Resolve recorta. Si Mario prefiere que sea error, es una línea.
 3. **6 decimales por defecto en `escribir_cube`.** Es lo convencional, pero si

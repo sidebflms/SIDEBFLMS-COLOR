@@ -58,9 +58,34 @@ rampa con pendiente fuerte pero constante (un LUT que multiplica por 3) tiene
 saltos grandes entre celdas y no produce ni una banda. Lo que se ve es el
 **cambio** de pendiente, y eso es `d2`.
 
-Aviso honesto: un LUT con una gamma muy fuerte cerca del negro (t**0.45) y sólo
-17 o 33 puntos **se ve escalonado de verdad**, y el QC lo marca. No es un falso
-positivo, es el formato: el remedio es 65 puntos, no bajar el umbral.
+Aviso honesto: un LUT con una gamma muy fuerte cerca del negro (t**0.45, o su
+gemela t**(1/2.2), que es la curva de salida más común que existe) **se ve
+escalonado de verdad**, y el QC lo marca. Lo marca también con 65 puntos, así
+que subir la resolución no es el remedio. No es un falso positivo: medido sobre
+una rampa, ese LUT se desvía 11/255 de la curva que dice representar. Ver el
+punto 3 de `NOTAS.md` para los números y para por qué el umbral se queda como
+está.
+
+EL RECUENTO: UN ESCALÓN NO SON MIL CELDAS
+-----------------------------------------
+Esto es el arreglo D-1 de la revisión de la ola 1, y es una lección que merece
+quedar escrita porque no es evidente.
+
+Un escalón vive en una POSICIÓN de la rejilla a lo largo de un eje. Pero la
+tabla es un cubo: esa misma discontinuidad aparece en las `n*n` líneas
+paralelas a ese eje. Contando celdas marcadas, un único escalón en el primer
+intervalo de un LUT de 65 sale como **12.675 celdas** (3 ejes x 65 x 65).
+
+Ese número no es falso, pero **miente sobre la magnitud del problema**: a quien
+lo lee le dice que el LUT está roto, cuando lo que hay es un escalón en un
+sitio. Así que:
+
+* los `ProblemaQC` de banding van **agrupados por escalón** (eje, canal,
+  posición), con `repeticiones` diciendo en cuántas líneas paralelas aparece;
+* `metricas["escalones_de_banding"]` es el número honesto, y es el que usa
+  `resumen()`, o sea el que ve Mario;
+* `metricas["celdas_con_banding"]` sigue ahí, en bruto, para quien quiera el
+  dato crudo. No es para enseñarlo.
 """
 
 from __future__ import annotations
@@ -117,6 +142,15 @@ MAX_PROBLEMAS_POR_CODIGO: int = 20
 
 NOMBRE_CANAL = ("rojo", "verde", "azul")
 
+#: código -> (clave de `metricas` con el total REAL, unidad para el resumen).
+#: Lo que falte aquí se cuenta con la lista de problemas, que está recortada.
+_METRICA_DE_RESUMEN: dict[str, tuple[str, str]] = {
+    CODIGO_NO_FINITO: ("no_finitos", "valores"),
+    CODIGO_NO_MONOTONIA: ("celdas_no_monotonas", "celdas"),
+    CODIGO_BANDING: ("escalones_de_banding", "escalones"),
+    CODIGO_GAMUT: ("valores_fuera_de_gamut", "valores"),
+}
+
 
 @dataclass(frozen=True)
 class ProblemaQC:
@@ -125,10 +159,18 @@ class ProblemaQC:
     codigo: str
     gravedad: str  # "error" o "aviso"
     mensaje: str  # castellano, se enseña tal cual
-    celda: tuple[int, int, int] | None = None  # (ri, gi, bi)
+    celda: tuple[int, int, int] | None = None  # (ri, gi, bi) representativa
     eje: int | None = None  # eje de ENTRADA: 0 rojo, 1 verde, 2 azul
     canal: int | None = None  # canal de SALIDA afectado
     valor: float = 0.0  # el número crudo, por si alguien quiere discutirlo
+    repeticiones: int = 1
+    """Cuántas celdas son EL MISMO defecto visto desde líneas paralelas.
+
+    Sólo el detector de banding la usa hoy, y es lo que evita que la GUI diga
+    "12.675 celdas con banding" cuando lo que hay es un escalón en una posición
+    de la rejilla que se repite en las n*n líneas paralelas a ese eje. Ver el
+    apartado "el recuento" del docstring del módulo.
+    """
 
 
 @dataclass(frozen=True)
@@ -161,14 +203,26 @@ class LUTQualityReport:
         return tuple(vistos)
 
     def resumen(self) -> str:
-        """Una línea en castellano para la barra de estado."""
+        """Una línea en castellano para la barra de estado.
+
+        El número que sale aquí es el que Mario va a leer, así que es el número
+        que tiene que ser verdad. Para cada código se usa el total REAL de
+        `metricas` (no el de la lista, que está recortada a
+        `MAX_PROBLEMAS_POR_CODIGO`), y para el banding se usan **escalones**, no
+        celdas: decir "12.675 celdas" de un solo escalón proyectado sobre n*n
+        líneas paralelas es mentir sobre la magnitud del problema.
+        """
         if self.ok:
             return f"LUT de {self.size}: limpio."
-        cuenta: dict[str, int] = {}
-        for p in self.problemas:
-            cuenta[p.codigo] = cuenta.get(p.codigo, 0) + 1
-        partes = ", ".join(f"{k} ({v})" for k, v in cuenta.items())
-        return f"LUT de {self.size}: {partes}."
+        partes = []
+        for codigo in self.codigos():
+            clave, unidad = _METRICA_DE_RESUMEN.get(codigo, ("", ""))
+            if clave and clave in self.metricas:
+                cuantos = int(self.metricas[clave])
+            else:
+                cuantos, unidad = len(self.por_codigo(codigo)), ""
+            partes.append(f"{codigo} ({cuantos} {unidad})".replace(" )", ")"))
+        return f"LUT de {self.size}: {', '.join(partes)}."
 
 
 # ---------------------------------------------------------------------------
@@ -271,13 +325,20 @@ def _monotonia(table: np.ndarray, tol: float) -> tuple[list[ProblemaQC], int, fl
 
 def _banding(
     table: np.ndarray, umbral: float, salto_minimo: float
-) -> tuple[list[ProblemaQC], int, float]:
+) -> tuple[list[ProblemaQC], int, int, float]:
+    """Devuelve (problemas, celdas marcadas, ESCALONES distintos, peor salto).
+
+    La diferencia entre "celdas marcadas" y "escalones distintos" es la clave
+    del arreglo D-1. Ver el apartado "el recuento" del docstring del módulo.
+    """
     problemas: list[ProblemaQC] = []
-    total = 0
+    total_celdas = 0
+    total_escalones = 0
     peor = 0.0
     for eje in range(3):
         if table.shape[eje] < 3:
             continue  # con 2 muestras no hay segunda derivada que valga
+        otros = tuple(a for a in range(3) if a != eje)
         for canal in range(3):
             v = table[..., canal]
             d1 = np.diff(v, axis=eje)
@@ -289,35 +350,65 @@ def _banding(
             abs_d2 = np.abs(d2)
             mal = (abs_d2 > limite) & (abs_d2 > salto_minimo)
             cuantos = int(mal.sum())
-            total += cuantos
+            total_celdas += cuantos
             if cuantos == 0:
                 continue
             peor = max(peor, float(np.nanmax(abs_d2[mal])))
-            if len(problemas) >= MAX_PROBLEMAS_POR_CODIGO:
-                continue
-            idx = np.argwhere(mal)[: MAX_PROBLEMAS_POR_CODIGO - len(problemas)]
-            for fila in idx:
-                centro = list(fila)
-                centro[eje] += 1  # la celda que comparten los dos pasos
-                celda = _celda(np.asarray(centro))
-                salto = float(d2[tuple(fila)])
+
+            # AGRUPAR POR ESCALÓN. Un escalón es una POSICIÓN de la rejilla a lo
+            # largo de `eje`, no una celda: la misma discontinuidad aparece en
+            # las n*n líneas paralelas a ese eje. Colapsamos los otros dos ejes.
+            por_posicion = mal.sum(axis=otros)  # (n-2,)
+            total_escalones += int((por_posicion > 0).sum())
+            for pos in np.argwhere(por_posicion > 0).ravel():
+                if len(problemas) >= MAX_PROBLEMAS_POR_CODIGO:
+                    break
+                corte = [slice(None), slice(None), slice(None)]
+                corte[eje] = int(pos)
+                plano_mal = mal[tuple(corte)]
+                plano_d2 = np.where(plano_mal, abs_d2[tuple(corte)], -np.inf)
+                fila, columna = np.unravel_index(int(np.argmax(plano_d2)), plano_d2.shape)
+
+                indice = [0, 0, 0]
+                indice[eje] = int(pos)
+                indice[otros[0]] = int(fila)
+                indice[otros[1]] = int(columna)
+                salto = float(d2[tuple(indice)])
+                celda = list(indice)
+                celda[eje] += 1  # la celda que comparten los dos pasos
+                repeticiones = int(por_posicion[pos])
+                donde = (
+                    "el primer intervalo de la rejilla (pegado al negro)"
+                    if pos == 0
+                    else f"el intervalo {int(pos)} de la rejilla"
+                )
+                extra = (
+                    ""
+                    if repeticiones == 1
+                    else (
+                        f"; es UN escalón, pero se repite en {repeticiones} líneas paralelas "
+                        "del cubo (son la misma discontinuidad vista desde cada una)"
+                    )
+                )
                 problemas.append(
                     ProblemaQC(
                         codigo=CODIGO_BANDING,
                         gravedad="aviso",
                         mensaje=(
-                            f"eje {NOMBRE_CANAL[eje]}, canal {NOMBRE_CANAL[canal]}: en la "
-                            f"celda {celda} el paso entre celdas cambia {abs(salto):.4f} de "
-                            f"golpe (el paso típico de este eje es {escala:.4f}); en un "
-                            "degradado eso se ve como una banda"
+                            f"eje {NOMBRE_CANAL[eje]}, canal {NOMBRE_CANAL[canal]}: en "
+                            f"{donde}, alrededor de la celda {tuple(celda)}, el paso entre "
+                            f"celdas cambia {abs(salto):.4f} de golpe (el paso típico de este "
+                            f"eje es {escala:.4f}); en un degradado eso se ve como una "
+                            f"banda{extra}"
                         ),
-                        celda=celda,
+                        celda=(celda[0], celda[1], celda[2]),
                         eje=eje,
                         canal=canal,
                         valor=salto,
+                        repeticiones=repeticiones,
                     )
                 )
-    return problemas, total, peor
+    return problemas, total_celdas, total_escalones, peor
 
 
 def _gamut(table: np.ndarray, tol: float) -> tuple[list[ProblemaQC], int, float, float]:
@@ -425,9 +516,17 @@ def qc_lut(
     metricas["celdas_no_monotonas"] = float(n_mono)
     metricas["peor_caida_monotonia"] = float(peor_caida)
 
-    p_band, n_band, peor_salto = _banding(table, umbral_banding, salto_minimo_banding)
+    p_band, n_celdas_band, n_escalones, peor_salto = _banding(
+        table, umbral_banding, salto_minimo_banding
+    )
     problemas += p_band
-    metricas["celdas_con_banding"] = float(n_band)
+    # OJO a la diferencia, que es el arreglo D-1 de la revisión:
+    #   `celdas_con_banding`  = celdas marcadas, en bruto. Sube con n**2 aunque
+    #                           el defecto sea uno solo. NO es lo que se enseña.
+    #   `escalones_de_banding`= posiciones distintas de la rejilla. ES el número
+    #                           que dice la verdad, y el que usa `resumen()`.
+    metricas["celdas_con_banding"] = float(n_celdas_band)
+    metricas["escalones_de_banding"] = float(n_escalones)
     metricas["peor_salto_banding"] = float(peor_salto)
 
     p_gam, n_gam, minimo, maximo = _gamut(table, tol_gamut)

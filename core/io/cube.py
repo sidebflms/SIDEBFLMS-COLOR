@@ -254,16 +254,27 @@ def cube_desde_texto(
         campos = _trocear(linea)
         clave = campos[0].upper()
 
-        if clave == "LUT_3D_SIZE":
+        if clave in ("LUT_3D_SIZE", "LUT_1D_SIZE"):
             if len(campos) < 2:
-                raise ErrorFormatoCube(f"'{nombre}', línea {n_linea}: LUT_3D_SIZE sin valor")
-            size_3d = _entero(campos[1], nombre=nombre, n_linea=n_linea, que="LUT_3D_SIZE")
-            linea_size = n_linea
-            continue
-        if clave == "LUT_1D_SIZE":
-            if len(campos) < 2:
-                raise ErrorFormatoCube(f"'{nombre}', línea {n_linea}: LUT_1D_SIZE sin valor")
-            size_1d = _entero(campos[1], nombre=nombre, n_linea=n_linea, que="LUT_1D_SIZE")
+                raise ErrorFormatoCube(f"'{nombre}', línea {n_linea}: {clave} sin valor")
+            valor = _entero(campos[1], nombre=nombre, n_linea=n_linea, que=clave)
+            anterior = size_3d if clave == "LUT_3D_SIZE" else size_1d
+            if anterior is not None and anterior != valor:
+                # D-2 de la revisión de la ola 1. Rechazábamos `LUT_3D_SIZE` y
+                # `LUT_1D_SIZE` a la vez con un mensaje claro, pero dos
+                # `LUT_3D_SIZE` distintos se tragaban en silencio quedándose con
+                # el último. Es la MISMA ambigüedad (un fichero cortado y pegado
+                # por un exportador roto) y el mismo riesgo: si el que manda es
+                # el segundo, la tabla que se lee no es la que el fichero dice.
+                raise ErrorFormatoCube(
+                    f"'{nombre}', línea {n_linea}: {clave} está declarado dos veces con "
+                    f"valores distintos ({anterior} en la línea {linea_size} y {valor} aquí); "
+                    "no sé cuál de los dos es el bueno"
+                )
+            if clave == "LUT_3D_SIZE":
+                size_3d = valor
+            else:
+                size_1d = valor
             linea_size = n_linea
             continue
         if clave == "TITLE":

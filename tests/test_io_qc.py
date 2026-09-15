@@ -222,3 +222,74 @@ def test_un_lut_con_mezcla_de_canales_fuerte_pero_sano_pasa_limpio():
     t = np.linspace(0.0, 1.0, n, dtype=np.float32)
     lut = lut_desde_curvas(t * 0.9 + 0.05, t, t * 0.8 + 0.1)
     assert qc_lut(lut).ok
+
+
+# ---------------------------------------------------------------------------
+# El recuento del banding (D-1 de la revisión de la ola 1)
+# ---------------------------------------------------------------------------
+
+
+def _lut_separable(n: int, f) -> LUT3D:
+    x = np.linspace(0.0, 1.0, n)
+    r, g, b = np.meshgrid(x, x, x, indexing="ij")
+    return LUT3D(table=np.stack([f(r), f(g), f(b)], -1).astype(np.float32))
+
+
+def test_un_escalon_es_un_escalon_y_no_doce_mil_celdas():
+    """D-1. Un escalón vive en una POSICIÓN de la rejilla, pero aparece en las
+    n*n líneas paralelas a ese eje. Contando celdas, un solo defecto sale como
+    12.675 y la GUI le dice a Mario que el LUT está roto.
+
+    La métrica en bruto sigue ahí (alguien la querrá), pero la que se enseña es
+    el número de escalones."""
+    n = 65
+    lut = _lut_separable(n, lambda t: np.power(np.maximum(t, 0.0), 1.0 / 2.2))
+    informe = qc_lut(lut)
+
+    assert informe.metricas["celdas_con_banding"] == 3 * n * n  # el dato crudo
+    assert informe.metricas["escalones_de_banding"] == 3  # la verdad: uno por eje
+    assert len(informe.por_codigo(CODIGO_BANDING)) == 3
+
+    p = informe.por_codigo(CODIGO_BANDING)[0]
+    assert p.repeticiones == n * n
+    assert "UN escalón" in p.mensaje and "líneas paralelas" in p.mensaje
+    assert "pegado al negro" in p.mensaje
+
+
+def test_el_resumen_habla_de_escalones_no_de_celdas():
+    """Es la frase que acaba en la barra de estado. Tiene que ser verdad."""
+    lut = _lut_separable(65, lambda t: np.power(np.maximum(t, 0.0), 1.0 / 2.2))
+    resumen = qc_lut(lut).resumen()
+    assert resumen == "LUT de 65: banding (3 escalones)."
+    assert "12675" not in resumen
+
+
+def test_el_resumen_usa_el_total_real_y_no_la_lista_recortada():
+    """La lista de problemas está recortada a 20; el resumen NO puede decir 20
+    cuando hay 14.739."""
+    tabla = np.full((17, 17, 17, 3), np.nan, dtype=np.float32)
+    resumen = qc_lut(LUT3D(table=tabla)).resumen()
+    assert f"{17**3 * 3}" in resumen
+    assert "(20 " not in resumen
+
+
+def test_dos_escalones_en_el_mismo_eje_se_cuentan_como_dos():
+    """Agrupar no puede tragarse escalones distintos: `lut_con_banding` deja la
+    discontinuidad repartida entre dos posiciones contiguas y las dos salen."""
+    informe = qc_lut(lut_con_banding(17, eje=0, salto=0.3))
+    problemas = informe.por_codigo(CODIGO_BANDING)
+    assert informe.metricas["escalones_de_banding"] == len(problemas) == 2
+    assert {p.celda[0] for p in problemas} == {7, 8}
+    assert all(p.repeticiones == 17 * 17 for p in problemas)
+
+
+def test_un_escalon_en_una_sola_celda_no_se_agrupa_de_mas():
+    """Contrapeso: si el defecto está en UNA celda (no separable), repeticiones
+    tiene que ser 1 y no se puede inventar un grupo grande."""
+    tabla = np.asarray(LUT3D.identity(17).table).copy()
+    tabla[8, 3, 4, 0] += 0.5
+    informe = qc_lut(LUT3D(table=tabla))
+    problemas = informe.por_codigo(CODIGO_BANDING)
+    assert problemas
+    assert all(p.repeticiones == 1 for p in problemas)
+    assert informe.metricas["celdas_con_banding"] == informe.metricas["escalones_de_banding"]

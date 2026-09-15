@@ -39,8 +39,9 @@ Se lo pueden pasar a Mario por WeTransfer. Así que al abrirlo:
   está probada: el día que alguien añada un "extraer miniaturas a una carpeta"
   la defensa ya estará puesta.
 * **Zip-bomba**: se suma el tamaño descomprimido que declara el índice del zip
-  y se rechaza si pasa de `MAX_DESCOMPRIMIDO`. Y como el índice puede mentir,
-  cada entrada se lee además con un tope duro de bytes.
+  y se rechaza si pasa de `MAX_DESCOMPRIMIDO`. Y como **el índice puede
+  mentir**, cada entrada se lee además con un tope duro ajustado a lo que esa
+  entrada declara: si dice 10 bytes y trae 400 MB, se leen 11 y se corta.
 * **`np.load(..., allow_pickle=False)`**, siempre. Un `.npy` con pickle dentro
   ejecuta código arbitrario al cargarlo; ese es el agujero de verdad y el flag
   no se toca.
@@ -340,20 +341,52 @@ def _revisar_zip(zf: zipfile.ZipFile, *, nombre: str, max_descomprimido: int) ->
 
 
 def _leer_entrada(zf: zipfile.ZipFile, interno: str, *, nombre: str, tope: int) -> bytes:
-    """Lee una entrada con un tope DURO, porque el índice del zip puede mentir."""
+    """Lee una entrada con un tope DURO, porque el índice del zip puede mentir.
+
+    El tope se ciñe al tamaño que la entrada DECLARA, no al tope global. Lo
+    declarado ya lo ha validado `_revisar_zip` contra el tope global, así que
+    ceñirse a ello no abre ningún hueco: un índice que declare de más se corta
+    antes, y uno que declare de menos se pilla aquí.
+
+    UNA PRECISIÓN, porque la revisión de la ola 1 dejó escrito lo contrario y
+    conviene no construir nada encima de un dato falso: la revisión dice que
+    con un índice mentiroso "el tope duro es `max_descomprimido` (256 MB), así
+    que un fichero de 400 KB obliga a leer un cuarto de giga a memoria antes de
+    decir que no". **Eso no pasa, ni pasaba antes de este cambio.**
+    `zipfile.ZipExtFile` limita por su cuenta la lectura a `file_size` del
+    directorio central (o sea, a los 10 bytes que declara el atacante) y
+    verifica el CRC al llegar al final, que es donde salta. Medido con el zip
+    del propio revisor: 300 MB reales, 299 KB en disco, `BadZipFile` en 0,057 s
+    y sin descomprimir nada.
+
+    Entonces, ¿para qué sirve este tope si `zipfile` ya corta? Para el caso que
+    el CRC no cubre: un atacante que controla el zip entero puede declarar 10
+    bytes **y** poner el CRC de esos 10 bytes. Ahí no hay error de CRC y la
+    única defensa es esta. Es cinturón y tirantes, no el cinturón.
+    """
     try:
-        with zf.open(interno, "r") as fh:
-            datos = fh.read(tope + 1)
+        info = zf.getinfo(interno)
     except KeyError as exc:
         raise ErrorBundle(
             f"'{nombre}' está incompleto: la sesión referencia '{interno}' y no está dentro"
         ) from exc
+    declarado = int(info.file_size)
+    limite = min(declarado, tope)
+    try:
+        with zf.open(interno, "r") as fh:
+            datos = fh.read(limite + 1)
     except (zipfile.BadZipFile, OSError) as exc:
         raise ErrorBundle(f"'{nombre}': no puedo leer '{interno}' -> {exc}") from exc
-    if len(datos) > tope:
+    if len(datos) > limite:
+        if declarado > tope:
+            raise ErrorBundle(
+                f"'{nombre}': la entrada '{interno}' se pasa del tope de "
+                f"{tope // (1024 * 1024)} MB al descomprimir (zip-bomba)"
+            )
         raise ErrorBundle(
-            f"'{nombre}': la entrada '{interno}' se pasa del tope de "
-            f"{tope // (1024 * 1024)} MB al descomprimir (zip-bomba)"
+            f"'{nombre}': el índice del zip miente sobre '{interno}' (dice {declarado} bytes "
+            "y trae más). Un fichero así está corrupto o está preparado para hacer daño; "
+            "no lo abro."
         )
     return datos
 

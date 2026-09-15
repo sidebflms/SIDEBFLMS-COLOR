@@ -467,3 +467,63 @@ def test_un_cdl_guardado_con_power_cero(tmp_path):
     with pytest.raises(ErrorBundle) as e:
         abrir_sesion(ruta)
     assert "power" in str(e.value).lower()
+
+
+def test_un_indice_mentiroso_se_rechaza_y_sale_baratisimo(tmp_path):
+    """Índice del zip que MIENTE: declara 10 bytes y trae 32 MB.
+
+    La revisión de la ola 1 dejó escrito que este ataque "obliga a leer un
+    cuarto de giga a memoria antes de decir que no". Lo medí y **no es cierto**:
+    `zipfile` limita la lectura al `file_size` del directorio central (los 10
+    bytes que declara el atacante) y el CRC salta al llegar al final. Con el zip
+    del revisor (300 MB reales, 299 KB en disco): `BadZipFile` en 0,057 s.
+
+    Este test fija las dos cosas: que se rechaza, y que se rechaza sin
+    descomprimir el contenido. Si algún día `zipfile` cambia de criterio, el
+    tiempo lo delata.
+    """
+    import struct
+    import time
+
+    entrada = "arrays/gorda.npy"
+    ruta = tmp_path / "mentira.sidebcolor"
+    with zipfile.ZipFile(ruta, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("session.json", _sesion_minima_json())
+        zf.writestr(entrada, b"\0" * (32 * 1024 * 1024))
+
+    crudo = bytearray(ruta.read_bytes())
+    pos, parcheadas = 0, 0
+    while True:
+        pos = crudo.find(b"PK\x01\x02", pos)
+        if pos < 0:
+            break
+        largo = struct.unpack_from("<H", crudo, pos + 28)[0]
+        if bytes(crudo[pos + 46 : pos + 46 + largo]).decode() == entrada:
+            struct.pack_into("<I", crudo, pos + 24, 10)
+            parcheadas += 1
+        pos += 4
+    ruta.write_bytes(bytes(crudo))
+    assert parcheadas == 1
+    assert ruta.stat().st_size < 1024 * 1024, "el zip de ataque tiene que ser pequeño"
+
+    from core.io.bundle import _abrir_zip, _leer_entrada
+
+    zf = _abrir_zip(ruta)
+    inicio = time.perf_counter()
+    try:
+        with pytest.raises(ErrorBundle):
+            _leer_entrada(zf, entrada, nombre="mentira", tope=256 * 1024 * 1024)
+    finally:
+        zf.close()
+    assert time.perf_counter() - inicio < 1.0, "se ha descomprimido de verdad"
+
+
+def test_una_entrada_mas_gorda_que_el_tope_global_se_corta(tmp_path):
+    """La otra mitad: el índice dice la verdad pero la entrada no cabe."""
+    ruta = tmp_path / "gorda.sidebcolor"
+    with zipfile.ZipFile(ruta, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("session.json", _sesion_minima_json())
+        zf.writestr("arrays/gorda.npy", b"\0" * (2 * 1024 * 1024))
+    with pytest.raises(ErrorBundle) as e:
+        abrir_sesion(ruta, max_descomprimido=1024 * 1024)
+    assert "zip-bomba" in str(e.value)
