@@ -94,7 +94,14 @@ def _luma(img: np.ndarray) -> np.ndarray:
 def _gradiente(y: np.ndarray) -> np.ndarray:
     """Magnitud del gradiente, que es lo que de verdad dice si dos imagenes
     estan encajadas: el color puede cambiar entero con el grado, los bordes no
-    se mueven."""
+    se mueven.
+
+    Con menos de dos pixeles en algun eje no hay gradiente que calcular y
+    `np.gradient` **lanza**. Se devuelven ceros: una imagen de 1 px no tiene
+    bordes, y eso no es un error, es un dato (ver `correlacion_de_gradientes`).
+    """
+    if min(y.shape[:2]) < 2:
+        return np.zeros_like(y)
     gy, gx = np.gradient(y)
     return np.sqrt(gy * gy + gx * gx)
 
@@ -104,6 +111,11 @@ def correlacion_de_gradientes(a: np.ndarray, b: np.ndarray) -> float:
 
     1.0 = los bordes caen exactamente en el mismo sitio. Es invariante a
     cualquier grado que no mueva los bordes, o sea a cualquier grado.
+
+    Con una imagen de menos de 8 pixeles (o de menos de 2 en algun eje) se
+    devuelve **0.0**, que es lo que hay que devolver: no es que los bordes no
+    encajen, es que no hay bordes que comparar, y quien llama tiene que tratar
+    eso como "no me fio" y no como "encaja perfecto". `alinear` lo hace.
     """
     ga = _gradiente(_luma(a)).ravel()
     gb = _gradiente(_luma(b)).ravel()
