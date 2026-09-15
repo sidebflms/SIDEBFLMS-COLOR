@@ -16,11 +16,13 @@ from core.color import (
     convert,
     from_working,
     log_decode,
+    log_encode,
     primaries_matrix,
     rgb_to_xyz_matrix,
     to_working,
 )
 from core.contracts import WORKING_SPACE
+from tests.media import generate as gen
 
 ESPACIOS = tuple(SPACES)
 
@@ -31,6 +33,7 @@ EN_COLOUR = {
     "clog3_cinemagamut": "Cinema Gamut",
     "dlog_dgamut": "DJI D-Gamut",
     "rec709": "ITU-R BT.709",
+    "srgb": "sRGB",
     "davinci_wg_intermediate": "DaVinci Wide Gamut",
     "linear_davinci_wg": "DaVinci Wide Gamut",
     "linear_rec709": "ITU-R BT.709",
@@ -63,7 +66,8 @@ CALCULADAS = ("clog3_cinemagamut", "rec709", "davinci_wg_intermediate",
 IMPRESAS = {
     "slog3_sgamut3cine": 1e-10,  # Sony imprime ~10 decimales
     "vlog_vgamut": 1e-6,  # Panasonic imprime 6 decimales
-    "dlog_dgamut": 2e-4,  # DJI imprime 4 decimales: es el peor de los ocho
+    "dlog_dgamut": 2e-4,  # DJI imprime 4 decimales: es el peor de todos
+    "srgb": 1e-4,  # la IEC imprime la suya redondeada; diferencia real 3.9e-5
 }
 
 
@@ -333,13 +337,26 @@ def test_dtype_de_convert():
 # ---------------------------------------------------------------------------
 
 
-def test_spaces_cubre_exactamente_el_contrato():
-    """Ni uno mas ni uno menos que los `ColorSpaceName` del contrato congelado."""
+def test_spaces_cubre_el_contrato_y_dice_que_anade():
+    """Los ocho `ColorSpaceName` del contrato, mas `srgb`.
+
+    `srgb` NO esta en `ColorSpaceName` porque `core/contracts.py` es del
+    orquestador y esta congelado. Lo pidio el agente B en la ronda 1 de
+    revision: `tests/media/generate.py` codifica en sRGB y hasta ahora eso no se
+    podia nombrar, asi que B lo estaba mapeando a `rec709`, que es OTRA curva
+    (ver `test_srgb_y_rec709_no_son_la_misma_curva`).
+
+    Este test falla si alguien anade un espacio sin actualizar aqui la lista, y
+    tambien si el orquestador amplia `ColorSpaceName`: en ese caso lo correcto
+    es quitar `srgb` de los extras, no relajar el test.
+    """
     from typing import get_args
 
     from core.contracts import ColorSpaceName
 
-    assert set(SPACES) == set(get_args(ColorSpaceName))
+    del_contrato = set(get_args(ColorSpaceName))
+    assert del_contrato <= set(SPACES), f"faltan: {del_contrato - set(SPACES)}"
+    assert set(SPACES) - del_contrato == {"srgb"}
 
 
 @pytest.mark.parametrize("espacio", ESPACIOS)
@@ -350,6 +367,60 @@ def test_cada_espacio_dice_de_donde_sale(espacio):
     assert info.name == espacio
     assert info.primaries.shape == (3, 2)
     assert info.whitepoint == (0.3127, 0.3290)
+
+
+def test_srgb_y_rec709_no_son_la_misma_curva():
+    """El bug que se comio el agente B: 0.045 lineal vuelve como 0.0705 (+57%).
+
+    Los dos espacios comparten primarios EXACTOS (la matriz entre ellos es la
+    identidad) pero no comparten curva. Este test deja el numero escrito para
+    que a nadie se le ocurra volver a mapear uno al otro.
+    """
+    assert np.array_equal(primaries_matrix("srgb", "rec709"), np.eye(3))
+
+    lineal = np.full((1, 3), 0.045)
+    en_srgb = log_encode(lineal, "srgb")
+    # Interpretar por error ese valor como Rec.709 devuelve otra cosa muy distinta.
+    mal = log_decode(en_srgb, "rec709")
+    assert float(mal[0, 0]) == pytest.approx(0.0705, abs=5e-4)
+    assert float(mal[0, 0]) / 0.045 == pytest.approx(1.57, abs=0.02)
+    # Y hecho bien, vuelve clavado.
+    assert np.allclose(log_decode(en_srgb, "srgb"), lineal, rtol=1e-12)
+
+
+def test_srgb_es_exactamente_lo_que_codifica_el_generador():
+    """`tests/media/generate.py` es la fuente de todo el material de prueba.
+
+    Su `srgb_oetf` y nuestro `log_encode(x, "srgb")` tienen que ser la MISMA
+    funcion, o el agente B mide sobre pixeles que no son los que cree.
+    """
+    v = np.linspace(0.0, 1.0, 100_001)
+    assert np.max(np.abs(log_encode(v, "srgb") - gen.srgb_oetf(v))) == 0.0
+    # En la vuelta hay 2.3e-9 de diferencia y tiene explicacion: el generador
+    # usa el 0.04045 redondeado de la norma como umbral y nosotros usamos
+    # 12.92 * 0.0031308 = 0.040449936, que es el valor exacto del corte. Con el
+    # redondeado, nuestra ida y vuelta dejaria de ser exacta en una franja de
+    # 5e-9. Preferimos la ida y vuelta exacta.
+    assert np.max(np.abs(log_decode(v, "srgb") - gen.srgb_eotf(v))) < 1e-8
+
+
+def test_convert_identidad_normaliza_el_dtype():
+    """El dtype que devuelve `convert` no puede depender de si src == dst.
+
+    Lo cazo el revisor en la ronda 1: `convert(uint8, X, X)` devolvia uint8, y
+    un uint8 cruzando una frontera entre modulos es lo que prohibe el contrato 1.
+    """
+    enteros = np.zeros((2, 2, 3), dtype=np.uint8)
+    assert convert(enteros, "rec709", "rec709").dtype == np.float32
+    assert convert(enteros, "rec709", "srgb").dtype == np.float32
+    f64 = np.zeros((2, 2, 3), dtype=np.float64)
+    assert convert(f64, "rec709", "rec709").dtype == np.float64
+
+
+def test_convert_identidad_sigue_siendo_bit_a_bit_en_float():
+    """Normalizar el dtype no puede haberse cargado la exactitud prometida."""
+    x = np.array([[np.nan, np.inf, -np.inf], [0.18, -0.5, 9.5]], dtype=np.float32)
+    assert convert(x, "srgb", "srgb").tobytes() == x.tobytes()
 
 
 def test_los_lineales_estan_marcados_como_lineales():

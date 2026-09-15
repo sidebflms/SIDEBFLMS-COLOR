@@ -120,6 +120,110 @@ def test_lab_del_gris18_es_el_l_star_publicado():
     assert lab[0] == pytest.approx(49.496, abs=1e-3)
 
 
+def test_lab_del_negro_exacto_es_cero_no_menos_dieciseis():
+    """REGRESION (ronda 2, lo encontro el agente C). De los que vuelven.
+
+    `_f_lab` extendia a negativos con `np.sign`, y `np.sign(0) == 0`, mientras
+    que la rama lineal de la CIE vale 16/116 en el cero. Resultado: un negro
+    EXACTO salia con L* = -16 en vez de L* = 0. Un salto de 16 unidades justo
+    en el cero, y ΔE2000 entre dos negros indistinguibles daba 8.57.
+
+    Un negro exacto no es un caso raro: sale de material recortado, de un fondo
+    apagado y de cualquier `np.zeros` de prueba. Y ΔE2000 es la vara de medir de
+    los cuatro tests entregables, asi que esto contaminaba medidas de otros
+    modulos sin que se viera.
+    """
+    negro = np.zeros((1, 3))
+    assert np.allclose(rgb_to_lab(negro, "linear_rec709"), 0.0, atol=1e-12)
+    assert np.allclose(xyz_to_lab(np.zeros((1, 3))), 0.0, atol=1e-12)
+    # Y no hay escalon: un negro exacto y un casi-negro son el mismo color.
+    for epsilon in (1e-30, 1e-12, 1e-8):
+        casi = np.full((1, 3), epsilon)
+        assert float(delta_e2000(negro, casi, "linear_rec709")[0]) < 1e-3, epsilon
+    assert float(delta_e2000(negro, np.full((1, 3), 1e-30), "linear_rec709")[0]) == 0.0
+
+
+def test_no_hay_escalon_en_el_cero_en_ninguna_direccion():
+    """Barre el cero por los dos lados, canal a canal.
+
+    El bug original solo saltaba con el canal a cero EXACTO, asi que lo que hay
+    que comprobar no es la diferencia entre muestras consecutivas (que crece
+    sola al espaciar las muestras en escala logaritmica) sino que el valor EN el
+    cero coincide con el limite por los dos lados.
+
+    Se mide sobre los tres canales por separado, porque el material fuera de
+    gamut llega con un solo canal negativo, no con los tres.
+
+    La tolerancia de 1e-4 no es arbitraria: con el mayor epsilon del barrido
+    (1e-9), la respuesta LEGITIMA de a* es 500 * kappa * 1e-9 / 116 / 0.9505 =
+    4.3e-6, o sea que 1e-4 deja veinte veces de margen y sigue siendo cien mil
+    veces mas pequena que el escalon de 16 unidades que producia el bug.
+    """
+    epsilons = 10.0 ** np.arange(-30.0, -8.0)
+    for canal in range(3):
+        cero = np.zeros((1, 3))
+        en_cero = xyz_to_lab(cero)[0]
+        for signo in (+1.0, -1.0):
+            xyz = np.zeros((epsilons.size, 3))
+            xyz[:, canal] = signo * epsilons
+            lab = xyz_to_lab(xyz)
+            assert np.all(np.isfinite(lab))
+            salto = float(np.max(np.abs(lab - en_cero)))
+            assert salto < 1e-4, f"canal {canal}, signo {signo:+.0f}: salto de {salto}"
+
+
+def test_l_estrella_es_creciente_y_continua_cruzando_el_cero():
+    """La luminosidad tiene que crecer sin saltos al pasar de Y negativo a Y positivo.
+
+    Es la comprobacion que habria cazado el bug de la ronda 2 de una sola vez:
+    con `np.sign`, L* daba -16 exactamente en Y = 0 y 0 a los dos lados, o sea
+    un pozo de 16 unidades de ancho cero.
+    """
+    y = np.linspace(-0.02, 0.02, 40001)
+    xyz = np.zeros((y.size, 3))
+    xyz[:, 1] = y
+    ele = xyz_to_lab(xyz)[:, 0]
+    assert np.all(np.diff(ele) > 0.0), "L* no es estrictamente creciente en Y"
+    # Sin saltos: el mayor escalon entre muestras contiguas es minusculo.
+    assert float(np.max(np.abs(np.diff(ele)))) < 0.5
+
+
+def test_el_cero_negativo_se_comporta_como_el_cero():
+    """Variante taimada del bug de la ronda 2: en coma flotante hay un `-0.0`.
+
+    Sale solo de multiplicar cualquier cosa por cero con signo, y con el
+    `np.sign` viejo habria caido en la rama de los negativos. Tiene que ser
+    indistinguible del cero por todos lados.
+    """
+    cero = np.zeros((1, 3))
+    menos_cero = np.full((1, 3), -0.0)
+    assert np.allclose(xyz_to_lab(menos_cero), 0.0, atol=1e-15)
+    assert np.allclose(rgb_to_lab(menos_cero, "linear_rec709"), 0.0, atol=1e-15)
+    assert np.allclose(rgb_to_oklab(menos_cero, "linear_rec709"), 0.0, atol=1e-15)
+    assert float(delta_e2000(cero, menos_cero, "linear_rec709")[0]) == 0.0
+
+
+def test_croma_cero_no_es_una_discontinuidad_disfrazada():
+    """El convenio de Sharma (h' = 0 cuando C' = 0) NO mete un escalon.
+
+    Es el otro sitio del modulo donde un cero exacto cambia de rama, asi que
+    entra en la misma revision que `_f_lab`. Se compara contra colour porque es
+    quien manda en el convenio.
+    """
+    gris = np.array([[50.0, 0.0, 0.0]])
+    for delta in (1e-14, 1e-10, 1e-6):
+        casi = np.array([[50.0, delta, 0.0]])
+        mio = float(np.ravel(delta_e2000_lab(gris, casi))[0])
+        suyo = float(np.ravel(colour.difference.delta_E_CIE2000(gris, casi))[0])
+        assert mio == pytest.approx(suyo, abs=1e-12)
+        assert mio < 1e-5
+
+
+def test_lab_ida_y_vuelta_del_negro_exacto():
+    """L* = 0 tiene que volver a XYZ = 0 clavado, no a -0.0018."""
+    assert np.allclose(lab_to_xyz(np.zeros((1, 3))), 0.0, atol=1e-18)
+
+
 def test_lab_contra_colour():
     rng = np.random.default_rng(31)
     lineal = rng.uniform(0.0, 1.2, (400, 3))
@@ -135,9 +239,30 @@ def test_lab_ida_y_vuelta_por_xyz():
     assert np.allclose(lab_to_xyz(xyz_to_lab(xyz)), xyz, rtol=1e-9, atol=1e-12)
 
 
+def test_lab_contra_colour_en_el_cero_y_en_negativos():
+    """El mismo juez, pero donde duele. Mismo criterio que en A-1.
+
+    La CIE define su f() solo para t >= 0. Nosotros prolongamos la rama LINEAL a
+    los negativos, que es lo que hace colour-science, en vez de espejar. Asi la
+    comparacion con el juez independiente vale en todo el dominio y no solo en
+    la mitad positiva.
+    """
+    xyz = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [-0.2, 0.3, -0.01],
+            [0.5, -0.1, 0.9],
+            [-1.0, -1.0, -1.0],
+            [1e-30, 0.0, -1e-30],
+        ]
+    )
+    suyo = colour.XYZ_to_Lab(xyz, colour.RGB_COLOURSPACES["ITU-R BT.709"].whitepoint)
+    assert np.allclose(xyz_to_lab(xyz), suyo, rtol=1e-12, atol=1e-10)
+
+
 def test_lab_aguanta_xyz_negativo():
-    """Fuera de gamut hay XYZ negativos. La f() de la CIE no los define; la
-    nuestra se extiende por simetria impar para que sigan siendo invertibles."""
+    """Fuera de gamut hay XYZ negativos. La f() de la CIE no los define; aqui se
+    prolonga la rama lineal, que ya es monotona e invertible en los negativos."""
     xyz = np.array([[-0.2, 0.3, -0.01], [0.5, -0.1, 0.9]])
     lab = xyz_to_lab(xyz)
     assert np.all(np.isfinite(lab))

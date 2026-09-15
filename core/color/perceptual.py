@@ -62,8 +62,9 @@ _M2_INV = np.linalg.inv(_M2_LMS_LAB)
 #: Blanco de referencia de CIE L*a*b*: D65 2 grados con Y = 1.
 XYZ_D65 = xyz_from_xy((0.3127, 0.3290))
 
-_LAB_EPSILON = 216.0 / 24389.0  # (6/29)^3
+_LAB_EPSILON = 216.0 / 24389.0  # (6/29)^3, el corte visto desde t
 _LAB_KAPPA = 24389.0 / 27.0  # (29/3)^3
+_LAB_F_CUT = 6.0 / 29.0  # f(_LAB_EPSILON), el mismo corte visto desde f
 
 
 def _pixeles(img: np.ndarray, quien: str) -> np.ndarray:
@@ -115,21 +116,41 @@ def oklab_to_rgb(lab: np.ndarray, space: ColorSpaceName = WORKING_SPACE) -> np.n
 
 
 def _f_lab(t: np.ndarray) -> np.ndarray:
-    """La f() de CIE L*a*b*, extendida a negativos por simetria impar.
+    """La f() de CIE 15:2004, con la rama lineal PROLONGADA a los negativos.
 
-    La CIE solo la define para t >= 0. Como aqui entran colores fuera de gamut
-    con XYZ negativo, se extiende con f(-t) = -f(t): es continua, monotona e
-    invertible, que es lo que necesita ΔE2000 para no romperse.
+    La CIE la define solo para t >= 0:
+
+        f(t) = t^(1/3)                si t > (6/29)^3
+        f(t) = (kappa * t + 16) / 116 si no
+
+    Aqui entran colores fuera de gamut con XYZ negativo, asi que hay que
+    extenderla. Se extiende dejando correr la rama LINEAL, que ya esta definida
+    para t negativo, es monotona (pendiente kappa/116 > 0) e invertible.
+
+    OJO, QUE AQUI HUBO UN BUG Y ES DE LOS QUE VUELVEN (ronda 2, lo encontro el
+    agente C): antes esto extendia por simetria impar con `s = np.sign(t)`. Y
+    `np.sign(0) == 0`, mientras que la rama lineal de la CIE vale **16/116 en el
+    cero**, no 0. O sea que un negro EXACTO se iba a f = 0 en vez de a 16/116, y
+    salia con L* = -16 en vez de L* = 0: un salto de 16 unidades justo en el
+    cero, y `delta_e2000(negro, 1e-30)` daba 8.57 entre dos colores
+    indistinguibles. Un negro exacto no es un caso raro (material recortado, un
+    fondo apagado, un `np.zeros` de prueba) y ΔE2000 es la vara de medir de toda
+    la app.
+
+    La formula de la CIE tal cual, sin trucos de signo, ya hace lo correcto en el
+    cero. No hacia falta el `sign` para nada: lo unico que necesitaba trato
+    especial era la raiz cubica, y esa rama nunca se aplica a un negativo.
     """
-    s = np.sign(t)
-    a = np.abs(t)
-    return s * np.where(a > _LAB_EPSILON, np.cbrt(a), (_LAB_KAPPA * a + 16.0) / 116.0)
+    return np.where(t > _LAB_EPSILON, np.cbrt(t), (_LAB_KAPPA * t + 16.0) / 116.0)
 
 
-def _f_lab_inv(t: np.ndarray) -> np.ndarray:
-    s = np.sign(t)
-    a = np.abs(t)
-    return s * np.where(a**3 > _LAB_EPSILON, a**3, (116.0 * a - 16.0) / _LAB_KAPPA)
+def _f_lab_inv(f: np.ndarray) -> np.ndarray:
+    """Inversa exacta de `_f_lab`. El corte, visto desde f, esta en 6/29.
+
+    Es exacta de verdad en el corte: `_f_lab(eps)` da 6/29 por las dos ramas, y
+    `_f_lab_inv(6/29)` devuelve (116*(6/29) - 16)/kappa = 8/kappa = eps clavado.
+    """
+    return np.where(f > _LAB_F_CUT, f**3, (116.0 * f - 16.0) / _LAB_KAPPA)
 
 
 def xyz_to_lab(xyz: np.ndarray) -> np.ndarray:

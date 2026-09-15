@@ -15,6 +15,19 @@ LO QUE HAY QUE SABER PARA USARLO
 - `primaries_matrix(src, dst)` es solo la matriz, sobre valores LINEALES.
 - Los espacios `linear_*` son escena-lineales: tienen primarios pero su curva
   es la identidad.
+- **`srgb` y `rec709` NO son lo mismo.** Comparten primarios exactos pero no
+  curva: el tramo lineal de sRGB tiene pendiente 12.92 y corta en 0.0031308, el
+  de Rec.709 pendiente 4.5 y corta en 0.018. Confundirlos cuesta un 57% de
+  error en las sombras. `tests/media/generate.py` codifica en **sRGB**.
+- `srgb` no esta en `ColorSpaceName` (que es del orquestador y esta congelado);
+  se pasa como cadena y `SPACES` lo conoce igual.
+
+FUERA DE 0..1
+------------
+Rec.709 y sRGB solo estan definidas en 0..1. Para valores negativos se
+**prolonga el tramo lineal** (4.5x y 12.92x), que es lo que hace
+colour-science. Es invertible exacto, asi que los negativos se preservan como
+manda el contrato 1.
 
 POLITICA DE NaN (la misma en todo el modulo)
 --------------------------------------------

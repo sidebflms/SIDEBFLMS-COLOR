@@ -4,7 +4,12 @@ Qué decidí, qué descarté y por qué. Está escrito para que mi revisor pueda
 discreparme con criterio, así que hay números medidos, no impresiones.
 
 Todo lo de aquí se comprueba solo: `.venv/bin/python -m pytest tests/test_color_*.py`
-(298 tests, todos en verde a día de hoy).
+(337 tests, todos en verde a día de hoy).
+
+**Rondas 1 y 2 de revisión cerradas.** Tres hallazgos reales del agente G y del
+agente C, y una petición del agente B. Qué cambié y por qué está en la **§9**
+(ronda 1) y la **§10** (ronda 2), al final. Si sólo vas a leer una sección, lee
+la §10: es un bug que contaminaba medidas de otros módulos sin que se viera.
 
 ---
 
@@ -27,10 +32,18 @@ números que todo el mundo cita:
 | DJI D-Log | 0.398765 |
 | DaVinci Intermediate | 0.336043 |
 | Rec.709 (OETF BT.709) | 0.409008 |
+| sRGB (IEC 61966-2-1) | 0.461356 |
 
-Los seis salen **idénticos** (diferencia máxima 0.0e+00, literal) a los de
-`colour-science` con sus parámetros por defecto. Eso es lo que verifica
-`test_coincide_con_colour_science`.
+Los siete salen **idénticos** (diferencia máxima 0.0e+00, literal) a los de
+`colour-science` con sus parámetros por defecto, y desde la ronda 1 eso está
+comprobado **en todo el dominio, negativos incluidos** (de −2.88 a +11.5, 22
+paradas de luz). Lo verifica `test_coincide_con_colour_science`.
+
+**`srgb` y `rec709` no son la misma curva.** Comparten primarios exactos pero el
+tramo lineal de sRGB tiene pendiente 12.92 y corta en 0.0031308, y el de Rec.709
+pendiente 4.5 y corta en 0.018. Confundirlos cuesta un **+57%** en las sombras:
+un 0.045 lineal codificado en sRGB e interpretado como Rec.709 vuelve como
+0.0705. Está afirmado en `test_srgb_y_rec709_no_son_la_misma_curva`.
 
 ### El 0.9 de Canon
 
@@ -61,6 +74,7 @@ escrito porque es exactamente la trampa en la que va a caer el siguiente.
 | DJI D-Log | DJI, *D-Log/D-Gamut White Paper* | x=0 → 0.0929 exacto |
 | DaVinci Intermediate | Blackmagic, *DaVinci Wide Gamut* white paper | 18% → 0.336; LIN_CUT·M = LOG_CUT |
 | Rec.709 | ITU-R BT.709-6 §1.2 | pendiente 4.5 cerca del negro; 1.0 → 1.0 |
+| sRGB | IEC 61966-2-1:1999 | 18% → 0.46136 (el "118 de 255"); corte 0.0031308 → 0.04045; pendiente 12.92 |
 
 **Lo que colour-science NO tiene con el nombre que decía el encargo:**
 `log_encoding_DaVinciIntermediate` **no existe**. Está como
@@ -100,16 +114,24 @@ Resolve y sale una diferencia de 0.02%, es esto. Cambiarlo es una línea
 ### 3.2 `rec709` es la OETF de CÁMARA, no la EOTF de pantalla
 
 `rec709` implementa la OETF de la BT.709 (4.5x / 1.099·x^0.45 − 0.099), no la
-EOTF de la BT.1886 ni la curva sRGB. Es lo que hace falta para ir de
-escena-lineal a un Rec.709 "de vídeo". Si alguien esperaba gamma 2.4 de
-pantalla, esto no es eso, y es una decisión que se puede querer revisar cuando
-el agente H enseñe imágenes en la GUI.
+EOTF de la BT.1886. Es lo que hace falta para ir de escena-lineal a un Rec.709
+"de vídeo". Si alguien esperaba gamma 2.4 de pantalla, esto no es eso, y es una
+decisión que se puede querer revisar cuando el agente H enseñe imágenes.
 
-Fuera de 0..1 extiendo por **simetría impar** (f(−x) = −f(x)), que es lo que
-hacen Resolve y colour y lo único que preserva los negativos que manda el
-contrato 1.
+Y no es sRGB: para eso está el espacio `srgb`, que es otra curva.
 
-### 3.3 Política de NaN: se propaga, no se lanza
+Fuera de 0..1 (donde ni la BT.709 ni la IEC definen nada) **prolongo el tramo
+lineal**. Lo cambié en la ronda 1; el porqué está en la §9.1.
+
+### 3.3 Extensión a negativos: se prolonga la rama lineal, no se espeja
+
+Es la misma decisión en tres sitios, y ahora es coherente en los tres:
+`rec709`, `srgb` y la f() de CIE L\*a\*b\*. Las tres normas definen su curva
+sólo para valores no negativos; las tres se extienden **dejando correr el tramo
+lineal**, que ya está definido ahí, es monótono e invertible. Descarté espejar
+(simetría impar). El razonamiento largo está en la §9.1 y la §10.
+
+### 3.4 Política de NaN: se propaga, no se lanza
 
 Coherente en todo el módulo. Un NaN de entrada sale NaN en la imagen, en el
 Oklab, en el Lab, en el ΔE por píxel y **también en `delta_e2000_mean`**.
@@ -122,7 +144,7 @@ pero entonces hay que decidir quién avisa.
 `skin_mask_oklab` es la excepción razonable: un píxel NaN devuelve `False`, no
 NaN, porque el tipo de retorno es booleano.
 
-### 3.4 Precisión: se respeta la que te den
+### 3.5 Precisión: se respeta la que te den
 
 `convert`, `log_encode`, `log_decode`, `to_working` y `from_working` devuelven
 **float32** (contrato 1) salvo que la entrada sea float64, en cuyo caso
@@ -137,11 +159,13 @@ escena-lineal, y eso **no cabe en float32** (que se queda en 3.4e38). Si
 y el resultado final salía NaN, aunque el resultado final cabía de sobra. De ahí
 `encode_raw` / `decode_raw`.
 
-### 3.5 `convert(x, X, X)` corta por lo sano
+### 3.6 `convert(x, X, X)` corta por lo sano
 
-Devuelve una copia bit a bit de la entrada, sin pasar por la curva ni por la
-matriz. Ida y vuelta por un logaritmo en coma flotante no devuelve exactamente
-lo que entró, y el encargo pedía identidad exacta. También preserva los NaN.
+No pasa por la curva ni por la matriz: ida y vuelta por un logaritmo en coma
+flotante no devuelve exactamente lo que entró, y el encargo pedía identidad
+exacta. Devuelve una copia bit a bit —NaN, infinitos y el signo del cero
+incluidos— **con el dtype normalizado** al que promete el módulo. Esa última
+parte la arreglé en la ronda 1 y la cerré en la ronda 2; ver §9.2 y §10.3.
 
 ---
 
@@ -306,6 +330,12 @@ en `test_skin_mask_da_lo_mismo_desde_cualquier_espacio`.
   probado (`_cat_bradford`), pero **nunca se ha ejercitado con dos puntos
   blancos distintos**. El día que entre un DCI-P3 o un ACES hay que probarlo de
   verdad antes de fiarse.
+- **`linear_srgb`.** El orquestador me lo ofreció y lo declino a propósito:
+  sería un **alias exacto** de `linear_rec709` (mismos primarios, sin curva), y
+  dos nombres para el mismo espacio en `SPACES` es una trampa esperando a que
+  alguien cuente espacios con un `set` o indexe un diccionario por espacio. Lo
+  que faltaba de verdad era la **curva** sRGB, y eso ya está. Si B lo acaba
+  necesitando, son dos líneas.
 - **Curvas de otras cámaras**: ARRI LogC3/LogC4, RED Log3G10, Fujifilm F-Log,
   Nikon N-Log, Apple Log. La arquitectura las admite (una entrada en
   `TRANSFERENCIAS` y otra en `SPACES`), pero no están.
@@ -329,3 +359,226 @@ escenas **ya en el espacio de trabajo**. La he montado dentro de mis tests con
 `convert` y no hace falta cambiar nada; lo apunto por si el agente B acaba
 necesitando lo mismo y merece la pena que la ponga el orquestador en
 `conftest.py` en vez de duplicarla.
+
+
+---
+
+## 9. Ronda 1 de revisión — qué me tumbó el agente G y qué decidí
+
+Veredicto del revisor: **aprobado con reservas**. Dos hallazgos suyos y una
+petición del agente B. Los tres, atendidos.
+
+### 9.1 A-1 · `rec709` no coincidía con colour-science en negativos
+
+**Tenía razón, y el problema era mío por partida doble.** Mi
+`test_coincide_con_colour_science` barría `0.18 · 2^linspace(−6,6)` más 0.0,
+0.18, 0.9 y 1.0: **todo positivo**. Con ese barrido, "diferencia máxima 0.0e+00"
+era verdad y a la vez no decía nada sobre medio dominio. Y el contrato 1 dice
+que los valores fuera de rango son legales, así que el negativo es un caso de
+verdad.
+
+Diferencias medidas con la curva antigua:
+
+| x | mío (simetría impar) | colour (tramo lineal) | diferencia |
+|---|---|---|---|
+| −0.018 | −0.081248 | −0.081000 | 2.5e-4 |
+| −0.05 | −0.186453 | −0.225000 | 3.9e-2 |
+| −0.18 | −0.409008 | −0.810000 | 4.0e-1 |
+| −0.5 | −0.705515 | −2.250000 | 1.5e+0 |
+| −2.88 | −1.669986 | −12.960000 | **1.1e+1** |
+
+**Decisión: cambié la curva, no la afirmación.** Ahora extiendo prolongando el
+tramo lineal (4.5x en Rec.709, 12.92x en sRGB) y la diferencia con colour es
+0.0e+00 en todo el dominio.
+
+El razonamiento, porque no fue obvio y quiero que se pueda discrepar:
+
+- **A favor de mi simetría impar:** mantiene |f(−x)| = f(x), así que una
+  excursión negativa se comporta como su espejo positivo; con el tramo lineal,
+  un +0.5 codifica a +0.7055 y un −0.5 a −2.25, un factor 3.2 de asimetría (en
+  sRGB es peor: 12.92×). Y la propia ITU, en la BT.1361, extiende su OETF a
+  negativos con una potencia espejada, no con una recta. O sea que la familia
+  "espejo" tiene respaldo normativo.
+- **A favor del tramo lineal:** es lo que hace la implementación de referencia
+  contra la que se verifica todo este módulo.
+- **Lo que comprobé antes de decidir:** que la extensión de colour no fuera un
+  accidente sin mantener. Lo es menos de lo que pensaba: `oetf_inverse_BT709`
+  invierte sus propios negativos con error 0.0e+00. Es una elección
+  auto-consistente, no un descuido.
+- **El desempate:** ninguna de las dos me cambia un píxel en esta app. Los
+  negativos sólo aparecen al convertir de un gamut ancho a Rec.709 y acaban
+  recortados para mostrar o sujetos al borde por `LUT3D.apply`. Cuando el
+  impacto práctico es cero, gana lo que se puede **verificar**: poder decir
+  "nuestras curvas son la misma función que las de colour-science, punto" vale
+  más que mi preferencia estética por la simetría.
+
+**Cómo revertirlo si Mario quiere el espejo:** está localizado en
+`_bt709_encode`/`_bt709_decode` y `_srgb_encode`/`_srgb_decode` de
+`transfer.py`; es volver a envolver con `np.abs` y `np.sign`. El test
+`test_los_negativos_de_rec709_y_srgb_prolongan_el_tramo_lineal` afirma la
+decisión explícitamente para que el cambio no pase desapercibido.
+
+### 9.2 A-2 · `convert` rompía la promesa de dtype con la identidad
+
+**Tenía razón y no tiene defensa.** `convert(x, X, X)` hacía `arr.copy()` y
+devolvía el dtype de entrada, así que un `uint8` (que es exactamente lo que le
+llega a la GUI desde un PNG) salía `uint8` si los dos espacios coincidían y
+`float32` si no. Quien llama no puede tener que mirar antes si `src == dst`
+para saber si le devuelven una imagen o enteros, y un `uint8` cruzando una
+frontera entre módulos es justo lo que prohíbe el contrato 1.
+
+Arreglado en `_identidad_exacta`: los dtypes numéricos (`f`, `i`, `u`) pasan por
+la misma promesa que el resto (float32, o float64 si entró float64). Para float
+el `astype` es un no-op, así que la copia **sigue siendo bit a bit** y el test
+del revisor sobre NaN e infinitos sigue verde.
+
+**Quedó a medias en la ronda 1 y se cerró en la ronda 2** (§10.3): los dtypes
+no numéricos ahora lanzan `TypeError` por las dos ramas.
+
+### 9.3 Petición del agente B · el espacio `srgb`
+
+Justísima, y el error que le costó es grande: `tests/media/generate.py` codifica
+en sRGB, eso no se podía nombrar, y B lo estaba mapeando a `rec709`. **Un 0.045
+lineal vuelve como 0.0705, un +57%.** Toda medida sobre material sintético que
+pasara por ahí estaba sesgada en las sombras.
+
+Añadido `srgb` a `TRANSFERENCIAS`, a `SPACES` y por tanto a `convert`. Comprobado
+contra tres jueces:
+
+- `colour.models.eotf_inverse_sRGB`: diferencia **0.0e+00** en todo el dominio.
+- `generate.srgb_oetf` (codificar): diferencia **0.0e+00** sobre 100.001 muestras.
+- `generate.srgb_eotf` (decodificar): diferencia **2.3e-9**, y tiene explicación:
+  el generador usa como umbral el `0.04045` redondeado de la norma y yo uso
+  `12.92 · 0.0031308 = 0.040449936`, que es el valor exacto del corte. Con el
+  redondeado, mi ida y vuelta dejaría de ser exacta en una franja de 5e-9 en x.
+  Prefiero la ida y vuelta exacta. La franja donde discrepamos mide 5e-9.
+
+Primarios: los de Rec.709, exactos, así que `primaries_matrix("srgb", "rec709")`
+devuelve la identidad exacta. La matriz RGB→XYZ que imprime la IEC difiere 3.9e-5
+de la calculada, por lo mismo que Sony/Panasonic/DJI (§3.1).
+
+**`srgb` NO está en `ColorSpaceName`.** `core/contracts.py` es del orquestador y
+está congelado; no lo toqué. `SPACES` está tecleado por `str`, así que funciona
+pasando la cadena. Si el orquestador amplía `ColorSpaceName`, hay que quitar
+`srgb` de la lista de extras de `test_spaces_cubre_el_contrato_y_dice_que_anade`.
+
+### 9.4 El rojo de `srgb`, arbitrado a mi favor
+
+`tests/revision/test_ola1_color.py::test_un_codificado_de_200_desborda_a_infinito[srgb]`
+
+**No es un defecto: es una colisión de parametrización.** Ese test recorre
+`CURVAS = [espacios no lineales]`, y al añadir `srgb` entra solo. Su premisa es
+que un codificado de 200 desborda a infinito, lo cual es cierto para las cinco
+curvas **logarítmicas** (todas tienen un `10**algo` dentro) pero **no** para una
+ley de potencia: sRGB decodifica 200 como `((200.055)/1.055)^2.4 = 2.93e+05`,
+un número finito y sin `RuntimeWarning`. El techo de sRGB está muchísimo más
+arriba (con 1e6 codificado sigue dando 2.2e+14, finito).
+
+El test está bien para lo que se escribió y sRGB no cabe en su premisa.
+**Arbitrado en la ronda 2 a mi favor:** el orquestador ha pedido al revisor que
+excluya `srgb` de ese `parametrize`, como ya excluye `rec709`. No he tocado nada
+ahí.
+
+
+---
+
+## 10. Ronda 2 de revisión — el bug del negro exacto
+
+### 10.1 A-3 · `rgb_to_lab` de un negro exacto devolvía L\* = −16
+
+Lo encontró el **agente C** ajustando CDL contra negros aplastados, y es el peor
+de los tres hallazgos de las dos rondas: no rompía nada ruidosamente, falseaba
+números en silencio.
+
+**Medido antes y después:**
+
+| | antes | después |
+|---|---|---|
+| `rgb_to_lab(negro exacto)` | `[-16.0, 0.0, 0.0]` | `[0.0, 0.0, 0.0]` |
+| `rgb_to_lab(1e-30)` | `[0.0, 0.0, 0.0]` | `[0.0, 0.0, 0.0]` |
+| **`delta_e2000(negro, 1e-30)`** | **8.5679** | **0.0** |
+
+**La causa.** `_f_lab` extendía a negativos con `s = np.sign(t)`, y `np.sign(0)`
+vale **0**, mientras que la rama lineal de la CIE vale **16/116** en el cero. El
+`sign` multiplicaba por cero justo el valor que tenía que sobrevivir, así que
+f(0) salía 0 en vez de 16/116 y `L* = 116·f − 16` daba −16 en vez de 0. Un pozo
+de 16 unidades de L\*, de ancho cero, exactamente en el negro.
+
+Por qué importa y no es cosmético: un negro exacto sale de cualquier material
+recortado, de un fondo apagado y de cualquier `np.zeros` de prueba; y ΔE2000 es
+la vara de medir de los cuatro tests entregables. Un ΔE de 8.57 entre dos colores
+indistinguibles estaba en condiciones de contaminar resultados de otros módulos
+sin que nadie lo viera.
+
+**El arreglo.** El agente C proponía `s = np.where(t < 0, -1.0, 1.0)`. Eso
+arregla el cero, pero me fui un paso más atrás: **el `sign` no hacía falta para
+nada**. La fórmula de la CIE, tal cual está escrita en la norma, ya hace lo
+correcto en el cero; lo único que no admite negativos es la raíz cúbica, y esa
+rama nunca se aplica a un negativo. Así que basta con dejar correr la rama
+lineal:
+
+```
+f(t) = t^(1/3)                si t > (6/29)^3
+f(t) = (kappa·t + 16) / 116   si no      <- ya vale para t <= 0
+```
+
+Es continua en el corte (las dos ramas dan 6/29 exacto), monótona (pendiente
+kappa/116 > 0) e invertible. Sin `np.abs`, sin `np.sign`, sin casos especiales.
+
+**Y de regalo, coherencia con la §9.1:** esta es exactamente la misma decisión
+que tomé para `rec709` y `srgb` en la ronda 1 —prolongar el tramo lineal en vez
+de espejar— sólo que aquí ni siquiera hay que discutirla, porque espejar era
+además incorrecto. Ahora `xyz_to_lab` coincide con `colour.XYZ_to_Lab`
+**también en el cero y en los XYZ negativos**: diferencia máxima 1.1e-13 sobre
+valores de orden 900, o sea precisión de máquina. Antes no lo comprobaba porque
+mi `test_lab_contra_colour` usaba `uniform(0, 1.2)`: **el mismo pecado que me
+tumbó en A-1, en otro sitio**. Ahora hay un test que entra por el cero y por los
+negativos.
+
+**Tests que lo fijan** (es de los que vuelven, así que hay cinco):
+
+- `test_lab_del_negro_exacto_es_cero_no_menos_dieciseis`
+- `test_no_hay_escalon_en_el_cero_en_ninguna_direccion` (los tres canales, los dos signos)
+- `test_l_estrella_es_creciente_y_continua_cruzando_el_cero`
+- `test_lab_contra_colour_en_el_cero_y_en_negativos`
+- `test_el_cero_negativo_se_comporta_como_el_cero`
+
+### 10.2 El barrido del mismo patrón por el resto del módulo
+
+El orquestador pidió mirar si había más sitios con el mismo pecado. **Había
+exactamente dos `np.sign` en todo el paquete, y eran los dos del mismo par**:
+`_f_lab` y su inversa `_f_lab_inv` (la inversa tenía la versión simétrica del
+bug: `_f_lab_inv(0)` devolvía 0 cuando lo correcto es −16/kappa = −0.001842).
+Ninguno más.
+
+Además revisé a mano los otros seis sitios del módulo donde un cero exacto
+cambia de rama o podría dividir. **Todos limpios, y lo dejo medido:**
+
+| Sitio | Qué hace en el cero exacto | Veredicto |
+|---|---|---|
+| Las nueve curvas de `transfer.py` | f(0) coincide con el límite por los dos lados hasta 1e-11 | correcto |
+| `_frac_c7` (croma 0 en ΔE2000) | devuelve 0.0; con C=1e-12 devuelve 1.6e-94 | continuo |
+| `_tono` (h' con C' = 0) | convenio de Sharma; ΔE(gris, gris+1e-14) = 1.5e-14, **idéntico a colour** | correcto, no es escalón |
+| `skin_mask_oklab` con L = 0 | 0 píxeles marcados, sin warnings ni con `errstate(all="raise")` | correcto |
+| `rgb_to_oklab` en 0 | `[0,0,0]`, y 1e-30 → 1e-10 | continuo |
+| El `-0.0` de la coma flotante | indistinguible de `0.0` en todo el módulo | correcto |
+
+Los dos últimos están afirmados como test
+(`test_croma_cero_no_es_una_discontinuidad_disfrazada`,
+`test_el_cero_negativo_se_comporta_como_el_cero`).
+
+### 10.3 El pico del `bool` en `convert`, cerrado
+
+Arbitrado a mi favor: los dtypes que el módulo no sabe procesar ahora lanzan
+`TypeError` **por las dos ramas** de `convert`, coincidan o no los dos espacios.
+Se acabó la incoherencia de la ronda 1. Lo fija
+`test_convert_valida_el_tipo_por_las_DOS_ramas`.
+
+### 10.4 Lo que me llevo de las dos rondas
+
+Los tres hallazgos (A-1, A-3, y de rebote el de `srgb` de B) son **el mismo error
+mío repetido**: probar una función sólo en el rango cómodo. El barrido positivo
+escondía A-1, el `uniform(0, 1.2)` escondía A-3, y no tener un espacio `srgb`
+escondía que B estaba midiendo sobre píxeles equivocados. Los tests nuevos entran
+todos por el cero, por los negativos y por los extremos. Si alguien añade una
+función a este módulo, que empiece por ahí.

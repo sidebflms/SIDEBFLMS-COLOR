@@ -262,15 +262,28 @@ def _di_decode(y: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Rec.709 (OETF de camara de la BT.709)
+# Rec.709 (OETF de camara de la BT.709) y sRGB
 # ---------------------------------------------------------------------------
-# Fuente: ITU-R BT.709-6, apartado 1.2.
-# Ojo: esto es la OETF de CAMARA (4.5x / 1.099 x^0.45 - 0.099), NO la EOTF de
-# pantalla de la BT.1886. Es lo que hace falta para pasar de escena-lineal a un
-# Rec.709 "de video", que es el uso que le damos.
-# La BT.709 solo define la curva en 0..1. Fuera de ahi la extendemos por
-# SIMETRIA IMPAR (f(-x) = -f(x)), que es lo que hacen Resolve y colour-science
-# y lo unico que preserva los negativos como manda el contrato 1.
+# Fuentes: ITU-R BT.709-6 apartado 1.2, e IEC 61966-2-1:1999 para sRGB.
+#
+# Ojo con Rec.709: esto es la OETF de CAMARA (4.5x / 1.099 x^0.45 - 0.099), NO
+# la EOTF de pantalla de la BT.1886. Es lo que hace falta para pasar de
+# escena-lineal a un Rec.709 "de video", que es el uso que le damos.
+#
+# Y OJO con no confundir Rec.709 y sRGB: son curvas DISTINTAS. El tramo lineal
+# de sRGB tiene pendiente 12.92 y corta en 0.0031308; el de Rec.709 tiene
+# pendiente 4.5 y corta en 0.018. Confundirlas cuesta un 57% de error en las
+# sombras: un 0.045 lineal vuelve como 0.0705. `tests/media/generate.py` codifica
+# en sRGB, asi que el material sintetico se nombra `srgb`, nunca `rec709`.
+#
+# NEGATIVOS (decidido en la ronda 1 de revision, ver NOTAS.md seccion 9):
+# las dos normas definen su curva solo en 0..1. Aqui se extiende **prolongando
+# el tramo lineal** (4.5x y 12.92x respectivamente), que es lo que hace
+# colour-science. Antes se extendia por simetria impar; se cambio para que la
+# afirmacion "nuestras curvas son la misma funcion que las de colour-science"
+# valga en TODO el dominio y no solo en x >= 0. Las dos extensiones son
+# monotonas e invertibles, asi que el contrato 1 se cumple con cualquiera de
+# las dos; lo que decide es poder verificarlo.
 
 _BT709_CUT = 0.018
 _BT709_ALFA = 1.099
@@ -279,22 +292,45 @@ _BT709_PEND = 4.5
 
 
 def _bt709_encode(x: np.ndarray) -> np.ndarray:
-    a = np.abs(x)
     lin = lambda v: _BT709_PEND * v  # noqa: E731
     pot = lambda v: _BT709_ALFA * v**0.45 - _BT709_BETA  # noqa: E731
-    y = _piecewise(a, [a < _BT709_CUT, a >= _BT709_CUT], [lin, pot])
-    return np.sign(x) * y
+    return _piecewise(x, [x < _BT709_CUT, x >= _BT709_CUT], [lin, pot])
 
 
+#: Valor codificado del corte por la rama que usa el codificador (la potencia).
 _BT709_UMBRAL = _BT709_ALFA * _BT709_CUT**0.45 - _BT709_BETA
 
 
 def _bt709_decode(y: np.ndarray) -> np.ndarray:
-    a = np.abs(y)
     lin = lambda v: v / _BT709_PEND  # noqa: E731
     pot = lambda v: ((v + _BT709_BETA) / _BT709_ALFA) ** (1.0 / 0.45)  # noqa: E731
-    x = _piecewise(a, [a < _BT709_UMBRAL, a >= _BT709_UMBRAL], [lin, pot])
-    return np.sign(y) * x
+    return _piecewise(y, [y < _BT709_UMBRAL, y >= _BT709_UMBRAL], [lin, pot])
+
+
+_SRGB_CUT = 0.0031308
+_SRGB_ALFA = 1.055
+_SRGB_BETA = 0.055
+_SRGB_PEND = 12.92
+_SRGB_GAMMA = 2.4
+
+
+def _srgb_encode(x: np.ndarray) -> np.ndarray:
+    lin = lambda v: _SRGB_PEND * v  # noqa: E731
+    pot = lambda v: _SRGB_ALFA * v ** (1.0 / _SRGB_GAMMA) - _SRGB_BETA  # noqa: E731
+    return _piecewise(x, [x <= _SRGB_CUT, x > _SRGB_CUT], [lin, pot])
+
+
+#: El codificador usa la rama LINEAL en el corte (el `<=`), asi que el umbral del
+#: decodificador es 12.92 * 0.0031308 = 0.040449936, y no el 0.04045 redondeado
+#: que imprime la norma. Con el 0.04045 la ida y vuelta dejaria de ser exacta en
+#: una franja de 5e-9 en x.
+_SRGB_UMBRAL = _SRGB_PEND * _SRGB_CUT
+
+
+def _srgb_decode(y: np.ndarray) -> np.ndarray:
+    lin = lambda v: v / _SRGB_PEND  # noqa: E731
+    pot = lambda v: ((v + _SRGB_BETA) / _SRGB_ALFA) ** _SRGB_GAMMA  # noqa: E731
+    return _piecewise(y, [y <= _SRGB_UMBRAL, y > _SRGB_UMBRAL], [lin, pot])
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +352,7 @@ TRANSFERENCIAS: dict[str, tuple[Callable[[np.ndarray], np.ndarray], ...]] = {
     "clog3_cinemagamut": (_clog3_encode, _clog3_decode),
     "dlog_dgamut": (_dlog_encode, _dlog_decode),
     "rec709": (_bt709_encode, _bt709_decode),
+    "srgb": (_srgb_encode, _srgb_decode),
     "davinci_wg_intermediate": (_di_encode, _di_decode),
     "linear_davinci_wg": (_identidad, _identidad),
     "linear_rec709": (_identidad, _identidad),

@@ -249,6 +249,36 @@ def test_rechaza_lo_que_no_es_numerico():
         log_encode(np.array([["a", "b", "c"]]), "rec709")
 
 
+def test_convert_valida_el_tipo_por_las_DOS_ramas():
+    """Un array de booleanos lanza igual coincidan o no los dos espacios.
+
+    En la ronda 1 la rama de identidad se saltaba TODAS las validaciones de
+    tipo: un bool entraba y salia tal cual. El orquestador arbitro en la ronda 2
+    que lance por las dos ramas, que es lo coherente: `convert` no puede
+    comportarse distinto segun si `src == dst`.
+    """
+    booleano = np.zeros((2, 2, 3), dtype=bool)
+    with pytest.raises(TypeError, match="numerico"):
+        convert(booleano, "rec709", "linear_rec709")
+    with pytest.raises(TypeError, match="numerico"):
+        convert(booleano, "rec709", "rec709")
+
+
+def test_el_negro_exacto_atraviesa_el_modulo_entero_sin_escalones():
+    """Cierre del bug de la ronda 2, visto desde fuera.
+
+    Una imagen negra de verdad tiene que dar L* = 0, Oklab = 0, ΔE = 0 contra
+    si misma y contra un casi-negro, y nada de piel.
+    """
+    negra = np.zeros((8, 8, 3), dtype=np.float32)
+    casi = np.full((8, 8, 3), 1e-30, dtype=np.float64)
+    assert np.allclose(rgb_to_lab(negra, "linear_rec709"), 0.0, atol=1e-12)
+    assert np.allclose(rgb_to_oklab(negra, "linear_rec709"), 0.0, atol=1e-12)
+    assert float(delta_e2000_mean(negra, negra, "linear_rec709")) == 0.0
+    assert float(delta_e2000_mean(negra, casi, "linear_rec709")) < 1e-3
+    assert not skin_mask_oklab(negra, "linear_rec709").any()
+
+
 def test_no_toca_la_entrada():
     """Ninguna funcion del modulo modifica el array que le pasan."""
     img = np.random.default_rng(53).uniform(0, 1, (6, 6, 3)).astype(np.float32)

@@ -156,6 +156,20 @@ SPACES: dict[str, ColorSpaceInfo] = {
         "BT.709 OETF",
         "ITU-R BT.709-6",
     ),
+    # sRGB comparte primarios EXACTOS con Rec.709 pero NO comparte curva: el
+    # tramo lineal de sRGB tiene pendiente 12.92 y corta en 0.0031308, el de
+    # Rec.709 pendiente 4.5 y corta en 0.018. Confundirlas cuesta un 57% de
+    # error en las sombras. `tests/media/generate.py` codifica en sRGB, asi que
+    # el material sintetico se nombra `srgb`. Lo pidio el agente B en la
+    # ronda 1 de revision; no esta en `ColorSpaceName` porque `core/contracts.py`
+    # es del orquestador (ver NOTAS.md seccion 9).
+    "srgb": _info(
+        "srgb",
+        "sRGB (IEC 61966-2-1)",
+        _REC709,
+        "sRGB",
+        "IEC 61966-2-1:1999",
+    ),
     "davinci_wg_intermediate": _info(
         "davinci_wg_intermediate",
         "DaVinci Wide Gamut / DaVinci Intermediate",
@@ -229,6 +243,27 @@ def _validar_forma(arr: np.ndarray, quien: str) -> None:
         raise ValueError(f"{quien}: esperaba (..., 3), llego {arr.shape}")
 
 
+def _identidad_exacta(arr: np.ndarray) -> np.ndarray:
+    """Copia de `arr` con el dtype que promete el modulo.
+
+    Para float32 y float64 el cambio de dtype es un no-op, o sea que la copia
+    sigue siendo bit a bit: NaN, infinitos y el signo del cero se conservan.
+    Para enteros SI convierte, y tiene que hacerlo: un uint8 cruzando una
+    frontera entre modulos es justo lo que prohibe el contrato 1, y el dtype
+    que devuelve `convert` no puede depender de si los dos espacios coinciden
+    o no (lo cazo el revisor en la ronda 1).
+
+    Los dtypes que el modulo no sabe procesar (booleanos, complejos) lanzan
+    `TypeError`, igual que por la rama que si convierte. En la ronda 1 esto era
+    un pico: pasaban tal cual por aqui y lanzaban por la otra. El orquestador
+    arbitro a favor de que lance por las dos (ronda 2), que es lo coherente:
+    `convert` no puede comportarse distinto segun si los dos espacios coinciden.
+    """
+    if arr.dtype.kind not in "fiu":
+        raise TypeError(f"convert: esperaba un array numerico, llego dtype={arr.dtype}")
+    return arr.astype(dtype_salida(arr), copy=True)
+
+
 def convert(img: np.ndarray, src: ColorSpaceName, dst: ColorSpaceName) -> np.ndarray:
     """Valores CODIFICADOS de `src` -> valores CODIFICADOS de `dst`.
 
@@ -244,7 +279,7 @@ def convert(img: np.ndarray, src: ColorSpaceName, dst: ColorSpaceName) -> np.nda
     _validar_forma(arr, "convert")
     src_s, dst_s = _space(src), _space(dst)
     if src_s.name == dst_s.name:
-        return arr.copy()
+        return _identidad_exacta(arr)
 
     # Todo el camino en float64 y se baja SOLO al final: decodificar un valor
     # alto de un espacio log da numeros que no caben en float32 (ver

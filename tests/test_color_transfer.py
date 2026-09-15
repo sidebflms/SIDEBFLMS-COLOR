@@ -35,6 +35,7 @@ JUEZ = {
     "dlog_dgamut": colour.models.log_encoding_DJIDLog,
     "davinci_wg_intermediate": colour.models.oetf_DaVinciIntermediate,
     "rec709": colour.models.oetf_BT709,
+    "srgb": colour.models.eotf_inverse_sRGB,
 }
 
 
@@ -133,6 +134,20 @@ def test_davinci_intermediate_corte_lineal_coincide_con_corte_log():
     assert pytest.approx(T._DI_LOG_CUT, abs=1e-7) == T._DI_LIN_CUT * T._DI_M
 
 
+def test_srgb_anclas_publicadas():
+    """IEC 61966-2-1: 1.0 -> 1.0, corte en 0.0031308, y el 18% de gris en 0.4614.
+
+    El 0.4614 es el famoso "el 18% de gris es el 118 de 255" en sRGB de 8 bits
+    (0.46136 * 255 = 117.6).
+    """
+    assert log_encode(np.float64(0.0), "srgb") == pytest.approx(0.0, abs=1e-15)
+    assert log_encode(np.float64(1.0), "srgb") == pytest.approx(1.0, abs=1e-12)
+    assert log_encode(np.float64(0.18), "srgb") == pytest.approx(0.46136, abs=1e-5)
+    assert log_encode(np.float64(0.0031308), "srgb") == pytest.approx(0.04045, abs=1e-6)
+    # El tramo lineal tiene pendiente 12.92, no 4.5 como el de Rec.709.
+    assert log_encode(np.float64(0.001), "srgb") == pytest.approx(0.01292, abs=1e-15)
+
+
 def test_bt709_anclas_publicadas():
     """BT.709: pendiente 4.5 cerca del negro, y 1.0 -> 1.0 exacto."""
     assert log_encode(np.float64(0.001), "rec709") == pytest.approx(0.0045, abs=1e-12)
@@ -146,15 +161,22 @@ def test_bt709_anclas_publicadas():
 
 @pytest.mark.parametrize("espacio", sorted(JUEZ))
 def test_coincide_con_colour_science(espacio):
-    """Nuestra curva contra la de colour-science sobre 12 paradas de luz.
+    """Nuestra curva contra la de colour-science, NEGATIVOS INCLUIDOS.
 
     Tolerancia 1e-10 absoluta: no es "parecido", es la misma formula. Si esto
     se afloja alguna vez, lo que hay debajo es un error de constante.
+
+    Los negativos estan aqui desde la ronda 1 de revision. Antes el barrido era
+    solo positivo, y con eso la afirmacion de NOTAS.md ("diferencia maxima 0.0")
+    solo valia en medio dominio: `rec709` extendia por simetria impar y colour
+    prolonga el tramo lineal, lo que daba 11.3 de diferencia en x = -2.88. Ver
+    NOTAS.md seccion 9 para por que se cambio la curva y no la afirmacion.
     """
     x = np.concatenate(
         [
-            np.array([0.0, 0.18, 0.9, 1.0]),
+            np.array([0.0, 0.18, 0.9, 1.0, -0.5, -0.05, -0.018, -1e-6, 1e-6]),
             0.18 * 2.0 ** np.linspace(-6.0, 6.0, 200),
+            -0.18 * 2.0 ** np.linspace(-6.0, 4.0, 100),  # 10 paradas en negativo
         ]
     ).astype(np.float64)
     mio = log_encode(x, espacio)
@@ -224,6 +246,24 @@ def test_ida_y_vuelta_con_negativos(espacio):
     assert np.all(np.isfinite(y))
     z = log_decode(y, espacio)
     assert np.allclose(z, x, rtol=1e-9, atol=1e-12)
+
+
+def test_los_negativos_de_rec709_y_srgb_prolongan_el_tramo_lineal():
+    """Decision de la ronda 1: extension lineal, no simetria impar.
+
+    Las dos normas definen su curva solo en 0..1. Se extiende prolongando el
+    tramo lineal (4.5x en Rec.709, 12.92x en sRGB), que es lo que hace
+    colour-science. La alternativa que habia antes (simetria impar) tambien es
+    monotona e invertible y cumple el contrato 1 igual de bien; lo que decidio
+    fue poder verificar la curva entera contra una implementacion independiente
+    en vez de solo la mitad positiva. Ver NOTAS.md seccion 9.
+    """
+    x = np.array([-0.5, -0.18, -0.05, -0.018, -0.001])
+    assert np.allclose(log_encode(x, "rec709"), 4.5 * x, atol=1e-15)
+    assert np.allclose(log_encode(x, "srgb"), 12.92 * x, atol=1e-15)
+    # Y siguen invirtiendo exacto, que es lo que pide el contrato 1.
+    assert np.allclose(log_decode(log_encode(x, "rec709"), "rec709"), x, atol=1e-15)
+    assert np.allclose(log_decode(log_encode(x, "srgb"), "srgb"), x, atol=1e-15)
 
 
 def _en_ventana_mala(x: np.ndarray, espacio: str) -> np.ndarray:
