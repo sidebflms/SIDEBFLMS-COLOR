@@ -77,6 +77,7 @@ ColorSpaceName = Literal[
     "rec709",
     "davinci_wg_intermediate",
     "linear_davinci_wg",
+    "linear_rec709",  # escena-lineal en primarios Rec.709: lo que produce el generador
 ]
 
 ConfidenceLevel = Literal["alta", "media", "baja"]

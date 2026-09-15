@@ -374,6 +374,16 @@ def make_clip(
     'prores' (ProRes 4444, sin perdida visible, .mov) o 'h264' (.mp4, para
     probar el camino con perdida).
 
+    El clip sale ETIQUETADO como Rec.709, porque lo es. Sin etiqueta, quien lo
+    lea tiene que adivinar, y adivinar mal es el fallo silencioso mas probable
+    de todo el proyecto: un S-Log3 sin etiquetar se decodifica como Rec.709 y
+    todas las estadisticas salen plausibles y equivocadas.
+
+    LIMITE MEDIDO, no teorico: con ffmpeg 9.0.1 el h264 escribe las tres
+    etiquetas (primarios, curva y matriz); **ProRes escribe solo la matriz y el
+    rango**, ni con -movflags +write_colr. Asi que si necesitas probar el camino
+    de deduccion de la CURVA a partir de metadatos, usa codec='h264'.
+
     Necesita ffmpeg. Si no esta, lanza. No hay plan B silencioso.
     """
     import shutil
@@ -389,10 +399,26 @@ def make_clip(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Etiquetar el color. Sin etiqueta, quien lea el clip tiene que adivinar, y
+    # adivinar mal es el fallo silencioso mas probable del proyecto. Aqui el
+    # material ES Rec.709, y lo decimos.
+    #
+    # TROPIEZO MEDIDO con ffmpeg 9.0.1, no teorico: las banderas genericas
+    # (-color_primaries / -color_trc) **borran** lo que haya puesto -x264opts.
+    # Con las dos cosas a la vez salen sin primarios y sin curva. Por eso cada
+    # codec lleva su via y solo la suya.
     if codec == "prores":
-        out_args = ["-c:v", "prores_ks", "-profile:v", "4", "-pix_fmt", "yuv444p10le"]
+        out_args = [
+            "-c:v", "prores_ks", "-profile:v", "4", "-pix_fmt", "yuv444p10le",
+            "-color_primaries", "bt709", "-color_trc", "bt709",
+            "-colorspace", "bt709", "-color_range", "tv",
+            "-movflags", "+write_colr",
+        ]
     elif codec == "h264":
-        out_args = ["-c:v", "libx264", "-crf", "12", "-pix_fmt", "yuv420p"]
+        out_args = [
+            "-c:v", "libx264", "-crf", "12", "-pix_fmt", "yuv420p",
+            "-x264opts", "colorprim=bt709:transfer=bt709:colormatrix=bt709",
+        ]
     else:
         raise ValueError(f"codec no soportado: {codec}")
 

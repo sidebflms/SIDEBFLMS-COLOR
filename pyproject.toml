@@ -30,8 +30,9 @@ markers = [
     "entregable: los cuatro tests T1-T4 de la seccion 6 del encargo",
 ]
 filterwarnings = [
-    "ignore::UserWarning:colour",
-    "ignore:.*Matplotlib.*:UserWarning",
+    # colour-science avisa al importarse de que no hay matplotlib. No lo
+    # necesitamos (no dibujamos graficas) y el aviso ensuciaba toda salida.
+    "ignore:.*Matplotlib.*",
 ]
 
 [tool.ruff]

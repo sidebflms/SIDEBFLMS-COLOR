@@ -12,3 +12,6 @@ dist/
 
 # Material sintetico generado: se regenera con tests/media/generate.py
 tests/media/out/
+
+# Informes del probe: los genera Mario al ejecutarlo, no se versionan
+informe_probe_resolve.*
