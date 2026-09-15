@@ -103,9 +103,23 @@ def _importar_modulo():
 class LiveResolve(BaseResolveBridge):
     """Implementacion real de `core.contracts.ResolveBridge`. Sin estrenar."""
 
-    def __init__(self, resolve, incognitas: Incognitas = INCOGNITAS_CONSERVADORAS) -> None:
+    def __init__(
+        self,
+        resolve,
+        incognitas: Incognitas = INCOGNITAS_CONSERVADORAS,
+        PELIGRO_escribir_fuera_de_la_version: bool = False,
+    ) -> None:
         self._resolve = resolve
         self.incognitas = incognitas
+        # OJO, hallazgo E-3 de la revision: esto TIENE que asignarse en la
+        # instancia, igual que en FakeResolve. Si se deja heredado de la clase
+        # base, cualquiera que escriba
+        # `BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = True` en
+        # cualquier sitio apaga la regla de oro AQUI, en el puente de verdad, y
+        # la deja puesta en el falso. O sea: todos los tests en verde esta noche
+        # y ni una proteccion el dia que esto hable con Resolve. Hay un test que
+        # compara los dos __init__ leyendo el AST para que no vuelva a pasar.
+        self.PELIGRO_escribir_fuera_de_la_version = PELIGRO_escribir_fuera_de_la_version
         # Dos cachés separadas a proposito: `list_clips` reconstruye la de
         # clips entera, y no puede llevarse por delante los stills cogidos.
         self._cache: dict[str, object] = {}
@@ -241,9 +255,24 @@ class LiveResolve(BaseResolveBridge):
         return list(self._item(clip_id).GetVersionNameList(VERSION_LOCAL) or [])
 
     def current_version(self, clip_id: str) -> str:
-        actual = self._item(clip_id).GetCurrentVersion()
+        """Nombre de la version activa, o cadena vacia si no hay forma de saberlo.
+
+        La regla de oro llama a esto en CADA escritura, asi que es la llamada
+        mas critica de todo el puente y la que menos se ha probado: nadie la ha
+        visto contestar contra Resolve de verdad. Si revienta, se devuelve
+        cadena vacia y quien decide es `_exigir_version_propia`, que bloquea con
+        `VersionIndeterminada` y un mensaje que explica que mirar. Aqui no se
+        adivina un nombre ni se inventa un `SIDEB COLOR` por defecto: eso
+        convertiria un fallo de la API en una escritura encima del usuario.
+        """
+        try:
+            actual = self._item(clip_id).GetCurrentVersion()
+        except ResolveError:
+            raise
+        except Exception:  # noqa: BLE001 - la API puede lanzar cualquier cosa
+            return ""
         if isinstance(actual, dict):
-            return str(actual.get("versionName", ""))
+            return str(actual.get("versionName") or "")
         return str(actual or "")
 
     def add_version(self, clip_id: str, name: str = VERSION_NAME) -> bool:

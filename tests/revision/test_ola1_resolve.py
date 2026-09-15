@@ -348,7 +348,11 @@ def test_la_via_de_escape_existe_hay_que_nombrarla_y_no_se_activa_de_pasada():
     por_atributo.PELIGRO_escribir_fuera_de_la_version = True
     assert por_atributo.set_cdl("clip001", NODE_BALANCE, CDL()) is True
 
-    # Y nadie dentro de `core/` la usa.
+    # Y dentro de `core/` se asigna en los DOS puentes, no en uno.
+    # (Arbitrado por el orquestador tras el arreglo de E-3: antes este test
+    # exigia exactamente 1 sitio, y ese 1 era justo el bug — solo el falso se
+    # blindaba. Ahora tienen que ser 2, uno por implementacion; si alguien anade
+    # un tercer puente y se le olvida, esto salta.)
     usos = [
         f"{p}:{i}"
         for p in (RAIZ / "core").rglob("*.py")
@@ -357,7 +361,10 @@ def test_la_via_de_escape_existe_hay_que_nombrarla_y_no_se_activa_de_pasada():
         and "=" in linea
         and linea.strip().startswith("self.PELIGRO")
     ]
-    assert len(usos) == 1, f"la via de escape se asigna en mas de un sitio de core/: {usos}"
+    assert len(usos) == 2, (
+        f"la via de escape tiene que asignarse en la instancia de LOS DOS puentes "
+        f"(fake.py y live.py), y se asigna en {len(usos)}: {usos}"
+    )
 
 
 def test_la_regla_de_oro_vive_en_la_clase_base_asi_que_LiveResolve_la_hereda():
@@ -380,29 +387,28 @@ def test_la_regla_de_oro_vive_en_la_clase_base_asi_que_LiveResolve_la_hereda():
     }
     assert "BaseResolveBridge" in clases.get("LiveResolve", []), clases
 
-    assert fuente_live.count("_exigir_version_propia") == len(ESCRITURAS_DE_GRADO)
-    assert fuente_fake.count("_exigir_version_propia") == len(ESCRITURAS_DE_GRADO)
+    # >= y no ==: contar un nombre en el texto fuente cuenta tambien las veces
+    # que sale en un comentario o en un docstring, y E documento el porque del
+    # arreglo E-3 justo ahi. Lo que se quiere afirmar es que NO FALTA ninguna
+    # escritura sin comprobar, no que nadie pueda escribir el nombre en prosa.
+    assert fuente_live.count("_exigir_version_propia") >= len(ESCRITURAS_DE_GRADO)
+    assert fuente_fake.count("_exigir_version_propia") >= len(ESCRITURAS_DE_GRADO)
 
 
-def test_HALLAZGO_envenenar_la_clase_base_apaga_la_regla_en_Live_pero_no_en_Fake():
-    """HALLAZGO NUEVO de la ronda 2, del propio arreglo. Gravedad baja.
+def test_envenenar_la_clase_base_ya_NO_apaga_la_regla_en_ninguno_de_los_dos():
+    """Fue el hallazgo E-3 de la ronda 2, y esta cerrado.
 
     `PELIGRO_escribir_fuera_de_la_version` es un atributo de clase.
-    `FakeResolve.__init__` lo re-asigna **en la instancia**, así que un
-    `BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = True` suelto por
-    ahí no le afecta. `LiveResolve.__init__` **no** lo re-asigna, así que sí le
-    afecta.
+    `FakeResolve.__init__` lo reasignaba en la instancia y `LiveResolve.__init__`
+    no, asi que una linea suelta en cualquier sitio del proyecto apagaba la
+    regla de oro **en el puente de verdad** y la dejaba puesta en el falso: todo
+    verde esta noche y ni una proteccion el dia que hable con Resolve.
 
-    O sea: una línea perdida en cualquier sitio del proceso apaga la regla de
-    oro **en el puente de verdad** y la deja puesta **en el falso**. Es
-    justamente la asimetría que no se puede cazar con un test contra el falso, y
-    por eso la escribo mirando las dos clases.
+    Es la asimetria que ningun test contra `FakeResolve` puede cazar, y por eso
+    este test entra por la clase base a envenenarla.
 
-    No lo dejo rojo porque hace falta que alguien escriba ese nombre horrible a
-    propósito, y porque la vía de escape tiene que existir. Pero el arreglo
-    sería de una línea en `LiveResolve.__init__`
-    (`self.PELIGRO_escribir_fuera_de_la_version = False`) y dejaría las dos
-    implementaciones iguales, que es lo que uno espera de una clase base.
+    (Test reescrito por el orquestador con el agente G ya caido por limite de
+    API. El anterior afirmaba el bug; este afirma el arreglo.)
     """
     import core.resolve.live as live
 
@@ -410,15 +416,15 @@ def test_HALLAZGO_envenenar_la_clase_base_apaga_la_regla_en_Live_pero_no_en_Fake
     try:
         BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = True
         falso = FakeResolve(n_clips=1)
-        vivo = live.LiveResolve(object())  # no toca Resolve: sólo guarda el objeto
+        vivo = live.LiveResolve(object())  # no toca Resolve: solo guarda el objeto
         assert falso.PELIGRO_escribir_fuera_de_la_version is False, "el falso se blinda solo"
-        assert vivo.PELIGRO_escribir_fuera_de_la_version is True, (
-            "si esto pasa a False, E ha arreglado la asimetría y este test hay que borrarlo"
+        assert vivo.PELIGRO_escribir_fuera_de_la_version is False, (
+            "LiveResolve vuelve a heredar la via de escape de la clase base: E-3 ha vuelto"
         )
     finally:
         BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = original
 
-    # Y que la limpieza ha funcionado, no vaya a contaminar a los demás tests.
+    # Y que la limpieza ha funcionado, no vaya a contaminar a los demas tests.
     assert FakeResolve(n_clips=1).PELIGRO_escribir_fuera_de_la_version is False
 
 
