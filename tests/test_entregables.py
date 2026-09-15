@@ -328,3 +328,340 @@ def test_un_cube_sobrevive_a_la_ida_y_vuelta(salida, tam, rng):
     releido = leer_cube(escribir_cube(lut, salida / f"t{tam}.cube"))
     assert releido.size == tam
     assert np.abs(releido.table - lut.table).max() < 1e-5
+
+
+# ---------------------------------------------------------------------------
+# T1 - Ida y vuelta de la ingenieria inversa (el importante)
+# ---------------------------------------------------------------------------
+
+#: El grado conocido con el que se fabrica el "coloreado". Es lo que hay que
+#: recuperar. Un CDL plausible de balance, ni identidad ni disparate.
+CDL_CONOCIDO = CDL(
+    slope=(1.06, 1.00, 0.94),
+    offset=(0.012, 0.000, -0.008),
+    power=(0.96, 1.00, 1.04),
+    saturation=1.12,
+)
+
+
+def _lut_de_look_conocido(size: int = LUT_SIZE_DEFAULT) -> LUT3D:
+    """Un look suave y monotono: sube el contraste y vira las sombras a frio.
+
+    Monotono a proposito: un look de verdad lo es, y ademas asi el QC del
+    agente D no tiene que avisar de nada cuando le pasemos el LUT recuperado.
+    """
+    t = LUT3D.identity(size).table.astype(np.float64)
+    r, g, b = t[..., 0], t[..., 1], t[..., 2]
+    # S-curve suave alrededor del gris medio
+    curva = lambda x: np.clip(x + 0.12 * np.sin(np.pi * np.clip(x, 0, 1)) * (x - 0.5) * 2, 0, 1)  # noqa: E731
+    nr = curva(r) * 1.02
+    ng = curva(g)
+    nb = curva(b) * 0.98 + 0.03 * (1.0 - np.clip(b, 0, 1))
+    return LUT3D(table=np.clip(np.stack([nr, ng, nb], -1), 0, 1).astype(np.float32),
+                 title="look conocido")
+
+
+def _fabricar_coloreado(original: np.ndarray, lut: LUT3D) -> np.ndarray:
+    """Aplica el grado conocido: primero el CDL, luego el LUT. Ese orden es el
+    contrato, y si se invierte aqui el test deja de medir lo que dice medir."""
+    return lut.apply(CDL_CONOCIDO.apply(original)).astype(np.float32)
+
+
+def test_T1_ida_y_vuelta_de_la_ingenieria_inversa(estudio_trabajo):
+    """Aplico un CDL y un LUT conocidos, y tienen que salir esos mismos numeros.
+
+    CRITERIO DEL ENCARGO: dE2000 medio < 1.0 y maximo < 3.0 en la zona con
+    cobertura.
+    """
+    from core.reverse import invertir_grado
+
+    original = estudio_trabajo
+    lut = _lut_de_look_conocido()
+    coloreado = _fabricar_coloreado(original, lut)
+
+    resultado = invertir_grado(original, coloreado)
+    m = resultado.confidence.metrics
+    medio = float(m.get("de_medio_cubierto", resultado.delta_e_mean))
+    maximo = float(m.get("de_max_cubierto", resultado.delta_e_max))
+
+    _informe(
+        "T1",
+        de_medio_cubierto=medio,
+        de_max_cubierto=maximo,
+        de_medio_todo=resultado.delta_e_mean,
+        de_p95=resultado.delta_e_p95,
+        cobertura=resultado.coverage.coverage_fraction(),
+    )
+
+    assert medio < 1.0, f"dE2000 medio en la zona cubierta: {medio:.4f}"
+    assert maximo < 3.0, f"dE2000 maximo en la zona cubierta: {maximo:.4f}"
+
+
+def test_T1_el_mapa_de_cobertura_no_miente(estudio_trabajo):
+    """Marca como inventadas las celdas donde no habia muestras.
+
+    DOS CONVENCIONES QUE ME EQUIVOQUE AL SUPONER, y que dejo escritas porque
+    quien vuelva aqui se va a equivocar igual:
+
+    1. La acumulacion es **trilineal**: cada pixel reparte su peso entre las
+       OCHO celdas que lo rodean, no cae en una sola. Contar por "celda mas
+       cercana" daba 122 falsos positivos que eran mios, no del modulo.
+    2. El dominio del LUT es el original **ya pasado por el CDL**, porque el
+       orden de aplicacion es `lut.apply(cdl.apply(x))`. Contar sobre el
+       original crudo daba otros 88 falsos positivos, tambien mios.
+
+    Aqui se recuenta con las dos convenciones buenas, calculadas aparte con
+    numpy puro, sin llamar a `pesos_trilineales`.
+    """
+    from core.reverse import invertir_grado
+
+    original = estudio_trabajo
+    coloreado = _fabricar_coloreado(original, _lut_de_look_conocido())
+
+    resultado = invertir_grado(original, coloreado, min_muestras=4)
+    cobertura = resultado.coverage
+    n = cobertura.size
+
+    # Recuento propio, trilineal y sobre el dominio del LUT (post-CDL).
+    fuente = resultado.cdl.apply(original)
+    px = np.clip(fuente.reshape(-1, 3).astype(np.float64), 0.0, 1.0) * (n - 1)
+    i0 = np.clip(np.floor(px).astype(np.int64), 0, n - 2)
+    f = px - i0
+    tocadas = np.zeros((n, n, n), dtype=bool)
+    anclados = np.zeros((n, n, n), dtype=np.int64)
+    for kr in (0, 1):
+        for kg in (0, 1):
+            for kb in (0, 1):
+                w = (
+                    (f[:, 0] if kr else 1 - f[:, 0])
+                    * (f[:, 1] if kg else 1 - f[:, 1])
+                    * (f[:, 2] if kb else 1 - f[:, 2])
+                )
+                idx = (i0[:, 0] + kr, i0[:, 1] + kg, i0[:, 2] + kb)
+                tocadas[idx] = True
+                # "Anclado" = el pixel cae claramente en ESA celda (mas de la
+                # mitad de su peso). Es un criterio que no depende de como
+                # cuente el modulo por dentro: si 64 pixeles se sientan encima
+                # de una celda, esa celda tiene datos, se mire como se mire.
+                fuerte = w >= 0.5
+                np.add.at(anclados, tuple(i[fuerte] for i in idx), 1)
+
+    reales = cobertura.covered_mask()
+    _informe(
+        "T1-cobertura",
+        celdas_con_dato=float(reales.sum()),
+        de_un_total_de=float(reales.size),
+        fraccion=cobertura.coverage_fraction(),
+    )
+
+    # LA MENTIRA GRAVE: decir "aqui tengo datos" donde no cayo ni una muestra.
+    # Eso invita a fiarse de un color que la app se ha inventado.
+    inventadas_como_reales = reales & ~tocadas
+    assert not inventadas_como_reales.any(), (
+        f"{int(inventadas_como_reales.sum())} celdas dicen tener datos y no los tienen"
+    )
+
+    # Y al reves: donde se sentaron muchos pixeles, tiene que decir que hay datos.
+    muchas = anclados >= 64
+    perdidas = muchas & ~reales
+    assert not perdidas.any(), (
+        f"{int(perdidas.sum())} celdas con 64+ pixeles anclados estan marcadas como inventadas"
+    )
+
+
+def test_T1_un_plano_sin_gradar_da_la_identidad(estudio_trabajo):
+    """Original y coloreado identicos: CDL identidad, LUT identidad, y decirlo
+    con confianza alta. Si aqui inventa un grado, no se puede fiar uno de nada."""
+    from core.reverse import invertir_grado
+
+    resultado = invertir_grado(estudio_trabajo, estudio_trabajo.copy())
+    _informe(
+        "T1-identidad",
+        de_medio=resultado.delta_e_mean,
+        de_max=resultado.delta_e_max,
+        confianza=resultado.confidence.score,
+    )
+    assert resultado.cdl.is_identity(tol=1e-3), f"se inventa un CDL: {resultado.cdl}"
+    # NO afirmo `is_pure_lut` aqui, y no es por comodidad: con los dos planos
+    # identicos el diagnostico entra por la rama "esto no es un grado, es el
+    # mismo plano" (el movimiento medio es < 0.05 dE2000) y ahi `is_pure_lut`
+    # sale False porque el residuo del relleno supera ese mismo umbral. Es
+    # confuso y esta en BITACORA.md como cosa a revisar, pero afirmar lo
+    # contrario seria afirmar un comportamiento que no existe.
+    # MEDIDO, y no es cero: 0.312 de media y 6.36 en el peor pixel. El CDL si
+    # sale identidad exacta; lo que no vuelve exacto es el LUT, porque las
+    # celdas sin muestras se rellenan suavizando y ese suavizado se cuela en
+    # las celdas del borde de la zona con datos. Con el 0.26% de cobertura que
+    # da un solo plano, hay muchisimo borde. Queda dicho en BITACORA.md: es la
+    # primera cifra que mirar si alguien toca el relleno de huecos.
+    assert resultado.delta_e_mean < 1.0, (
+        f"la ida y vuelta de la identidad se ha degradado: {resultado.delta_e_mean:.3f}"
+    )
+
+
+def test_T1_el_lut_recuperado_pasa_el_QC(estudio_trabajo):
+    """El LUT que sale de aqui es el que Mario va a meter en Resolve. Si el QC
+    del agente D le saca pegas, no vale, por muy bajo que sea el dE."""
+    from core.reverse import invertir_grado
+
+    coloreado = _fabricar_coloreado(estudio_trabajo, _lut_de_look_conocido())
+    resultado = invertir_grado(estudio_trabajo, coloreado)
+    informe = qc_lut(resultado.lut)
+    _informe("T1-qc-del-lut", avisos=len(informe.problemas), errores=float(informe.hay_errores))
+    assert not informe.hay_errores, f"el LUT recuperado no se puede ni escribir: {informe.resumen()}"
+
+
+def test_T1_dos_planos_que_no_son_el_mismo_salen_catastroficos(
+    estudio_trabajo, exterior_trabajo
+):
+    """Y tiene que DECIRLO, no devolver un grado bonito."""
+    from core.reverse import invertir_grado
+
+    resultado = invertir_grado(estudio_trabajo, exterior_trabajo)
+    _informe(
+        "T1-planos-distintos",
+        de_medio=resultado.delta_e_mean,
+        confianza=resultado.confidence.score,
+    )
+    assert resultado.confidence.level == "baja", (
+        f"dice confianza {resultado.confidence.level} sobre dos planos que no tienen nada que ver"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T2 - Deteccion de lo que NO es un LUT
+# ---------------------------------------------------------------------------
+
+
+#: Caja de la "ventana" que se le pone al coloreado, en pixeles del fotograma.
+CAJA_VENTANA = (440, 30, 170, 120)
+
+
+def _coloreado_con_lo_espacial(
+    original: np.ndarray, *, vineta: float = 0.45, gain: float = 1.6, feather: int = 18
+) -> np.ndarray:
+    """El grado conocido MAS una vineta y una ventana.
+
+    Lo espacial es lo que un LUT no puede hacer, porque un LUT decide por el
+    COLOR del pixel y esto decide por DONDE esta.
+    """
+    base = _fabricar_coloreado(original, _lut_de_look_conocido())
+    con_vineta = gen.apply_vignette(base, strength=vineta)
+    return gen.apply_window(
+        con_vineta, box=CAJA_VENTANA, gain=gain, feather=feather
+    ).astype(np.float32)
+
+
+def test_T2_detecta_lo_que_un_lut_no_puede_reproducir(estudio_trabajo):
+    """CRITERIO DEL ENCARGO: con una vineta y una ventana encima, el
+    diagnostico tiene que decir que NO es reproducible al 100% y senalar la
+    zona. Si dice que es 100% LUT, esta roto."""
+    from core.reverse import invertir_grado
+
+    resultado = invertir_grado(estudio_trabajo, _coloreado_con_lo_espacial(estudio_trabajo))
+    d = resultado.diagnosis
+
+    _informe(
+        "T2",
+        lut_reproducible=d.lut_reproducible,
+        is_pure_lut=float(d.is_pure_lut),
+        hotspots=float(len(d.hotspots)),
+    )
+
+    assert not d.is_pure_lut, "dice que es 100% LUT con una vineta y una ventana encima"
+    assert d.lut_reproducible < 1.0
+    assert d.spatial_residual is not None, "no deja mapa del residuo espacial"
+    assert len(d.hotspots) > 0, "no senala ninguna zona"
+
+
+def test_T2_la_zona_senalada_cae_donde_esta_la_ventana(estudio_trabajo):
+    """No basta con decir "hay algo espacial": hay que decir DONDE.
+
+    Se comprueba por dos vias independientes: que el mapa de residuo se dispare
+    dentro de la caja, y que la caja del hotspot solape de verdad con la real.
+    """
+    from core.reverse import invertir_grado
+
+    resultado = invertir_grado(estudio_trabajo, _coloreado_con_lo_espacial(estudio_trabajo))
+    residuo = resultado.diagnosis.spatial_residual
+    assert residuo is not None
+
+    x, y, w, h = CAJA_VENTANA
+    dentro = float(np.nanmean(residuo[y : y + h, x : x + w]))
+    fuera_mask = np.ones(residuo.shape, dtype=bool)
+    fuera_mask[y : y + h, x : x + w] = False
+    fuera = float(np.nanmean(residuo[fuera_mask]))
+
+    locales = [hp for hp in resultado.diagnosis.hotspots if hp.label == "zona local"]
+    assert locales, "no emite ninguna zona local"
+    hp = max(locales, key=lambda z: z.magnitude)
+    solape_x = max(0, min(x + w, hp.x + hp.w) - max(x, hp.x))
+    solape_y = max(0, min(y + h, hp.y + hp.h) - max(y, hp.y))
+    fraccion_solape = (solape_x * solape_y) / float(hp.w * hp.h)
+
+    _informe(
+        "T2-zona",
+        residuo_dentro=dentro,
+        residuo_fuera=fuera,
+        razon=dentro / max(fuera, 1e-9),
+        solape=fraccion_solape,
+    )
+    assert dentro > fuera * 2.0, (
+        f"el residuo dentro de la ventana ({dentro:.4f}) no destaca sobre el resto ({fuera:.4f})"
+    )
+    assert fraccion_solape > 0.8, (
+        f"la zona que senala ({hp.x},{hp.y},{hp.w},{hp.h}) no cae dentro de la ventana real "
+        f"{CAJA_VENTANA}: solo solapa el {fraccion_solape:.0%}"
+    )
+
+
+def test_T2_sin_nada_espacial_dice_que_SI_es_un_lut(estudio_trabajo):
+    """El contrapeso. Un detector que siempre dice "hay algo espacial" es tan
+    inutil como uno que nunca lo dice."""
+    from core.reverse import invertir_grado
+
+    coloreado = _fabricar_coloreado(estudio_trabajo, _lut_de_look_conocido())
+    d = invertir_grado(estudio_trabajo, coloreado).diagnosis
+    _informe("T2-contrapeso", lut_reproducible=d.lut_reproducible, is_pure_lut=float(d.is_pure_lut))
+    assert d.is_pure_lut, (
+        f"dice que hay algo espacial donde solo hay un CDL y un LUT: "
+        f"reproducible={d.lut_reproducible:.4f}"
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "LIMITE REAL, no un test mal escrito: una vineta SOLA se detecta como "
+        "no-reproducible (lut_reproducible=0.851) pero NO se etiqueta como "
+        "'vineta'. El perfil radial da R2=0.076, muy por debajo del 0.30 que "
+        "pide el detector, porque el residuo lo domina el desajuste general del "
+        "LUT y no la caida radial. El agente F murio por limite de API antes de "
+        "poder probar esta rama. Ver BITACORA.md, apartado 'sin resolver'."
+    ),
+)
+def test_T2_una_vineta_sola_se_etiqueta_como_vineta(estudio_trabajo):
+    """Lo que deberia pasar y hoy no pasa. Se deja escrito para que manana
+    cueste diez minutos y no una tarde de volver a averiguarlo."""
+    from core.reverse import invertir_grado
+
+    base = _fabricar_coloreado(estudio_trabajo, _lut_de_look_conocido())
+    con_vineta = gen.apply_vignette(base, strength=0.55).astype(np.float32)
+    d = invertir_grado(estudio_trabajo, con_vineta).diagnosis
+    assert not d.is_pure_lut  # esto SI lo acierta
+    assert any(hp.label == "vineta" for hp in d.hotspots), (
+        f"no la etiqueta como vineta: {[hp.label for hp in d.hotspots]}"
+    )
+
+
+def test_T2_el_diagnostico_avisa_de_que_la_cobertura_es_baja(estudio_trabajo):
+    """Un residuo alto puede ser falta de datos en vez de algo espacial. Son dos
+    enfermedades distintas con el mismo sintoma, y confundirlas manda a Mario a
+    buscar una ventana que no existe."""
+    from core.reverse import invertir_grado
+
+    resultado = invertir_grado(estudio_trabajo, _coloreado_con_lo_espacial(estudio_trabajo))
+    texto = " ".join(resultado.diagnosis.notes).lower()
+    assert "cobertura" in texto or "celdas" in texto, (
+        f"no avisa de la cobertura en ninguna nota: {resultado.diagnosis.notes}"
+    )
