@@ -480,11 +480,12 @@ class PantallaReverse(QWidget):
         # --- capa 2: LUT ---
         panel_lut = Panel(margenes=(12, 12, 12, 12))
         panel_lut.caja.addWidget(Rotulo("capa 2 · lut (nodo 3)", acento=True))
-        # Igual que el CDL de «antes/despues»: con `setFont(fuente_cifra(12))`
-        # salia en Inter, porque la hoja de estilo pisa a `setFont()`. El id
-        # `cifraApagada` es el que trae la monoespaciada de verdad.
+        # Igual que el CDL de «antes/despues»: el id `cifraApagada` trae la
+        # familia monoespaciada (la regla `QWidget` se la pisaba a `setFont()`)
+        # y el `setFont()` trae el tamano.
         self.datos_lut = QLabel("—")
         self.datos_lut.setObjectName("cifraApagada")
+        self.datos_lut.setFont(idn.fuente_cifra(11))
         self.datos_lut.setMinimumWidth(0)
         self.datos_lut.setWordWrap(True)
         panel_lut.caja.addWidget(self.datos_lut)
@@ -699,7 +700,12 @@ class PantallaReverse(QWidget):
                                    vacio="ni una celda con datos reales")
 
         diag = res.diagnosis
-        self.cifra_repro.setText(f"{diag.lut_reproducible * 100:.1f} %")
+        # Sin espacio antes del `%`, y es por el tamano: esta cifra va a 26 px y
+        # en monoespaciada un espacio mide ahi 16 px, o sea que «62.6 %» se leia
+        # como dos cosas separadas. Se vio al mirar la captura del dia 3. Las
+        # otras dos cifras con `%` de la app van a 12 y 13 px y ahi el espacio
+        # ayuda a leer, asi que se quedan como estan.
+        self.cifra_repro.setText(f"{diag.lut_reproducible * 100:.1f}%")
         self.barra_repro.set_valor(diag.lut_reproducible)
         self._de_media.setText(f"{res.delta_e_mean:.2f}")
         self._de_p95.setText(f"{res.delta_e_p95:.2f}")

@@ -214,6 +214,25 @@ def fila_dato(rotulo: str, valor: str, *, secundario: bool = False) -> QWidget:
 # ---------------------------------------------------------------------------
 
 #: Tamano nominal de la insignia. El delegado de la tabla usa el mismo.
+#:
+#: **[dia 3] De donde sale el 108: de ningun sitio, y se queda corto.**
+#: `gui/NOTAS.md` §10 lo dejaba como «no he encontrado la medicion que lo
+#: fijo». Hecha la cuenta con el reparto que hace `pintar_insignia_confianza`
+#: (9 de margen + 18 de medidor + 6 + el nivel + 8 + el porcentaje + 8 de
+#: margen), lo que necesita cada caso es:
+#:
+#:     ALTA  97%   99 px      MEDIA 97%  109 px      BAJA 97%  101 px
+#:     ALTA 100%  105 px      MEDIA 100% 115 px      BAJA 100% 107 px
+#:
+#: O sea que con «MEDIA 100%» se queda 7 px corto y el `%` sale cortado sin
+#: puntos suspensivos. **No pasa hoy** porque una confianza del 100% sale
+#: `alta`, no `media`, y ALTA es la palabra mas corta. Es una trampa latente,
+#: no un fallo en pantalla.
+#:
+#: **No lo subo a 115 hoy** y el motivo es de presupuesto: la columna CONFIANZA
+#: mide `INSIGNIA_ANCHO + 16` y es la mas ancha de las fijas de la tabla, asi
+#: que subirla sube la anchura minima de la ventana, que es justo lo que el
+#: encargo de hoy pide no hacer. Queda dicho aqui y en el informe.
 INSIGNIA_ALTO = 22
 INSIGNIA_ANCHO = 108
 

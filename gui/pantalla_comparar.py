@@ -293,7 +293,11 @@ class PantallaComparar(QWidget):
         fila.setSpacing(14)
         fila.addWidget(Rotulo("clip"), 0)
         self.selector = QComboBox()
-        self.selector.setFont(idn.fuente_texto(13))
+        # Monoespaciada porque lo que lista son nombres de clip, o sea
+        # identificadores. Ademas es lo que pinta la hoja de estilo para toda
+        # entrada, y pedir una cosa distinta de la que se pinta es justo el
+        # despiste que ha costado la escala tipografica.
+        self.selector.setFont(idn.fuente_cifra(13))
         self.selector.setMinimumWidth(180)
         self.selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.selector.setMaximumWidth(460)
@@ -341,12 +345,14 @@ class PantallaComparar(QWidget):
 
         panel_cdl = Panel(margenes=(14, 12, 14, 12), espaciado=4)
         panel_cdl.caja.addWidget(Rotulo("cdl del nodo 2", acento=True))
-        # `cifraApagada` y no `setFont(fuente_cifra(11))`: la hoja de estilo
-        # pisa a `setFont()`, asi que estos diez numeros salian en Inter a
-        # 13px, sin alinear, incumpliendo la regla de «toda cifra en
-        # monoespaciada». Se ve en la captura vieja `02-comparar-966`.
+        # Dos piezas y cada una en su sitio: el id `cifraApagada` trae la
+        # FAMILIA monoespaciada (la regla `QWidget` reparte la de texto a todo
+        # el mundo y gana a `setFont()`, que es por lo que estos diez numeros
+        # salian en Inter sin alinear en la captura vieja `02-comparar-966`), y
+        # el `setFont()` trae el TAMANO, que ya no lo pisa nadie.
         self.texto_cdl = QLabel("—")
         self.texto_cdl.setObjectName("cifraApagada")
+        self.texto_cdl.setFont(idn.fuente_cifra(11))
         self.texto_cdl.setMinimumWidth(0)
         self.texto_cdl.setWordWrap(True)
         panel_cdl.caja.addWidget(self.texto_cdl)

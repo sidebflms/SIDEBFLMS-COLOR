@@ -16,12 +16,26 @@ LAS TRES REGLAS QUE SE INCUMPLEN SOLAS
    contorno, borde discontinuo. Ver `FormaConfianza`.
 3. **Toda cifra va en monoespaciada.** Usa `fuente_cifra()` o la clase QSS
    `cifra`. Sin excepcion: dE, porcentajes, CDL, tamanos de LUT, IDs de clip.
-   Ojo: **la hoja de estilo pisa a `setFont()`**. Un `QLabel` al que se le pone
-   `fuente_cifra()` a mano sale en Inter igualmente si ninguna regla del QSS le
-   declara `font-family`. Por eso las cifras van en la clase `Cifra`, que lleva
-   la clase QSS puesta. Estaba pasando en dos sitios y esta contado en
-   `gui/NOTAS.md`.
-4. **`#ff6a3d` como pastilla, nunca.** Ver el comentario de `BRAND_400`. En
+   Ojo con **quien gana a `setFont()`**: en Qt, una propiedad de fuente
+   declarada por una regla del QSS que case con el widget le gana al
+   `setFont()`, y la mezcla es por propiedad (lo que la regla no declara se
+   queda como lo dejo el codigo). La regla `QWidget` de aqui declara
+   `font-family` y casa con TODO, asi que un `QLabel` con `fuente_cifra()`
+   puesta a mano sale en la de texto si ninguna regla le declara la familia
+   monoespaciada. Por eso las cifras van en la clase `Cifra`, que lleva la clase
+   QSS puesta.
+
+4. **NINGUNA REGLA DE ESTA HOJA DECLARA `font-size`.** Es la regla que impide
+   que vuelva el bug de la escala tipografica del dia 2: con
+   `QWidget { font-size: 13px }` puesto, los 22, 24 y 26 px de las cifras
+   grandes y los 10, 11, 12 y 15 px del texto de cuerpo salian TODOS a 13, y la
+   jerarquia entera quedaba aplanada. El tamano lo decide `fuente_texto()`,
+   `fuente_cifra()` o `fuente_rotulo()`, y el tamano base de la app lo pone
+   `QApplication.setFont()`. Unica excepcion, `QHeaderView::section`: una
+   cabecera de tabla es un pseudo-elemento y no se puede vestir desde el codigo
+   (comprobado con `setFont` y con `Qt.FontRole`). Todo esto, con las
+   mediciones, en `gui/NOTAS.md` §12.
+5. **`#ff6a3d` como pastilla, nunca.** Ver el comentario de `BRAND_400`. En
    pastilla ese hexadecimal es el estado «Fuera» del inventario de SIDEBFLMS.
 
 SOBRE `#3ad6cf`
@@ -121,6 +135,15 @@ FAMILIAS_ROTULO = ["Chakra Petch", "Helvetica Neue", "Helvetica", "Arial", "sans
 FAMILIAS_CIFRA = ["JetBrains Mono", "Menlo", "Monaco", "Courier New", "monospace"]
 
 
+#: Relleno horizontal de una seccion de cabecera de tabla, en px a cada lado.
+#: Vive aqui y no dentro del QSS porque `gui/pantalla_clips.py` calcula con el
+#: el ancho fijo de sus columnas de cifras: si el numero estuviera escrito en
+#: dos sitios, el dia que uno cambiara el otro seguiria calculando con el viejo
+#: y las cabeceras empezarian a salir con puntos suspensivos. Es el mismo error
+#: de raiz que la escala tipografica: dos sitios decidiendo lo mismo.
+RELLENO_CABECERA_PX = 6
+
+
 def _qss_familias(familias: list[str]) -> str:
     return ", ".join(f'"{f}"' if " " in f else f for f in familias)
 
@@ -157,6 +180,28 @@ def fuente_rotulo(px: int = 10, peso: QFont.Weight = QFont.Weight.DemiBold) -> Q
     f.setWeight(peso)
     f.setCapitalization(QFont.Capitalization.AllUppercase)
     f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.16 * px)
+    return f
+
+
+def fuente_cabecera_tabla() -> QFont:
+    """La fuente con la que la hoja de estilo pinta las cabeceras de tabla.
+
+    Es `fuente_rotulo(10)` **sin el tracking**, y no porque nos guste: la
+    cabecera de una tabla es un pseudo-elemento de QSS y es el unico rotulo de
+    la app que no se puede vestir desde el codigo. Comprobado: un
+    `QHeaderView.setFont()` lo borra Qt en el siguiente `polish`, y el
+    `Qt.FontRole` del modelo no cambia el dibujo ni un pixel. Como QSS no sabe
+    escribir el tracking, la cabecera va sin el.
+
+    Existe para poder MEDIR con la misma letra con la que se pinta:
+    `gui/pantalla_clips.py` calcula con esto el ancho de sus columnas de cifras.
+    Medir con el tracking puesto daria columnas mas anchas de lo necesario.
+    """
+    f = QFont()
+    f.setFamilies(FAMILIAS_ROTULO)
+    f.setPixelSize(10)
+    f.setWeight(QFont.Weight.DemiBold)
+    f.setCapitalization(QFont.Capitalization.AllUppercase)
     return f
 
 
@@ -231,11 +276,21 @@ def hoja_de_estilo() -> str:
     apagado = rgba(BRAND_50, TEXTO_APAGADO_A)
     tenue = rgba(BRAND_50, TEXTO_TENUE_A)
     return f"""
+    /* EL SELECTOR UNIVERSAL NO DECLARA `font-size`. NO SE LE VUELVE A PONER.
+       Aqui estuvo el bug de la escala tipografica: `QWidget` casa con TODOS los
+       widgets de la app, y una propiedad de fuente declarada en una regla que
+       casa gana a `setFont()`. Con `font-size: 13px` aqui, los 22, 24 y 26 px
+       de las cifras grandes y los 10, 11, 12 y 15 px del texto de cuerpo se
+       pintaban todos a 13: la jerarquia entera aplanada. El tamano base lo pone
+       ahora `QApplication.setFont(fuente_texto(13))` en `crear_app()`, que SI
+       cede ante un `setFont()` del widget.
+       La familia se queda: es la unica declaracion de fuente que se quiere
+       universal (que nada salga en la fuente del sistema por descuido), y la
+       familia de cada rol la traen las reglas de abajo. */
     QWidget {{
         background: {FONDO};
         color: {BRAND_50};
         font-family: {texto};
-        font-size: 13px;
     }}
     QMainWindow, QDialog {{ background: {FONDO}; }}
 
@@ -266,38 +321,34 @@ def hoja_de_estilo() -> str:
     QFrame#separador {{ background: {borde}; border: none; max-height: 1px; }}
 
     /* --- texto --- */
+    /* Ni `#rotulo` ni `#titulo` declaran `font-size`, y es a proposito: el
+       tamano y el tracking (0.16em ABSOLUTO, que QSS no sabe escribir) tienen
+       que salir de la misma llamada a `fuente_rotulo(px)`. Cuando el tamano lo
+       ponia la hoja y el tracking el codigo, salia un tracking de 10px sobre
+       una letra de 11: 0,145em, por debajo del 0,15 de la identidad. */
     QLabel#rotulo {{
         font-family: {rotulo};
-        font-size: 10px;
         font-weight: 600;
         color: {apagado};
     }}
     QLabel#titulo {{
         font-family: {rotulo};
-        font-size: 11px;
         font-weight: 700;
         color: {BRAND_400};
     }}
     QLabel#apagado {{ color: {apagado}; }}
     QLabel#tenue {{ color: {tenue}; }}
     QLabel.cifra, QLabel#cifra {{ font-family: {cifra}; }}
-    /* Bloques de cifras a 11px: el CDL del lateral de «antes/despues» y los
-       datos del LUT del panel de ingenieria inversa. Hace falta un id propio
-       porque la hoja de estilo PISA a `setFont()`: a esos dos `QLabel` se les
-       ponia `fuente_cifra(11)` a mano y salian en Inter a 13px igualmente,
-       porque ninguna regla que les aplicara declaraba `font-family`. Se veia
-       en la captura `02-comparar-966`: las cuatro lineas del CDL no
-       alineaban. */
+    /* Bloques de cifras apagadas: el CDL del lateral de «antes/despues» y los
+       datos del LUT del panel de ingenieria inversa. El id hace falta para la
+       FAMILIA -- la regla `QWidget` reparte la de texto a todo el mundo y gana a
+       `setFont()`--, pero el TAMANO lo pone la pantalla con `fuente_cifra(11)`.
+       (Aqui habia ademas un `QLabel#cifraGrande` con `font-size: 26px` que no
+       usaba nadie. Se ha quitado: era una trampa esperando a que alguien le
+       pusiera ese id a una cifra de otro tamano.) */
     QLabel#cifraApagada {{
         font-family: {cifra};
-        font-size: 11px;
         color: {apagado};
-    }}
-    QLabel#cifraGrande {{
-        font-family: {cifra};
-        font-size: 26px;
-        font-weight: 600;
-        color: {BRAND_50};
     }}
     QLabel#secundario {{ color: {CYAN_GLOW}; font-family: {cifra}; }}
 
@@ -332,7 +383,6 @@ def hoja_de_estilo() -> str:
         padding: 10px 14px;
         color: {apagado};
         font-family: {rotulo};
-        font-size: 10px;
         font-weight: 600;
     }}
     QPushButton#navegacion:hover {{ color: {BRAND_50}; background: {rgba(BRAND_50, 0.04)}; }}
@@ -374,12 +424,25 @@ def hoja_de_estilo() -> str:
         selection-color: {BRAND_50};
         outline: none;
     }}
+    /* LA UNICA REGLA DE LA HOJA QUE DECLARA UN TAMANO DE LETRA, y es una
+       excepcion con motivo medido: la cabecera de una tabla es un
+       PSEUDO-ELEMENTO, y no hay forma de darle la fuente desde el codigo.
+       Comprobadas las dos:
+         * `QHeaderView.setFont(fuente_rotulo(10))` -> Qt se la borra en el
+           siguiente `polish` y la deja en la heredada (13 px, familia de texto).
+         * `headerData(..., Qt.FontRole)` -> el dibujo de la cabecera no cambia
+           ni un pixel; manda esta regla.
+       O sea que aqui el tamano SI tiene que estar. Lo que no se puede escribir
+       en QSS es el tracking, asi que los rotulos de la cabecera son el unico
+       sitio de la app que va sin el 0,15-0,18em de la identidad. Esta anotado.
+       El relleno sale de `RELLENO_CABECERA_PX` porque con el mismo numero se
+       calcula el ancho de las columnas de cifras en `gui/pantalla_clips.py`. */
     QHeaderView::section {{
         background: {HONDO};
         color: {apagado};
         border: none;
         border-bottom: 1px solid {borde};
-        padding: 8px 10px;
+        padding: 8px {RELLENO_CABECERA_PX}px;
         font-family: {rotulo};
         font-size: 10px;
         font-weight: 600;
@@ -448,12 +511,14 @@ __all__ = [
     "FONDO",
     "HONDO",
     "PANEL",
+    "RELLENO_CABECERA_PX",
     "SUPERFICIES",
     "TEXTO",
     "TEXTO_APAGADO_A",
     "TEXTO_TENUE_A",
     "FormaConfianza",
     "color",
+    "fuente_cabecera_tabla",
     "fuente_cifra",
     "fuente_rotulo",
     "fuente_texto",

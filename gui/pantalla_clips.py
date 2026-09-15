@@ -55,7 +55,13 @@ COL_INDICE, COL_NOMBRE, COL_ANTES, COL_DESPUES, COL_CONFIANZA, COL_AVISO = range
 #: En MAYUSCULAS aqui y no por hoja de estilo: QSS no tiene `text-transform`,
 #: asi que un rotulo en minusculas se queda en minusculas y se desentona con
 #: todos los demas rotulos de la app.
-CABECERAS = ("#", "CLIP", "ΔE ANTES", "ΔE DESPUÉS", "CONFIANZA", "AVISO")
+#: Las dos de ΔE van en DOS LINEAS, y no es un capricho de maquetacion: es lo
+#: que hace que su columna quepa en lo que mide un numero. «ΔE DESPUÉS» seguido
+#: mide 63 px y obliga a una columna de 83; partido, la palabra mas ancha es
+#: «DESPUÉS» (47 px) y la columna baja a 67. Los 16 px de diferencia, por dos
+#: columnas, son los que se lleva el nombre del clip. **No se abrevia ninguna
+#: palabra**: «ΔE DESP.» habria costado lo mismo y diria menos.
+CABECERAS = ("#", "CLIP", "ΔE\nANTES", "ΔE\nDESPUÉS", "CONFIANZA", "AVISO")
 
 #: Papel propio para sacar el `ClipDemo` de una fila sin pasar por el texto.
 ROL_CLIP = int(Qt.ItemDataRole.UserRole) + 1
@@ -177,8 +183,17 @@ class DelegadoAviso(QStyledItemDelegate):
         painter.drawText(r, int(Qt.AlignmentFlag.AlignCenter), "!")
         painter.restore()
 
+    #: Lo que ocupa el rombo con su aire. `PantallaClips.anchos_fijos()` lo
+    #: lee de aqui para no repetir el numero.
+    ANCHO = 46
+
     def sizeHint(self, option, index) -> QSize:  # noqa: N802
-        return QSize(46, INSIGNIA_ALTO + 10)
+        return QSize(self.ANCHO, INSIGNIA_ALTO + 10)
+
+
+def _ancho_cabecera(metricas: QFontMetrics, texto: str) -> int:
+    """Lo que ocupa de ancho un rotulo de cabecera, que puede ir en dos lineas."""
+    return max(metricas.horizontalAdvance(linea) for linea in texto.split("\n"))
 
 
 # ---------------------------------------------------------------------------
@@ -341,15 +356,31 @@ class PantallaClips(QWidget):
         self.tabla.verticalHeader().setVisible(False)
         self.tabla.verticalHeader().setDefaultSectionSize(34)
         cab = self.tabla.horizontalHeader()
-        # Sin esto, la columna del nombre (que es la que estira) se encoge hasta
-        # DESAPARECER cuando la ventana llega a su anchura minima: en la captura
-        # de doscientos clips a 908 px no habia ni un nombre en pantalla. El
-        # suelo por seccion mas la anchura minima de la tabla garantizan que
-        # siempre queden unos 120 px de nombre, que ya elide con puntos.
-        cab.setMinimumSectionSize(56)
+        # Aqui NO se llama a `cab.setFont()`, y esta comprobado por que: Qt le
+        # borra la fuente a la cabecera en el siguiente `polish` y la deja en la
+        # heredada. El `FontRole` del modelo tampoco lo mira. La cabecera de una
+        # tabla solo se puede vestir desde `QHeaderView::section`, que es la
+        # unica regla de la hoja que declara un tamano de letra. Lo que se hace
+        # aqui es MEDIR con esa misma fuente (`fuente_cabecera_tabla`).
+        #
+        # LAS QUE CEDEN SON LAS COLUMNAS DE CIFRAS, NO LA DEL NOMBRE.
+        # Decision de Mario, y este es el sitio donde se cumple. Un ΔE es un
+        # numero de formato acotado: «000.00» y ya, asi que su columna se puede
+        # clavar a lo que mide ese numero. Un nombre de clip es un
+        # identificador de longitud desconocida y es lo que dice QUE fila estas
+        # mirando, asi que es el que se queda todo lo que sobra.
+        #
+        # Antes era al reves: las cinco columnas fijas iban a
+        # `ResizeToContents`, que las mide por su CABECERA, y la del nombre
+        # estiraba con un suelo de 56 px. A la anchura minima las cinco se
+        # llevaban 439 px de los 492 de la tabla y el nombre se quedaba en 56:
+        # «A...a».
+        anchos = self.anchos_fijos()
+        cab.setMinimumSectionSize(min(anchos.values()))
+        for columna, ancho in anchos.items():
+            cab.setSectionResizeMode(columna, QHeaderView.ResizeMode.Fixed)
+            cab.resizeSection(columna, ancho)
         cab.setSectionResizeMode(COL_NOMBRE, QHeaderView.ResizeMode.Stretch)
-        for c in (COL_INDICE, COL_ANTES, COL_DESPUES, COL_CONFIANZA, COL_AVISO):
-            cab.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
         cab.setHighlightSections(False)
         self.tabla.setMinimumWidth(self.ancho_minimo_util())
         self.division.addWidget(self.tabla)
@@ -457,22 +488,80 @@ class PantallaClips(QWidget):
 
     #: Cuanto nombre de clip tiene que quedar SIEMPRE visible. Por debajo de
     #: esto la columna no informa de nada: «A00...» no es un nombre.
+    #:
+    #: 124 px no es un numero bonito: los doce primeros caracteres del nombre
+    #: mas largo de la demo, con su elipsis detras, miden 105 px en la fuente de
+    #: texto de 13 px, y con el relleno de celda se van a 117. Doce caracteres
+    #: utiles es el mismo criterio con el que `tests/test_gui_texto.py` acepta
+    #: que una etiqueta elida. 124 deja un margen corto por encima de eso.
     NOMBRE_MINIMO_PX = 124
+
+    #: Relleno horizontal de una celda, a cada lado: `QTableView::item` del QSS.
+    RELLENO_CELDA_PX = 6
+
+    #: Lo que Qt suma por su cuenta a una seccion o a una celda, ademas del
+    #: padding del QSS. **Medido, no estimado**, y hay un test que lo vigila
+    #: (`test_ninguna_cabecera_de_la_tabla_sale_recortada`): si Qt cambiara de
+    #: criterio, la cabecera empezaria a salir con puntos suspensivos y el test
+    #: lo dice antes que una captura.
+    MARGEN_SECCION_PX = 8
+
+    #: El texto mas ancho que puede aparecer en cada columna de cifras. Los dos
+    #: ΔE los formatea `ModeloClips.data()` como `{:6.2f}`, o sea seis huecos
+    #: monoespaciados; el indice, como `{:03d}`.
+    TEXTO_MAS_ANCHO = {COL_INDICE: "000", COL_ANTES: "000.00", COL_DESPUES: "000.00"}
+
+    def anchos_fijos(self) -> dict[int, int]:
+        """Ancho fijo de cada columna que NO es la del nombre, medido.
+
+        **Un solo calculo para dos usos**, y ahi esta el arreglo de fondo: con
+        esto se fijan las columnas y con esto se calcula `ancho_minimo_util()`.
+        El dia 2 eran dos cuentas distintas: la estimacion daba 356 px para las
+        cinco columnas fijas y de verdad ocupaban 439 (medido hoy; la nota del
+        dia 2 decia 441), y esa diferencia se la comia la columna del nombre.
+
+        Cada columna se lleva lo que necesite la mas ancha de sus dos cosas: la
+        cifra (en monoespaciada de 12) o su propia cabecera. Ninguna cabecera se
+        recorta, y hay un test que lo comprueba preguntandole al estilo.
+        """
+        m_cifra = QFontMetrics(idn.fuente_cifra(12))
+        # La de la cabecera se mide **como la pinta la hoja de estilo**, o sea
+        # sin el tracking: el QSS no sabe escribirlo y un `setFont()` sobre la
+        # cabecera Qt lo borra en el siguiente `polish` (comprobado). Medir con
+        # el tracking puesto daria columnas mas anchas de lo que hace falta:
+        # «ANTES» mide 33 px sin el y 41 con el, «DESPUES» 47 y 58.
+        m_rotulo = QFontMetrics(idn.fuente_cabecera_tabla())
+        anchos: dict[int, int] = {}
+        for columna, texto in self.TEXTO_MAS_ANCHO.items():
+            anchos[columna] = max(
+                m_cifra.horizontalAdvance(texto) + 2 * self.RELLENO_CELDA_PX,
+                _ancho_cabecera(m_rotulo, CABECERAS[columna]) + 2 * idn.RELLENO_CABECERA_PX,
+            ) + self.MARGEN_SECCION_PX
+        # Estas dos no llevan texto: las pinta un delegado y su `sizeHint` manda.
+        for columna, pedido in (
+            (COL_CONFIANZA, INSIGNIA_ANCHO + 16),
+            (COL_AVISO, DelegadoAviso.ANCHO),
+        ):
+            anchos[columna] = max(
+                pedido,
+                _ancho_cabecera(m_rotulo, CABECERAS[columna])
+                + 2 * idn.RELLENO_CABECERA_PX
+                + self.MARGEN_SECCION_PX,
+            )
+        return anchos
 
     def ancho_minimo_util(self) -> int:
         """Lo que de verdad necesita la tabla para no comerse las columnas.
 
-        Se mide con las metricas de la fuente que se va a usar, no a ojo: las
-        dos columnas de ΔE llevan seis caracteres monoespaciados, la insignia
-        tiene ancho fijo y el rombo de aviso tambien.
+        Las columnas fijas, lo que midan; el nombre, su suelo; y lo que se come
+        el envoltorio de la vista: la barra de desplazamiento vertical (con
+        doscientos clips esta siempre puesta) y los dos bordes del marco. Los
+        dos ultimos no son adorno: sin contarlos, los px que falten salen de la
+        columna que estira, o sea del nombre.
         """
-        metricas = QFontMetrics(idn.fuente_cifra(12))
-        relleno = 22  # padding de celda del QSS, a los dos lados
-        fijas = max(56, metricas.horizontalAdvance("000") + relleno)
-        fijas += 2 * max(56, metricas.horizontalAdvance("000.00") + relleno)
-        fijas += INSIGNIA_ANCHO + 16 + 46
-        barra = 12
-        return fijas + self.NOMBRE_MINIMO_PX + barra
+        barra = self.tabla.verticalScrollBar().sizeHint().width()
+        marco = 2 * self.tabla.frameWidth()
+        return sum(self.anchos_fijos().values()) + self.NOMBRE_MINIMO_PX + barra + marco
 
 
 __all__ = [

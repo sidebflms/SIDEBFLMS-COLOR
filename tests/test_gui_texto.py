@@ -134,12 +134,11 @@ def _estados():
 def test_la_anchura_minima_real_es_la_medida():
     """El numero de la tercera captura de cada pantalla.
 
-    **Ojo: `BITACORA.md` §7 dice 966 y ahora son 981.** No se ha subido para
-    que algo quepa; se han quitado dos minimos puestos a ojo que se quedaban
-    cortos (300 px en la columna derecha de ingenieria inversa, que necesita
-    366; 240 px en la ficha del clip, que necesita 246), y 981 es lo que sale
-    al preguntarle al contenido. Esta contado en `ANCHURA_MINIMA` y en
-    `gui/NOTAS.md`.
+    **966 la noche del 14, 985 el dia 2, 973 x 651 hoy.** Ninguno de los tres
+    se ha elegido: los tres son lo que contesta el contenido. El porque de este
+    ultimo cambio esta entero en `ANCHURA_MINIMA` (ancho: las columnas de
+    cifras de la tabla han dejado de medirse por su cabecera; alto: las cifras
+    grandes vuelven a ser grandes).
 
     Si esto vuelve a cambiar, cambian las capturas y cambia la documentacion:
     no se toca el numero aqui y ya. Se salta si Mario ha instalado las
@@ -162,7 +161,11 @@ def test_la_anchura_minima_real_es_la_medida():
 
 
 def test_la_ventana_se_puede_encoger_hasta_su_minimo_de_verdad():
-    """Pedir 600 px y quedarse en 966 es lo correcto; quedarse en 1200 no."""
+    """Pedir 600 px y quedarse en su minimo es lo correcto; quedarse en 1200 no.
+
+    Se compara contra lo que conteste `anchura_minima()`, no contra la constante,
+    para que este test siga diciendo la verdad el dia que el minimo cambie.
+    """
     v = ventana(demo())
     try:
         minimo = v.anchura_minima()
@@ -264,24 +267,23 @@ def test_los_rotulos_del_cdl_se_leen_enteros_a_la_anchura_minima():
         v.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "LIMITE REAL, no un test flojo: a la anchura minima la columna CLIP se queda en "
-        "56 px y ensena «A...a» (y a 1024 px, en 66: «A00...oma»). "
-        "`PantallaClips.ancho_minimo_util()` promete 124 px de "
-        "nombre pero se equivoca al estimar: da 356 px a las cinco columnas fijas y de "
-        "verdad ocupan 441, porque `ResizeToContents` las mide por el texto de la "
-        "CABECERA (fuente de rotulo con tracking de 0,16em), no por la cifra. Garantizar "
-        "los 124 px cuesta 82 px mas de tabla, que son 1063 px de ventana; y por encima "
-        "de 1024 la segunda captura nominal de `docs/IDENTIDAD.md` deja de poder "
-        "existir. O sea que no es un arreglo, es una decision de presupuesto de pixeles "
-        "entre tres salidas -- ventana mas ancha, cabeceras mas cortas, o insignia de "
-        "confianza mas estrecha -- y esa la toma Mario. Ver `gui/NOTAS.md`."
-    ),
-)
 def test_la_columna_del_nombre_de_clip_no_desaparece():
-    """A la anchura minima tendria que quedar nombre visible, y no lo queda."""
+    """El nombre del clip sobrevive a la anchura minima. **Ya sin `xfail`.**
+
+    El dia 2 esto estaba como `xfail(strict=True)` porque a la anchura minima
+    la columna CLIP se quedaba en 56 px y ensenaba «A...a». El motivo era que
+    las cinco columnas fijas iban a `ResizeToContents`, que las mide por el
+    texto de su CABECERA y no por la cifra: prometian 356 px y ocupaban 441, y
+    los 85 de diferencia se los comia el nombre.
+
+    **Lo ha decidido Mario: a la anchura minima ceden las columnas de ΔE, no la
+    del nombre.** Un ΔE es un numero de formato acotado; un nombre de clip es
+    lo que te dice que fila estas mirando. Asi que las columnas de cifras
+    llevan ahora un ancho fijo medido (`PantallaClips.anchos_fijos()`), las dos
+    de ΔE ponen su rotulo en dos lineas para caber en lo que mide un numero, y
+    la del nombre es la unica que estira. Y **sin subir la anchura minima de la
+    ventana**: ha bajado de 985 a 973.
+    """
     v = ventana(muchos())
     try:
         v.ir_a(0)
@@ -348,4 +350,56 @@ def test_el_test_falla_si_un_qlabel_normal_se_queda_corto():
     finally:
         etiqueta.setWordWrap(True)
         etiqueta.setText(original)
+        v.close()
+
+
+def test_ninguna_cabecera_de_la_tabla_sale_recortada():
+    """Las cabeceras son rotulos, y un rotulo recortado no informa de nada.
+
+    Esto no es redundante con el barrido de arriba: el barrido mira `QLabel`, y
+    una cabecera de tabla no es un `QLabel`, es un pseudo-elemento que pinta el
+    estilo. Como las columnas de cifras llevan ahora un **ancho fijo calculado**
+    (`PantallaClips.anchos_fijos()`), hace falta algo que compruebe que ese
+    calculo sigue dando de si: si alguien alarga un rotulo de cabecera, o toca
+    `RELLENO_CABECERA_PX`, o Qt cambia de criterio con sus margenes, la cabecera
+    empezaria a salir «ΔE DESP...» y esto salta antes que una captura.
+
+    Se mide contra el hueco de verdad —el que le da el estilo al texto de la
+    seccion— y no contra la formula con la que se calculo el ancho, que seria
+    comprobar una cuenta consigo misma.
+    """
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QStyle, QStyleOptionHeader
+
+    from gui import identidad as idn
+    from gui.pantalla_clips import CABECERAS
+
+    v = ventana(muchos())
+    try:
+        v.ir_a(0)
+        metricas = QFontMetrics(idn.fuente_cabecera_tabla())
+        for ancho in (ANCHURA_MINIMA, 1024, 1440):
+            redimensionar(v, ancho, max(v.minimumSizeHint().height(), 560))
+            cab = v.p_clips.tabla.horizontalHeader()
+            for i, texto in enumerate(CABECERAS):
+                opcion = QStyleOptionHeader()
+                cab.initStyleOption(opcion)
+                opcion.section = i
+                opcion.text = texto
+                opcion.rect = QRect(
+                    cab.sectionViewportPosition(i), 0, cab.sectionSize(i), cab.height()
+                )
+                # El hueco REAL que el estilo le deja al texto de la seccion,
+                # preguntado al estilo y no deducido de la formula con la que se
+                # calculo el ancho: comprobar una cuenta consigo misma no vale.
+                hueco = cab.style().subElementRect(
+                    QStyle.SubElement.SE_HeaderLabel, opcion, cab
+                ).width()
+                pide = max(metricas.horizontalAdvance(linea) for linea in texto.split("\n"))
+                assert hueco >= pide, (
+                    f"a {ancho} px la cabecera {texto!r} pide {pide} px y tiene {hueco}: "
+                    f"saldria recortada"
+                )
+    finally:
         v.close()

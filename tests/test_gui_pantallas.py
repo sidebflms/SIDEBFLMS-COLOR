@@ -411,7 +411,11 @@ def test_las_cifras_del_diagnostico_son_las_del_reverseresult():
         res = v.p_reverse.resultado()
         assert res is not None
         diag = res.diagnosis
-        assert v.p_reverse.cifra_repro.text() == f"{diag.lut_reproducible * 100:.1f} %"
+        # Sin espacio antes del `%`: esta cifra va a 26 px y en monoespaciada el
+        # espacio mide ahi 16 px, o sea que «62.6 %» se leia como dos cosas. Lo
+        # que este test vigila no es el formato, es que el numero de la pantalla
+        # sea el del `ReverseResult`, y eso sigue clavado al valor.
+        assert v.p_reverse.cifra_repro.text() == f"{diag.lut_reproducible * 100:.1f}%"
         assert abs(v.p_reverse.barra_repro.valor() - diag.lut_reproducible) < 1e-6
         assert v.p_reverse._de_media.text() == f"{res.delta_e_mean:.2f}"
         assert v.p_reverse._de_p95.text() == f"{res.delta_e_p95:.2f}"
