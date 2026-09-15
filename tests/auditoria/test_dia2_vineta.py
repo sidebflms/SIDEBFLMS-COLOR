@@ -78,8 +78,14 @@ def test_AUD4_que_puerta_es_la_que_se_cierra(estudio_trabajo, capsys):
     for n in d.notes:
         print(f"[AUD4-a] nota: {n}")
 
-    # La afirmacion del xfail: la que cierra es la del R2 radial.
-    assert r2 < UMBRAL_R2_RADIAL, "el R2 radial YA pasa el umbral: el xfail esta obsoleto"
+    # La afirmacion del xfail (primera vuelta): la que cierra es la del R2 radial.
+    # SEGUNDA VUELTA: sigue cerrando, pero ya NO decide. El agente F ha anadido
+    # un detector nuevo —ganancia en logaritmo contra radio— que es el que ahora
+    # emite la etiqueta. Ver `test_AUD4_SEGUNDA_VUELTA_...` mas abajo.
+    assert r2 < UMBRAL_R2_RADIAL, (
+        "el R2 radial ya pasa el umbral; si es asi, el camino viejo tambien detecta y hay "
+        "que rehacer la lectura de este caso"
+    )
 
 
 def test_AUD4_el_perfil_radial_SI_existe_lo_que_falla_es_el_R2(estudio_trabajo):
@@ -177,3 +183,63 @@ def test_AUD4_el_criterio_T2_del_encargo_si_se_cumple(estudio_trabajo):
 def test_AUD4_sin_efectos_colaterales(size):
     """Recordatorio de que estos tests no escriben nada fuera de memoria."""
     assert size in (17, 33, 65)
+
+
+# ---------------------------------------------------------------------------
+# SEGUNDA VUELTA: el detector ha cambiado y el xfail se ha quedado obsoleto.
+# ---------------------------------------------------------------------------
+
+
+def test_AUD4_SEGUNDA_VUELTA_la_vineta_sola_YA_se_etiqueta(estudio_trabajo):
+    """El `xfail` de anoche ya no describe el codigo de hoy: sobra.
+
+    El agente F ha sustituido el detector. Ya no decide un R2 sobre el residuo
+    en dE2000 (que sigue sin llegar al umbral: 0.2887), sino un modelo de
+    **ganancia en logaritmo contra el radio**, que es lo que fisicamente es una
+    vineta. Con eso la etiqueta sale.
+
+    Consecuencia practica, y es la que importa:
+    `tests/test_entregables.py::test_T2_una_vineta_sola_se_etiqueta_como_vineta`
+    esta marcado `xfail(strict=True)` y ahora PASA, o sea que la suite lo da
+    como `XPASS(strict)` = FALLO. Hay que quitarle el marcador. No lo hago yo:
+    ese fichero no es mio.
+    """
+    d = invertir_grado(estudio_trabajo, _con_vineta(estudio_trabajo)).diagnosis
+    etiquetas = [hp.label for hp in d.hotspots]
+    print(f"\n[AUD4-2v] etiquetas ahora = {etiquetas}")
+    assert "vineta" in etiquetas, (
+        "la vineta ha vuelto a no detectarse: entonces el xfail vuelve a tener sentido"
+    )
+
+
+def test_AUD4_SEGUNDA_VUELTA_el_contrapeso_sigue_en_pie(estudio_trabajo):
+    """Aflojar `UMBRAL_MONOTONIA_RADIAL` de 0.80 a 0.55 podia traer falsos positivos.
+
+    El riesgo de un detector nuevo mas sensible es decir «hay una vineta» donde
+    solo hay un LUT. Se comprueba que el caso limpio sigue saliendo sin ninguna
+    etiqueta y reconocido como LUT puro.
+    """
+    limpio = _fabricar_coloreado(estudio_trabajo, _lut_de_look_conocido())
+    d = invertir_grado(estudio_trabajo, limpio).diagnosis
+    print(f"[AUD4-2v] caso limpio: puro={d.is_pure_lut} etiquetas={[h.label for h in d.hotspots]}")
+    assert d.is_pure_lut, "el detector nuevo ve algo espacial donde solo hay un LUT"
+    assert not d.hotspots
+
+
+def test_AUD4_SEGUNDA_VUELTA_las_siete_cajas_de_mas_llevan_su_aviso(estudio_trabajo):
+    """Con la vineta puesta salen 7 `zona local` ademas de la vineta.
+
+    No es un fallo —el residuo de una vineta se amontona en las esquinas— pero
+    un usuario que ve ocho cajas donde solo hay una vineta se va a volver loco.
+    Lo que lo salva es que el diagnostico lo dice por escrito. Se comprueba que
+    ese aviso existe, porque sin el las cajas SI serian un problema.
+    """
+    d = invertir_grado(estudio_trabajo, _con_vineta(estudio_trabajo)).diagnosis
+    zonas = [hp.label for hp in d.hotspots if hp.label != "vineta"]
+    texto = " ".join(d.notes).lower()
+    print(f"[AUD4-2v] zonas ademas de la vineta: {len(zonas)}")
+    if zonas:
+        assert "vineta" in texto and ("parte de ellas" in texto or "titular" in texto), (
+            f"salen {len(zonas)} cajas de mas y ninguna nota avisa de que son la propia "
+            f"vineta: {d.notes}"
+        )

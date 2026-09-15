@@ -493,6 +493,14 @@ def test_los_metodos_publicos_de_mas_de_fakeresolve_son_solo_de_simulacion():
         "conectar",
         "dejar_de_fallar",
         "desconectar",
+        # `devolver_en(operacion, valor)` lo anadio el dia 2 para simular las
+        # cuatro respuestas raras de GetCurrentVersion(). Entra en la lista por
+        # decision del AUDITOR INDEPENDIENTE, no del orquestador, y con
+        # evidencia: solo admite las 24 operaciones del Protocol (pedirle
+        # "get_cdl" lanza ValueError), devuelve None -- es un setter de la
+        # simulacion, no una fuga de lectura -- y no mueve el estado real. Ver
+        # AUDITORIA-DIA2.md, decision 1.
+        "devolver_en",
         "devolver_false_en",
         "fallar_en",
         "nodos_post_clip",

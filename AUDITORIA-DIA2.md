@@ -574,3 +574,316 @@ lo digo para que conste:
 
 *Auditoría ejecutada con `.venv/bin/python -m pytest`. Los tests de esta auditoría viven
 en `tests/auditoria/` y no tocan nada de producción. 29 tests, todos en verde.*
+
+---
+---
+
+# SEGUNDA VUELTA — dos decisiones sobre tests, y un repaso al día 2
+
+El orquestador aceptó los cuatro veredictos, corrigió las cifras falsas del `xfail`
+(`bab716b`) y cerró el hallazgo de `gui/reverse_puente.py`. Ahora me pide arbitrar dos
+decisiones sobre tests que no son suyos, y volver a pasar por encima del día 2.
+
+Mismos límites: sólo escribo en `AUDITORIA-DIA2.md` y `tests/auditoria/**`. No he tocado
+`core/`, `gui/`, `probe/` ni los tests de nadie. No he tocado git.
+
+---
+
+## DECISIÓN 1 · ¿entra `devolver_en` en la lista de métodos públicos de más?
+
+### Veredicto: **sí, se añade `"devolver_en"` a la lista.** El test sigue sirviendo.
+
+Pero con dos matices que no estaban sobre la mesa, y el segundo importa.
+
+### Por qué sí
+
+La pregunta que ese test existe para hacer no es «¿cuántos métodos de más hay?», sino
+**«¿ofrece el falso una capacidad que la API real no tiene?»**. El caso que lo motivó fue
+`GetCDL`: si el falso dejara leer el grado, alguien escribiría esta noche código que lo
+lee y mañana no funcionaría. Es una **fuga de lectura**.
+
+`devolver_en` no es eso, y lo he comprobado en vez de razonarlo:
+
+- **No devuelve nada.** Su firma es `(self, operacion, valor, veces) -> None`. Es un
+  *setter* de la simulación, no una vía de lectura. No hay forma de que código de
+  producción obtenga por ahí un dato que Resolve no dé.
+- **No amplía la superficie del `Protocol`.** Sólo acepta las 24 operaciones del
+  `Protocol`, y lo comprobé comparando la lista `OPERACIONES` contra `dir(ResolveBridge)`:
+  son exactamente las mismas. `fake.devolver_en("get_cdl", ...)` lanza `ValueError`.
+- **No mueve el estado por la puerta de atrás.** Una respuesta simulada es una mentira de
+  la API, no un cambio de estado: tras `devolver_en("current_version", "Version 1",
+  veces=1)`, la versión activa real sigue siendo la que era y `version_names()` no ha
+  cambiado.
+- **Y es exactamente lo que la API real sí puede hacer.** Un `GetCurrentVersion()` que
+  contesta `None` o un diccionario no es una capacidad de más: es la API portándose como
+  nadie ha podido descartar que se porte. Un falso incapaz de eso no puede probar la
+  única cosa que hay que probar.
+
+O sea: no tiene el olor de la fuga del CDL. Tiene el contrario — hace al falso **más
+capaz de mentir**, no más capaz de saber.
+
+### Matiz 1 · el test del revisor no habría cazado una fuga con este nombre
+
+Merece decirse porque afecta a la confianza que se le puede dar a ese test. El test
+hermano (`test_fakeresolve_no_ofrece_ninguna_forma_PUBLICA_de_leer_el_cdl`) busca fugas
+**por el nombre del método**: filtra los que llevan `cdl` o `grado` dentro. Un
+`devolver_en` no lleva ninguna de las dos palabras, así que ese filtro no lo habría
+mirado nunca. La red que de verdad atrapó este método es la **lista exacta**, o sea el
+test de la decisión 1 — que es justamente el que está en rojo. Buena señal: el test que
+se rompe es el que estaba haciendo su trabajo.
+
+En `tests/auditoria/test_dia2_superficie_del_falso.py` dejo la comprobación por
+**firma** en vez de por nombre: ninguno de los públicos de más devuelve un `CDL`. Ésa sí
+es inmune a cómo se llame el método que venga mañana.
+
+### Matiz 2 · `devolver_en` deja al falso poder mentirse a sí mismo
+
+Esto no lo vi venir y es lo que más rato me ha llevado. **No cambia el veredicto, pero
+hay que escribirlo.**
+
+La regla de oro del falso mira `_version_activa_o_rota()`, que pasa por
+`current_version()` y por tanto **es simulable**. La escritura, en cambio, cae en
+`self._version_actual(clip)`, que es el diccionario interno y **no lo es**. O sea que:
+
+```
+[D1-riesgo] la guardia vio 'SIDEB COLOR' y el grado ha caido en 'Version 1'
+```
+
+Con `devolver_en("current_version", VERSION_NAME)` sobre un clip parado en la versión del
+usuario, la guardia pasa y el grado se escribe **en la del usuario**.
+
+¿Es un bug? **No, y por eso no pido cambiarlo.** Es fiel: simula una API que miente y una
+app que se la cree, que es exactamente lo que pasaría de verdad. Y la contabilidad no se
+traga la mentira — el grado queda fichado en su versión real, y preguntar por la versión
+de la app directamente **lanza**:
+
+```
+[D1-rastro] el LUT esta fichado en 'Version 1', que es donde cayo de verdad;
+[D1-rastro] preguntar por la version de la app LANZA, no contesta que si.
+```
+
+Es una trampa latente, no un agujero: quien use `devolver_en` para hacer pasar una
+guardia está montando un escenario donde el grado acaba donde no se espera. **Hoy nadie
+la pisa.** Revisé los 13 usos de `devolver_en` de la suite: el único que miente diciendo
+«sí es nuestra» (`test_un_diccionario_CON_el_nombre_si_se_entiende_y_se_escribe`) lo hace
+sobre un clip que **ya está de verdad en nuestra versión**, así que guardia y escritura
+coinciden. Está bien escrito.
+
+Recomendación, de una línea y no urgente: dos frases en el docstring de `devolver_en`
+diciendo que mentir sobre `current_version` no mueve la versión activa, y que por tanto
+la escritura cae donde el clip esté de verdad.
+
+### Y la pregunta de fondo: ¿sigue sirviendo ese test?
+
+**Sí, y este episodio lo demuestra.** Un método nuevo apareció en la superficie pública
+del falso y el test obligó a que alguien lo justificara en voz alta. Eso es exactamente
+el servicio que da. Lo que no se puede es ampliarlo por inercia: cada vez que se añada un
+nombre a esa lista hay que contestar la pregunta del `GetCDL`, no sólo teclear la coma.
+Aquí la contesté.
+
+### Evidencia ejecutada
+
+```
+[D1] devolver_en: Hace que `operacion` conteste `valor` **tal cual**, sin lanzar.
+[D1] operaciones simulables = 24, y son exactamente las del Protocol
+[D1-firma] devolver_en -> None
+[D1-riesgo] la guardia vio 'SIDEB COLOR' y el grado ha caido en 'Version 1'
+22 passed
+```
+
+### La invariante que de verdad dice si «se rompió la red entera»
+
+Es la otra cosa que el orquestador me pidió mirar, y va aquí porque es el mismo cambio.
+Las cinco escrituras del falso preguntan ahora por `current_version()` en vez de mirar su
+diccionario. La pregunta buena no es si el cambio es elegante, es: **mientras nadie
+mienta, ¿guardia y escritura miran siempre lo mismo?** Si divergieran solos, el falso
+estaría comprobando una cosa y escribiendo en otra.
+
+No divergen. Lo comprobé en tres versiones distintas y a lo largo de seis operaciones de
+versión encadenadas:
+
+```
+[D1-inv] tras add_version                  guardia='SIDEB COLOR' interna='SIDEB COLOR'
+[D1-inv] tras load_version a la del usuario guardia='Version 1' interna='Version 1'
+[D1-inv] tras load_version a la nuestra    guardia='SIDEB COLOR' interna='SIDEB COLOR'
+[D1-inv] tras add_version PROBE            guardia='SIDEB COLOR PROBE' interna='SIDEB COLOR PROBE'
+[D1-inv] tras asegurar_version             guardia='SIDEB COLOR' interna='SIDEB COLOR'
+```
+
+Y la cuarta forma de portarse mal —que `GetCurrentVersion()` **reviente**, que va por otro
+camino del código (`fallar_en`, no `devolver_en`)— bloquea las cinco escrituras sin dejar
+ni un grado escrito ni un LUT puesto. **La red está en pie.**
+
+---
+
+## DECISIÓN 2 · el choque de aislamiento
+
+### Veredicto: **tiene que ceder el test de GUI, no mi carpeta. Y ya ha cedido.**
+
+### Por qué el de GUI
+
+El test de GUI defiende algo que importa de verdad: que la interfaz no arrastre el puente
+real. Pero lo afirmaba mirando `sys.modules`, que es **estado de todo el proceso**. Eso
+tiene tres problemas, y el tercero es el que decide:
+
+1. **Es un test cuyo resultado depende del orden de recogida de pytest.** Un test que pasa
+   o falla según quién corriera antes no está midiendo el código, está midiendo la suite.
+2. **Cualquiera puede ensuciarlo sin hacer nada malo.** Mi carpeta importa
+   `core.resolve.live` porque *tiene que* importarlo: estoy auditando `LiveResolve`.
+   Igual que lo importan los tests de `core/resolve`. Ninguno está haciendo nada
+   reprochable.
+3. **Y sobre todo: no afirmaba lo que decía afirmar.** Que `core.resolve.live` no esté en
+   `sys.modules` no prueba que la GUI no lo importe; prueba que *nadie* lo ha importado
+   todavía. Son cosas distintas. La propiedad que se quiere —«el código de `gui/` no
+   importa el puente real»— es una propiedad **del código de `gui/`**, y se comprueba
+   leyendo el código de `gui/`, no el estado del intérprete.
+
+Ceder mi carpeta habría sido lo peor de las dos opciones: dejar de auditar `LiveResolve`
+para que un test frágil siguiera en verde. Eso es subordinar lo que se mide a cómo se
+mide.
+
+### Y ya está hecho, no hace falta que rebotes nada
+
+Al ir a mirarlo me encontré con que el agente de GUI **ya lo ha resuelto**, y lo ha
+resuelto bien. El test ya no se llama así, ya no mira `sys.modules`, y su docstring razona
+exactamente esto:
+
+> «Lo de "y además nadie ha importado `DaVinciResolveScript`" **no se comprueba mirando
+> `sys.modules`**: eso es estado de todo el proceso […] así que el resultado dependería del
+> orden en que pytest recoja los ficheros.»
+
+Y la propiedad se afirma ahora donde se puede afirmar de verdad:
+`tests/test_gui_regla_de_oro.py::test_la_gui_no_importa_el_puente_de_verdad`, que recorre
+el **AST** de `gui/*.py` buscando `DaVinciResolveScript`, `fusionscript`,
+`core.resolve.live` y `LiveResolve` en imports. Es la misma forma que yo propuse para el
+caso 2 de la primera vuelta, y es la correcta.
+
+**El choque ya no reproduce.** Lo comprobé en los dos órdenes:
+
+```
+$ pytest tests/auditoria tests/test_gui_pantallas.py tests/test_gui_regla_de_oro.py
+78 passed in 134.25s
+
+$ pytest tests/test_gui_pantallas.py tests/test_gui_regla_de_oro.py tests/auditoria
+78 passed in 134.07s
+```
+
+### Dos huecos pequeños del test nuevo, ya que estoy
+
+No son fallos, son la clase de cosa que se olvida:
+
+- Usa `RAIZ_GUI.glob("*.py")`, no `rglob`. El día que `gui/` tenga un subpaquete, los
+  ficheros de dentro no se miran. Cambiar `glob` por `rglob` es gratis.
+- Mira `import` e `import from`, no un import dinámico
+  (`importlib.import_module("core.resolve.live")`). Hoy no hay ninguno; si algún día se
+  usa `importlib` en `gui/`, este test no lo vería.
+
+---
+
+## REPASO DEL DÍA 2 — lo que huele
+
+Pasé la suite entera. Cuatro tandas grandes entraron hoy sin revisión adversaria, y
+miré con atención las dos que me señalaste.
+
+### A · `FakeResolve` preguntando por `current_version()`: la red NO se rompió
+
+Ya está arriba, en la decisión 1. Resumen: la invariante se sostiene, la rama de
+«la API revienta» bloquea sin escribir, y el único sitio que miente diciendo «sí es
+nuestra» lo hace sobre un clip que ya lo está. **No hay falso verde.** La única secuela
+es la trampa latente del matiz 2, que es documental.
+
+### B · la hoja de estilo pisando a `setFont()`: es verdad, y **queda un sitio**
+
+Primero comprobé el hecho, porque cambia cómo se leen los 37 `setFont()` de `gui/`. Un
+`QLabel` pelado al que se le pone la fuente de cifra a mano:
+
+```
+[AUDF] antes de la hoja  : ['JetBrains Mono', 'Menlo'] mono=True
+[AUDF] despues de la hoja: ['Inter', 'Helvetica Neue'] mono=False
+```
+
+Confirmado, y de forma total: la hoja no «compite» con `setFont()`, lo **borra**. O sea
+que en `gui/` un `setFont()` no fija una fuente: la *pide*, y la hoja decide.
+
+Así que busqué los sitios que quedan, de forma mecánica y no a ojo: intercepté cada
+`QWidget.setFont` durante la construcción de la ventana entera, apunté los que reciben
+una fuente de cifra, y medí al final si pintan monoespaciadas de verdad.
+
+**32 widgets piden la fuente de cifra. 31 la consiguen. Uno no:**
+
+```
+[AUDF] FALLIDO -> EtiquetaElidida(-) < Panel(panel) < QSplitter(-) < PantallaAplicar(-)
+                  texto='SIDEB/SIDEB COLOR look.cube'
+```
+
+Es **`gui/pantalla_aplicar.py:286`**, `self.ruta_look.setFont(idn.fuente_cifra(11))`: un
+`EtiquetaElidida` sin `objectName` ni propiedad `class`, así que la hoja no lo reconoce
+como cifra y le mete Inter. **Y no es una etiqueta cualquiera: es la ruta del `.cube`.**
+Una ruta con espacios (`SIDEB/SIDEB COLOR look.cube`), elidida por el medio, es
+justamente el texto donde la monoespaciada se nota. Gravedad estética, no funcional, pero
+es exactamente el sitio donde el agente de GUI creyó fijar la fuente y no la fijó.
+
+Arreglo (no lo hago yo, `gui/` no es mío): darle el mismo `objectName`/`class` de cifra
+que llevan las demás, como ya se hizo en `pantalla_reverse.py` con `cifraApagada`.
+
+Dejo el test en cuarentena en `tests/auditoria/test_dia2_fuentes.py`: pasa hoy con ese
+único fallido conocido y **salta si aparece uno nuevo**.
+
+### C · un hecho que hay que tener delante al mirar cualquier captura
+
+```
+[AUDF] tipografias de marca instaladas: NINGUNA
+```
+
+Ni Inter, ni Chakra Petch, ni JetBrains Mono están instaladas en esta máquina. Todo lo
+que se ve en las 25+ capturas sale con sustitutos del sistema. Que las cifras salgan
+monoespaciadas se lo debemos al `StyleHint.Monospace` y a la lista de reservas, no a
+JetBrains Mono. No es un fallo —y está documentado desde `da42319`— pero conviene no
+leer las capturas como si fueran la identidad final.
+
+### D · el `xfail` de la viñeta **ya sobra**, y la suite lo está gritando
+
+Esto es lo más accionable de la segunda vuelta. El agente de reverse ha reescrito el
+detector en el árbol de trabajo (sin commitear todavía) y **la viñeta sola ya se
+etiqueta**:
+
+```
+[AUD4-2v] etiquetas ahora = ['vineta', 'zona local', x7]
+```
+
+O sea que `test_T2_una_vineta_sola_se_etiqueta_como_vineta`, que está marcado
+`xfail(strict=True)`, ahora **pasa**, y la suite lo reporta como `XPASS(strict)` = FALLO.
+Hay que quitarle el marcador y actualizar el punto correspondiente de `BITACORA.md`.
+
+Y conviene ver **cómo** lo ha arreglado, porque es mejor que lo que yo apunté. Yo observé
+que subiendo el radio de suavizado el R² cruzaba el 0.30. Él no ha tocado eso: ha
+cambiado **qué se modela**. En vez de un R² sobre el residuo en ΔE2000, ahora modela la
+**ganancia en logaritmo contra el radio**, que es lo que físicamente es una viñeta:
+
+> «La ganancia que le falta al LUT depende del RADIO y oscurece hacia fuera (0.509 en
+> logaritmo de ganancia del centro al borde, o sea 0.73 paradas; R²=0.88, correlación con
+> el radio −0.88). Eso es una viñeta, con el centro estimado en (339, 190) px.»
+
+R² de 0.88 frente al 0.2887 del camino viejo, que por cierto **sigue cerrando**: el
+detector nuevo no es el viejo afinado, es otro. Mejor diagnóstico y además da el centro.
+
+Dos cosas que sí miraría de ese cambio, y las dejo comprobadas:
+
+- **Aflojó `UMBRAL_MONOTONIA_RADIAL` de 0.80 a 0.55.** Aflojar un umbral es siempre
+  sospechoso, así que comprobé el contrapeso: el caso limpio sigue saliendo `is_pure_lut`
+  y **sin ninguna etiqueta**. No hay falso positivo.
+- **Salen 7 cajas `zona local` además de la viñeta.** Un usuario que ve ocho cajas donde
+  sólo hay una viñeta se vuelve loco. Lo salva que el diagnóstico lo dice por escrito
+  («parte de ellas son la propia viñeta […] la forma es el titular; las cajas, el
+  detalle»). Dejo un test que comprueba que ese aviso sigue ahí, porque **sin él las
+  cajas sí serían un problema**.
+
+### E · lo que sigue sin red
+
+- `core/reverse` ya tiene 33 tests propios (`test_reverse_espacial.py`,
+  `test_reverse_bordes.py`) y `NOTAS.md`, sin commitear. Eso cierra el punto 2 de «sin
+  resolver» de la bitácora en cuanto entre.
+- Sigue en pie el punto 1: nadie ha visto `GetCurrentVersion()` contestar contra un
+  Resolve de verdad. Todo lo que hemos hecho esta noche alrededor de esa llamada —las
+  cuatro respuestas raras, `VersionIndeterminada`, la pregunta V-0 del probe— es
+  preparación, no verificación. Sigue siendo lo primero que hay que comprobar mañana.
