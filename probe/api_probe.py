@@ -10,6 +10,12 @@ QUE ES ESTO
   cuando tengamos las respuestas de verdad, se cambian seis constantes y la app
   deja de ir a ciegas.
 
+  Antes que las seis hace una septima comprobacion, la V-0, que es la mas
+  importante de todas y no cuesta nada porque solo lee: comprueba que Resolve
+  sabe decirnos en que version de color esta cada clip. La app pregunta eso
+  antes de cada escritura para no pisarte el grado; si Resolve no contesta, la
+  app no escribe. Sale de las primeras.
+
 QUE NECESITAS ANTES DE EMPEZAR
   1. DaVinci Resolve **Studio** abierto (la version gratuita no deja que un
      script de fuera le hable).
@@ -195,7 +201,7 @@ class Informe:
         for k, v in d["resolve"].items():
             out.append(f"  {k}: {v}")
         out.append("")
-        out.append("LAS SEIS PREGUNTAS")
+        out.append("LAS PREGUNTAS")
         for clave, p in d["preguntas"].items():
             etiqueta = {True: "SI", False: "NO", None: "SIN RESPUESTA"}.get(
                 p["respuesta"], str(p["respuesta"])
@@ -594,6 +600,67 @@ def pregunta_f0_4(inf: Informe, instalacion: str | None, project) -> None:
         else (
             "No se puede decidir sola: existen las dos carpetas o no existe ninguna. Mira en "
             "Resolve, Project Settings > Color Management > Open LUT Folder, y apunta la ruta."
+        ),
+    )
+
+
+def pregunta_v0_version_actual(inf: Informe, items) -> None:
+    """LA PRIMERA. ¿Que contesta `GetCurrentVersion()` en un clip sin tocar?
+
+    Esto no es una de las seis incognitas: es un riesgo que nos hemos creado
+    nosotros. La app, antes de escribir NADA, pregunta en que version de color
+    esta el clip, y si no le contestan un nombre reconocible **se niega a
+    escribir**. Es a proposito (ver core/resolve/NOTAS.md), pero significa que
+    si `GetCurrentVersion()` se porta raro en esta build, la app no sirve para
+    nada hasta que alguien lo mire.
+
+    Es de solo lectura, asi que se contesta sin permiso y sin tocar el proyecto.
+    """
+    respuestas = []
+    usables = 0
+    for i, item in enumerate(items[:12], start=1):
+        fila = {"clip": i, "nombre_clip": None, "crudo": None, "tipo": None, "usable": False}
+        try:
+            fila["nombre_clip"] = str(item.GetName())
+            actual = item.GetCurrentVersion()
+            fila["crudo"] = repr(actual)
+            fila["tipo"] = type(actual).__name__
+            nombre = actual.get("versionName") if isinstance(actual, dict) else actual
+            fila["nombre_version"] = None if nombre is None else str(nombre)
+            fila["usable"] = bool(isinstance(nombre, str) and nombre.strip())
+        except BaseException as exc:  # noqa: BLE001
+            fila["error"] = f"{type(exc).__name__}: {exc}"
+            inf.error(f"GetCurrentVersion en el clip {i}: {exc}")
+        usables += 1 if fila["usable"] else 0
+        respuestas.append(fila)
+
+    inf.datos["resolve"]["get_current_version"] = respuestas
+    total = len(respuestas)
+    todas = total > 0 and usables == total
+    if total == 0:
+        detalle = "No habia clips que mirar."
+    else:
+        muestra = respuestas[0]
+        detalle = (
+            f"He mirado {total} clip(s) sin tocar nada. Devuelven un nombre de version usable "
+            f"{usables} de {total}. El primero ({muestra.get('nombre_clip')!r}) contesta "
+            f"{muestra.get('crudo')} (tipo {muestra.get('tipo')}), que la app leeria como "
+            f"{muestra.get('nombre_version')!r}."
+        )
+    inf.responder(
+        "V-0",
+        "¿Que devuelve GetCurrentVersion() en un clip recien abierto? (de esto depende "
+        "que la app pueda escribir algo)",
+        todas if total else None,
+        detalle,
+        (
+            "Perfecto. La regla de oro puede preguntar la version antes de cada escritura, que "
+            "es lo que impide que la app pise el grado del usuario."
+            if todas
+            else "CUIDADO: con esto la app se NEGARIA a escribir en los clips que no contestan "
+            "un nombre (lanza VersionIndeterminada). Es deliberado —mejor no escribir que "
+            "escribir encima del grado de alguien— pero hay que arreglarlo antes de usarla: "
+            "mandame este informe y miro como leer la version de otra forma."
         ),
     )
 
@@ -1121,6 +1188,10 @@ def main(argv: list[str] | None = None) -> int:
         return terminar(inf, args)
 
     project, timeline, items = contexto(resolve, inf)
+    # LA PRIMERA de todas, y de solo lectura: de que GetCurrentVersion conteste
+    # bien depende que la app pueda escribir algo. Ver NOTAS.md, hallazgo E-3.
+    if items:
+        pregunta_v0_version_actual(inf, items)
     pagina_inicial = pregunta_f0_5_lectura(inf, resolve)
     inf.datos["preguntas"].pop("F0-4", None)
     pregunta_f0_4(inf, instalacion, project)
@@ -1186,6 +1257,11 @@ def terminar(inf: Informe, args) -> int:
             return 2
     titulo("resumen")
     sin_responder = [k for k, v in inf.datos["preguntas"].items() if v["respuesta"] is None]
+    v0 = inf.datos["preguntas"].get("V-0")
+    if v0 is not None and v0["respuesta"] is not True:
+        linea("  *** MIRA PRIMERO LA V-0: si Resolve no dice en que version esta un clip,")
+        linea("      la app no va a escribir nada. Es lo primero que hay que arreglar. ***")
+        linea()
     for clave, p in inf.datos["preguntas"].items():
         etiqueta = {True: "SI", False: "NO", None: "SIN RESPUESTA"}.get(
             p["respuesta"], str(p["respuesta"])

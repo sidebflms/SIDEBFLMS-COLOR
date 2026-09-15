@@ -81,7 +81,98 @@ Le crea o selecciona la versión `SIDEB COLOR` a **cada destino** antes de copia
 nada, y si algún destino no se puede preparar, no copia a ninguno. Es el
 equivalente de `aplicar_grado_seguro` para `CopyGrades`.
 
-### 2.4 El camino bueno
+### 2.4 Los dos puentes se protegen igual (hallazgo E-3)
+
+`PELIGRO_escribir_fuera_de_la_version` es un atributo **de clase** de
+`BaseResolveBridge`. `FakeResolve` lo reasignaba en la instancia y `LiveResolve`
+no. Consecuencia: una línea suelta en cualquier sitio del proyecto
+
+```python
+BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = True
+```
+
+apagaba la regla de oro **en el puente de verdad** y la dejaba puesta en el
+falso. Es la peor forma posible de este fallo: ningún test contra `FakeResolve`
+puede cazarlo, así que todo saldría verde por la noche y la protección no
+existiría el día que la app hable con Resolve.
+
+Arreglado: `LiveResolve.__init__` lo fija en la instancia, igual que
+`FakeResolve`, y acepta el mismo parámetro en el constructor.
+
+Y para que no vuelva a pasar con el siguiente atributo que añadamos, hay un test
+que **compara los dos `__init__` leyendo el AST**
+(`test_los_dos_puentes_fijan_los_MISMOS_atributos_en_la_instancia`). Lo hace
+leyendo los ficheros, sin importar `live.py` ni instanciarlo: sigue sin
+ejecutarse ni una línea de ese archivo. Auditados los dos atributos de clase que
+hay hoy: `incognitas` estaba bien, `PELIGRO_...` no. No había más.
+
+### 2.5 Y si Resolve no sabe decirnos en qué versión estamos
+
+Esto es un riesgo que **nos hemos creado nosotros** al cerrar R-0: la regla de
+oro pregunta `GetCurrentVersion()` antes de cada escritura, y nadie ha visto
+nunca esa llamada funcionar contra Resolve de verdad. Si devuelve una cadena
+vacía, un `None`, o un diccionario sin `versionName`, la app **no escribiría
+nada en ningún sitio** hasta que alguien lo mirara.
+
+Son dos situaciones distintas y ahora se tratan distinto:
+
+| Situación | Qué hace | Excepción |
+|---|---|---|
+| Sé en qué versión estoy y **no es nuestra** | bloquea | `EscrituraFueraDeVersion` |
+| **No sé** en qué versión estoy | bloquea | `VersionIndeterminada` |
+
+**Las dos bloquean, y lo he decidido a conciencia.** Lo pensé como una cuestión
+de qué cuesta equivocarse en cada dirección:
+
+- Si bloqueo y resultaba que no hacía falta: se pierde una mañana. **No se rompe
+  nada.** El mensaje dice exactamente qué mirar, y la vía de escape deja seguir
+  trabajando en dos minutos a quien sepa lo que hace.
+- Si escribo y resultaba que estábamos en la versión del usuario: se pierde el
+  trabajo de alguien, en **todos** los clips a la vez, en silencio, y **no hay
+  deshacer** — la API no tiene undo, y la red de seguridad (la versión) no se
+  habría creado justamente porque no sabíamos dónde estábamos.
+
+Un mecanismo de seguridad que se apaga solo cuando no puede verificar no es un
+mecanismo de seguridad. Así que falla cerrado.
+
+Lo que sí cambia entre los dos casos es **el mensaje**, y eso importa tanto como
+la decisión: el de `VersionIndeterminada` dice que el sospechoso es la API y no
+el usuario, nombra `GetCurrentVersion()`, manda a la pregunta V-0 del probe (que
+es justo ésta) y da la línea exacta para salir del paso. Que el diagnóstico sean
+treinta segundos y no una tarde.
+
+`VersionIndeterminada` hereda de `EscrituraFueraDeVersion`, así que quien ya
+capturaba aquélla captura ésta, y la GUI —que sólo captura `ResolveError`— no
+se entera de nada.
+
+**Si mañana la respuesta es rara**, por orden:
+
+1. Mirar la V-0 del informe del probe: dice en crudo qué contestó Resolve en
+   cada clip.
+2. Si contesta un diccionario con otra clave (no `versionName`), es un cambio de
+   la API entre versiones: se arregla en `LiveResolve.current_version()`, que es
+   el único sitio que lo interpreta.
+3. Si no contesta nada útil en ningún caso, hay que buscar otra forma de saber la
+   versión activa. La única otra vía que veo es `GetVersionNameList()` más alguna
+   marca propia, y no es fiable. En ese caso hablamos: puede que toque cambiar la
+   protección por "crear siempre la versión antes de escribir y no preguntar",
+   que es más agresivo pero también seguro.
+4. Mientras tanto, y sólo si hay prisa: `PELIGRO_escribir_fuera_de_la_version`
+   deja pasar todo, con el riesgo dicho.
+
+### 2.6 El agujero que queda, y creo que no tiene arreglo
+
+`es_version_nuestra()` va **por el nombre**, porque la API no marca de ninguna
+forma quién creó una versión: no hay autor, ni fecha, ni etiqueta, ni nada que
+consultar. Así que una versión que Mario haya llamado `SIDEB COLOR pruebas` se
+daría por nuestra, y la app escribiría dentro.
+
+No he encontrado forma de cerrarlo. Lo dejo dicho porque es mejor saberlo: el
+nombre `SIDEB COLOR` es lo bastante raro como para que no pase por accidente,
+pero si alguna vez alguien crea versiones a mano con ese prefijo, que sepa que
+la app las considera suyas.
+
+### 2.7 El camino bueno
 
 `bridge.aplicar_grado_seguro()` sigue siendo por donde debe ir la app. El orden
 es:

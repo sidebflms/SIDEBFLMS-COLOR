@@ -25,6 +25,7 @@ from core.contracts import (
 from core.resolve import (
     EscrituraFueraDeVersion,
     FakeResolve,
+    VersionIndeterminada,
     aplicar_grado_seguro,
     asegurar_version,
     copiar_grado_seguro,
@@ -313,3 +314,193 @@ def test_los_enteros_de_toda_la_vida_siguen_valiendo():
     assert validar_indice_nodo(1, 3) == 1
     assert validar_indice_nodo(3, 3) == 3
     assert validar_indice_nodo(3) == 3  # sin limite superior
+
+
+# ---------------------------------------------------------------------------
+# E-3: los dos puentes tienen que protegerse IGUAL
+# ---------------------------------------------------------------------------
+
+
+def _clase_del_ast(ruta: str, nombre: str):
+    """Busca una clase leyendo el fichero. NO lo importa.
+
+    `live.py` no se importa ni se instancia en ningun test: es el unico archivo
+    que habla con Resolve y esta sin estrenar. Pero su `__init__` SI hay que
+    vigilarlo, porque ahi estuvo el hallazgo E-3. Leer el AST da la misma
+    respuesta sin ejecutar una sola linea suya.
+    """
+    import ast
+    from pathlib import Path
+
+    arbol = ast.parse(Path(ruta).read_text(encoding="utf-8"))
+    for n in ast.walk(arbol):
+        if isinstance(n, ast.ClassDef) and n.name == nombre:
+            return n
+    raise AssertionError(f"no encuentro la clase {nombre} en {ruta}")
+
+
+def _atributos_de_clase(cd) -> list[str]:
+    import ast
+
+    out: list[str] = []
+    for n in cd.body:
+        if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
+            out.append(n.target.id)
+        elif isinstance(n, ast.Assign):
+            out += [t.id for t in n.targets if isinstance(t, ast.Name)]
+    return [a for a in out if not a.startswith("__")]
+
+
+def _asignados_en_init(cd) -> set[str]:
+    import ast
+
+    for n in cd.body:
+        if isinstance(n, ast.FunctionDef) and n.name == "__init__":
+            return {
+                t.attr
+                for x in ast.walk(n)
+                if isinstance(x, ast.Assign)
+                for t in x.targets
+                if isinstance(t, ast.Attribute)
+                and isinstance(t.value, ast.Name)
+                and t.value.id == "self"
+            }
+    return set()
+
+
+RAIZ = __file__.rsplit("/tests/", 1)[0]
+
+
+def test_los_dos_puentes_fijan_los_MISMOS_atributos_en_la_instancia():
+    """Hallazgo E-3, y la red para el siguiente de su especie.
+
+    `PELIGRO_escribir_fuera_de_la_version` es atributo de clase. `FakeResolve`
+    lo reasignaba en la instancia y `LiveResolve` no, asi que envenenar la clase
+    base (`BaseResolveBridge.PELIGRO_... = True` en cualquier sitio) apagaba la
+    regla de oro EN EL PUENTE DE VERDAD y la dejaba puesta en el falso. Ningun
+    test contra `FakeResolve` puede cazar eso: todo verde de noche y cero
+    proteccion el dia que se conecte.
+
+    Este test compara los dos `__init__` para que no vuelva a pasar con el
+    proximo atributo que se anada.
+    """
+    base = _atributos_de_clase(_clase_del_ast(f"{RAIZ}/core/resolve/bridge.py", "BaseResolveBridge"))
+    fake = _asignados_en_init(_clase_del_ast(f"{RAIZ}/core/resolve/fake.py", "FakeResolve"))
+    live = _asignados_en_init(_clase_del_ast(f"{RAIZ}/core/resolve/live.py", "LiveResolve"))
+
+    assert base, "BaseResolveBridge deberia declarar algun atributo de clase"
+    asimetricos = [a for a in base if (a in fake) != (a in live)]
+    assert asimetricos == [], (
+        f"estos atributos los fija un puente y el otro no: {asimetricos}. "
+        f"El que no lo fija se queda con el valor de la clase base, y envenenar la clase base "
+        f"lo apaga solo a el. Fijalo en los dos __init__."
+    )
+    faltan = [a for a in base if a not in fake or a not in live]
+    assert faltan == [], f"ningun puente fija {faltan} en la instancia"
+
+
+def test_envenenar_la_clase_base_no_apaga_la_regla_en_el_falso():
+    """La mitad que si se puede comprobar ejecutando."""
+    from core.resolve.bridge import BaseResolveBridge
+
+    original = BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version
+    try:
+        BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = True
+        fake = FakeResolve(n_clips=1)
+        assert fake.PELIGRO_escribir_fuera_de_la_version is False
+        with pytest.raises(EscrituraFueraDeVersion):
+            fake.set_cdl("clip001", NODE_BALANCE, GRADO)
+    finally:
+        BaseResolveBridge.PELIGRO_escribir_fuera_de_la_version = original
+
+
+def test_live_resolve_acepta_la_via_de_escape_por_el_constructor():
+    """Leido del AST: `LiveResolve.__init__` tiene el parametro y lo asigna."""
+    cd = _clase_del_ast(f"{RAIZ}/core/resolve/live.py", "LiveResolve")
+    import ast
+
+    init = next(n for n in cd.body if isinstance(n, ast.FunctionDef) and n.name == "__init__")
+    nombres = [a.arg for a in init.args.args]
+    assert "PELIGRO_escribir_fuera_de_la_version" in nombres
+    assert "PELIGRO_escribir_fuera_de_la_version" in _asignados_en_init(cd)
+
+
+# ---------------------------------------------------------------------------
+# E-3 (segunda parte): cuando NO se sabe en que version estamos
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("respuesta", ["", "   ", None, 0, {}, [], 7])
+def test_si_no_se_sabe_la_version_no_se_escribe(respuesta):
+    """Bloquea, no avisa. El razonamiento esta en NOTAS.md 2.5.
+
+    Las dos salidas no cuestan lo mismo: bloquear de mas cuesta una mañana y no
+    rompe nada; escribir de mas cuesta el trabajo de alguien y no hay deshacer.
+    """
+    fake = FakeResolve(n_clips=1)
+    with pytest.raises(VersionIndeterminada):
+        fake._exigir_version_propia("clip001", respuesta, "set_cdl")
+
+
+def test_el_mensaje_de_version_indeterminada_culpa_a_la_api_no_al_usuario():
+    fake = FakeResolve(n_clips=1)
+    with pytest.raises(VersionIndeterminada) as exc:
+        fake._exigir_version_propia("clip001", "", "set_cdl")
+    mensaje = str(exc.value)
+    assert "GetCurrentVersion" in mensaje
+    assert "V-0" in mensaje  # la pregunta del probe que lo diagnostica
+    assert "api_probe" in mensaje
+    assert "PELIGRO_escribir_fuera_de_la_version" in mensaje
+
+
+def test_version_indeterminada_es_un_caso_de_escritura_fuera_de_version():
+    """Quien ya capturaba `EscrituraFueraDeVersion` sigue capturando esta, y la
+    GUI, que solo captura `ResolveError`, tambien."""
+    assert issubclass(VersionIndeterminada, EscrituraFueraDeVersion)
+    assert issubclass(VersionIndeterminada, ResolveError)
+
+
+def test_los_dos_casos_se_distinguen():
+    """Saber que estas en la version del usuario y no saber donde estas son dos
+    cosas distintas, y el que lea el error tiene que poder notarlo."""
+    fake = FakeResolve(n_clips=1)
+    with pytest.raises(EscrituraFueraDeVersion) as sabido:
+        fake._exigir_version_propia("clip001", "Version 1", "set_cdl")
+    assert not isinstance(sabido.value, VersionIndeterminada)
+    assert "Version 1" in str(sabido.value)
+
+    with pytest.raises(VersionIndeterminada) as ignorado:
+        fake._exigir_version_propia("clip001", "", "set_cdl")
+    assert "no he podido saber" in str(ignorado.value)
+
+
+def test_un_puente_que_no_sabe_la_version_no_escribe_nada():
+    """Reproduce la forma de `LiveResolve` (que pregunta con `current_version()`)
+    sin importar `live.py` ni tocar Resolve."""
+    from core.resolve.bridge import BaseResolveBridge
+
+    class PuenteMudo(BaseResolveBridge):
+        """Resolve que no sabe decir en que version esta. Es el caso que nos da
+        miedo: `GetCurrentVersion()` contestando cualquier cosa."""
+
+        def __init__(self, respuesta):
+            self.respuesta = respuesta
+            self.escrituras = []
+
+        def current_version(self, clip_id):
+            return self.respuesta
+
+        def set_cdl(self, clip_id, node_index, cdl):
+            self._exigir_version_propia(clip_id, self.current_version(clip_id), "set_cdl")
+            self.escrituras.append((clip_id, node_index))
+            return True
+
+    mudo = PuenteMudo("")
+    with pytest.raises(VersionIndeterminada):
+        mudo.set_cdl("clip001", NODE_BALANCE, GRADO)
+    assert mudo.escrituras == []
+
+    # Y con la via de escape, escribe: el que decide es quien la abre.
+    mudo.PELIGRO_escribir_fuera_de_la_version = True
+    assert mudo.set_cdl("clip001", NODE_BALANCE, GRADO) is True
+    assert mudo.escrituras == [("clip001", NODE_BALANCE)]

@@ -109,6 +109,25 @@ class EscrituraFueraDeVersion(ResolveError):
     """
 
 
+class VersionIndeterminada(EscrituraFueraDeVersion):
+    """No se ha podido saber en que version esta el clip, asi que no se escribe.
+
+    Es distinto de `EscrituraFueraDeVersion` a secas: alli SABEMOS que la version
+    es del usuario; aqui no sabemos nada. `GetCurrentVersion()` ha devuelto una
+    cadena vacia, un `None` o algo que no es un nombre.
+
+    **Aun asi bloquea**, y hereda de `EscrituraFueraDeVersion` para que quien ya
+    capturaba aquella siga capturando esta. El razonamiento esta entero en
+    NOTAS.md; el resumen es que las dos salidas no cuestan lo mismo: si
+    bloqueamos y resulta que no hacia falta, se pierde una mañana y no se rompe
+    nada; si escribimos y resulta que estabamos en la version del usuario, se
+    pierde el trabajo de alguien y no hay deshacer.
+
+    Lo que si cambia es el mensaje: este dice que el sospechoso es la API y no
+    el usuario, y donde mirar.
+    """
+
+
 class OperacionNoDisponible(ResolveError):
     """La API no tiene esto, o una incognita F0-n dice que hoy asumimos que no."""
 
@@ -252,6 +271,23 @@ class BaseResolveBridge:
         """
         if self.PELIGRO_escribir_fuera_de_la_version:
             return
+        # Caso 1: no se puede SABER en que version estamos. Nadie ha visto
+        # nunca `GetCurrentVersion()` contestar contra Resolve de verdad, asi
+        # que este camino es perfectamente posible manana por la mañana.
+        if not isinstance(version_activa, str) or not version_activa.strip():
+            raise VersionIndeterminada(
+                f"{operacion}: no he podido saber en que version de color esta el clip "
+                f"{clip_id!r}. GetCurrentVersion() ha devuelto {version_activa!r}, que no es un "
+                f"nombre de version.\n"
+                f"No escribo nada: si resultara que el clip esta en la version del usuario, le "
+                f"borraria el grado y no hay forma de deshacerlo.\n"
+                f"Esto huele a la API, no a ti. Ejecuta `python3 probe/api_probe.py` y mira la "
+                f"pregunta V-0, que es justo esta. Si el probe dice que GetCurrentVersion va bien "
+                f"en tu Resolve y aun asi sale esto, avisame.\n"
+                f"Para salir del paso a sabiendas: "
+                f"`bridge.PELIGRO_escribir_fuera_de_la_version = True`."
+            )
+        # Caso 2: se sabe, y no es nuestra.
         if es_version_nuestra(version_activa):
             return
         raise EscrituraFueraDeVersion(
@@ -542,6 +578,7 @@ __all__ = [
     "ResultadoAplicacion",
     "RutaLUTInvalida",
     "TimelineNoAbierto",
+    "VersionIndeterminada",
     "VersionInvalida",
     "aplicar_grado_seguro",
     "asegurar_pagina_color",

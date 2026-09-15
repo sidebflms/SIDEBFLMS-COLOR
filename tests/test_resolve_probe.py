@@ -267,3 +267,125 @@ def test_el_informe_se_escribe_en_json_y_en_texto(tmp_path):
     texto = Path(ruta_txt).read_text(encoding="utf-8")
     assert "¿va el drx?" in texto
     assert "mira esto" in texto
+
+
+# ---------------------------------------------------------------------------
+# V-0: la comprobacion mas importante del probe, probada sin Resolve
+# ---------------------------------------------------------------------------
+
+
+class ClipFalso:
+    """Un timelineItem de mentira. Solo hace falta que sepa estas dos cosas.
+
+    Esto NO es hablar con Resolve: es comprobar que el probe interpreta bien lo
+    que Resolve le conteste, sea lo que sea.
+    """
+
+    def __init__(self, nombre, version, revienta=False):
+        self._nombre = nombre
+        self._version = version
+        self._revienta = revienta
+
+    def GetName(self):  # noqa: N802 - la API de Resolve se llama asi
+        return self._nombre
+
+    def GetCurrentVersion(self):  # noqa: N802
+        if self._revienta:
+            raise RuntimeError("Resolve dice que no")
+        return self._version
+
+
+def _preguntar_v0(items):
+    pregunta = cargar_funcion("pregunta_v0_version_actual")
+    Informe = cargar_funcion("Informe")
+    inf = Informe()
+    pregunta(inf, items)
+    return inf
+
+
+def test_v0_con_resolve_portandose_bien():
+    inf = _preguntar_v0(
+        [
+            ClipFalso("A001_C001", {"versionName": "Version 1", "versionType": 0}),
+            ClipFalso("A001_C002", {"versionName": "SIDEB COLOR", "versionType": 0}),
+        ]
+    )
+    v0 = inf.datos["preguntas"]["V-0"]
+    assert v0["respuesta"] is True
+    assert "2 de 2" in v0["detalle"]
+
+
+@pytest.mark.parametrize(
+    "version",
+    [
+        {"versionName": ""},  # nombre vacio
+        {"versionType": 0},  # el diccionario sin la clave
+        None,  # nada
+        "",  # cadena vacia
+        {},  # diccionario vacio
+    ],
+)
+def test_v0_caza_a_resolve_portandose_raro(version):
+    """Si Resolve contesta cualquiera de estas, la app NO podria escribir."""
+    inf = _preguntar_v0([ClipFalso("A001_C001", version)])
+    v0 = inf.datos["preguntas"]["V-0"]
+    assert v0["respuesta"] is False
+    assert "NEGARIA" in v0["consecuencia_para_la_app"]
+    assert "VersionIndeterminada" in v0["consecuencia_para_la_app"]
+
+
+def test_v0_sobrevive_a_que_la_llamada_reviente():
+    inf = _preguntar_v0([ClipFalso("A001_C001", None, revienta=True)])
+    assert inf.datos["preguntas"]["V-0"]["respuesta"] is False
+    assert any("GetCurrentVersion" in e for e in inf.datos["errores"])
+
+
+def test_v0_avisa_aunque_solo_falle_un_clip():
+    """Un solo clip mudo ya deja a la app sin poder graduar ese clip."""
+    inf = _preguntar_v0(
+        [
+            ClipFalso("bueno", {"versionName": "Version 1"}),
+            ClipFalso("mudo", {"versionName": ""}),
+        ]
+    )
+    v0 = inf.datos["preguntas"]["V-0"]
+    assert v0["respuesta"] is False
+    assert "1 de 2" in v0["detalle"]
+
+
+def test_v0_apunta_lo_que_vio_en_crudo_para_poder_diagnosticarlo():
+    """En el informe tiene que quedar el valor tal cual, no interpretado."""
+    inf = _preguntar_v0([ClipFalso("A001_C001", {"versionName": "Version 1"})])
+    filas = inf.datos["resolve"]["get_current_version"]
+    assert len(filas) == 1
+    assert "versionName" in filas[0]["crudo"]
+    assert filas[0]["tipo"] == "dict"
+    assert filas[0]["usable"] is True
+
+
+def test_v0_es_de_solo_lectura():
+    """No llama a nada que escriba. Si algun dia lo hiciera, este clip lo dice."""
+
+    class ClipQueSeQueja(ClipFalso):
+        def __getattr__(self, nombre):
+            raise AssertionError(f"V-0 tiene que ser de solo lectura y ha llamado a {nombre}")
+
+    inf = _preguntar_v0([ClipQueSeQueja("A001_C001", {"versionName": "Version 1"})])
+    assert inf.datos["preguntas"]["V-0"]["respuesta"] is True
+
+
+def test_el_probe_hace_la_v0_antes_que_las_seis_incognitas(arbol):
+    """Orden DENTRO de `main()`: la V-0 se hace nada mas tener contexto, y como
+    es de solo lectura, antes de pedir permiso para escribir nada."""
+    main = next(n for n in arbol.body if isinstance(n, ast.FunctionDef) and n.name == "main")
+    llamadas = sorted(
+        (n.lineno, n.func.id)
+        for n in ast.walk(main)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    )
+    orden = [nombre for _, nombre in llamadas]
+    assert "pregunta_v0_version_actual" in orden
+    assert orden.index("pregunta_v0_version_actual") < orden.index("preguntar_permiso")
+    for incognita in ("pregunta_f0_5", "pregunta_f0_3", "preguntas_stills"):
+        assert orden.index("pregunta_v0_version_actual") < orden.index(incognita)
+    assert "V-0" in ast.get_docstring(arbol)
