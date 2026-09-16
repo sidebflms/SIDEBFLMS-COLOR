@@ -37,23 +37,40 @@ escribió el código y con ΔE2000 de `colour-science`, no del repo). **Las dos 
 
 ## 1 · Las cuatro cifras de titular
 
+> **Cambio del día 4.** Hasta el día 3 el titular de T1 y T3 era **la media**. Pero el
+> criterio lo suspende **el máximo** (T1) y **el peor par** (T3), y la media es la cifra
+> holgada. **Desde hoy el titular es la que decide**, con su margen al límite al lado. La
+> media se sigue dando, detrás. Las filas son las mismas de antes, con los mismos comandos
+> verificados: sólo cambia el orden y se añade el margen.
+
+### Los titulares: la cifra que decide, y cuánto le falta para suspender
+
+| Criterio | Cifra que decide | Límite | **Margen** | Montaje | Comando | Fecha |
+|---|---|---|---|---|---|---|
+| **T1** ingeniería inversa | **ΔE2000 máximo 2.8867** | < 3.0 | **0.11** | independiente: escena 720×405 semilla 20260915, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T1` | 15-09 |
+| T1, montaje del repo | ΔE2000 máximo 1.7409 | < 3.0 | 1.26 | repo: retrato 640×360 piel 2, CDL+LUT conocidos | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T1` | 15-09 |
+| **T3** igualado de cámaras | **ΔE2000 peor par 1.906** | < 2.0 | **0.094** | independiente: escena propia, desviaciones más suaves, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t3.py -s` | 15-09 |
+| T3, montaje del repo | ΔE2000 peor par 0.981 | < 2.0 | 1.02 | repo: 4 cámaras desde el retrato | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T3` | 15-09 |
+| **T2** lo que no es un LUT | no dice 100% LUT **y** señala la zona | — | cualitativo | repo: viñeta 0.45 + ventana (440,30,170,120), sobre la imagen codificada | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T2` | 15-09 |
+| T2, montaje independiente | **la zona señalada NO cae en la ventana** (solape 0.0000) | — | **no cumple** | viñeta 0.42 + ventana (96,250,190,110), **en luz lineal** | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 15-09 |
+| **T4** QC de LUT | 3 de 3 cazados, 0 avisos sobre la identidad | 3/3 y 0 | exacto | 3 LUT fabricados; `LUT3D.identity(n)` en 17³, 33³, 65³ | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T4` | 15-09 |
+
+**Leer así:** T1 y T3 cumplen en los dos montajes, pero **en el montaje independiente
+pasan por un 4-5%**, sobre material sintético limpio. Con ruido, compresión o un plano
+distinto del que se extrajo, no hay garantía de que sigan cumpliendo. T5 (día 4) mide
+justo eso.
+
+### Detrás: las medias y el resto de cifras de los mismos montajes
+
 | Cifra | Valor | Montaje | Comando | Fecha |
 |---|---|---|---|---|
-| **T1** ΔE2000 medio, zona cubierta | **0.1415** | repo: retrato 640×360 piel 2, CDL+LUT conocidos | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T1` | 15-09 |
-| **T1** ΔE2000 máximo, zona cubierta | **1.7409** | ídem | ídem | 15-09 |
-| T1 medio · montaje independiente | 0.1687 | escena 720×405 semilla 20260915, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T1` | 15-09 |
-| **T1 máximo · montaje independiente** | **2.8867** | ídem — **a 0.11 del límite de 3.0** | ídem | 15-09 |
-| **T2** fracción reproducible en un `.cube` | **0.7002** | repo: viñeta 0.45 + ventana (440,30,170,120) ganancia 1.6, **sobre la imagen codificada** | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T2` | 15-09 |
-| **T2** solape de la zona señalada | **0.9941** | ídem | ídem | 15-09 |
-| T2 reproducible · montaje independiente | 0.90836 | viñeta 0.42 + ventana (96,250,190,110), **en luz lineal** | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 15-09 |
-| **T2 solape · montaje independiente** | **0.0000** | ídem — **no se reproduce**, ver §4 | ídem | 15-09 |
-| **T3** ΔE2000 medio entre cámaras, antes | **17.674** | repo: 4 cámaras desde el retrato, desviaciones del repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T3` | 15-09 |
-| **T3** ΔE2000 medio entre cámaras, después | **0.661** | ídem | ídem | 15-09 |
-| T3 peor par suelto, después | 0.981 | ídem | ídem | 15-09 |
-| T3 antes/después · independiente | 15.499 → 1.085 | escena propia, desviaciones más suaves, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t3.py -s` | 15-09 |
-| **T3 peor par · independiente** | **1.906** | ídem — **a 0.094 del límite de 2.0** | ídem | 15-09 |
-| **T4** LUT malos cazados | **3 de 3** | 3 LUT fabricados: no monótono, escalón, fuera de gamut | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T4` | 15-09 |
-| **T4** avisos sobre la identidad | **0**, en 17³, 33³ y 65³ | `LUT3D.identity(n)` | ídem | 15-09 |
+| T1 ΔE2000 medio, zona cubierta · repo | 0.1415 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T1` | 15-09 |
+| T1 ΔE2000 medio · independiente | 0.1687 | independiente | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T1` | 15-09 |
+| T2 fracción reproducible en un `.cube` · repo | 0.7002 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T2` | 15-09 |
+| T2 solape de la zona señalada · repo | 0.9941 | repo | ídem | 15-09 |
+| T2 fracción reproducible · independiente | 0.90836 | independiente | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 15-09 |
+| T3 ΔE2000 medio entre cámaras, antes → después · repo | 17.674 → 0.661 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T3` | 15-09 |
+| T3 antes → después · independiente | 15.499 → 1.085 | independiente | `.venv/bin/python -m pytest tests/medicion/test_t3.py -s` | 15-09 |
 
 ### La cifra que faltaba en la tabla de titulares
 
