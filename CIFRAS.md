@@ -165,3 +165,39 @@ Y en sus módulos, también sin justificación: `LAMBDA_SUAVIDAD` 0.25, `CORONAS
 `core/reverse/diagnostico.py` como **0.045** y `core/reverse/NOTAS.md` §6.3 como
 **0.0135**. Ninguna de las dos está verificada. Es justo la clase de cosa que este
 archivo existe para no dejar pasar.
+
+---
+
+## 7 · Interfaz
+
+Todas medidas el 16-09-2026, después de arreglar la escala tipográfica.
+
+| Cifra | Valor | Montaje | Comando | Fecha |
+|---|---|---|---|---|
+| **Anchura mínima real de la ventana** | **973 × 651** | `minimumSizeHint()` de la ventana construida | `.venv/bin/python -m pytest tests/test_gui_texto.py -k anchura_minima` | 16-09 |
+| ídem, el día 2 | 985 × 643 | antes de arreglar la tipografía | `git show v0.2.0:gui/NOTAS.md` | 15-09 |
+| Lo que pediría con el `font-size` aplanado repuesto | 1028 × 655 | mismo árbol, reponiendo la línea del bug | **sin comando**: no hay test que lo fije. Medido por el agente de GUI, escrito en `gui/NOTAS.md:117`. Ver el aviso de abajo | 16-09 |
+| Widgets que se pintan con el tamaño de letra que piden | **todos** | recorre la ventana entera y compara lo pedido con lo pintado | `.venv/bin/python -m pytest tests/test_gui_identidad.py -k tamano_de_letra` | 16-09 |
+| Widgets que pedían fuente y NO la conseguían, antes | 41 de 96 | mismo barrido sobre el árbol de `v0.2.0` | **sin comando**: el árbol de `v0.2.0` ya no está montado. Cifra del informe del agente de GUI. Ver el aviso de abajo | 15-09 |
+| Columna CLIP a la anchura mínima | 56 px → **124 px** | 200 clips | `.venv/bin/python -m pytest tests/test_gui_texto.py -k columna` | 16-09 |
+| Columna CLIP a 1024 / 1440 px | 81 → **175** · 361 → **455** | ídem | ídem | 16-09 |
+| Ancho total de las cinco columnas fijas | 439 px → **345 px** | `#` 42 · ΔE antes 63 · ΔE después 67 · confianza 124 · aviso 49 | ídem | 16-09 |
+| Tracking de los rótulos en mayúsculas | 0.1594em y 0.1591em | dentro del 0.15–0.18 de la identidad | `.venv/bin/python -m pytest tests/test_gui_identidad.py -k tracking` | 15-09 |
+
+> **AVISO, y es el motivo de que este archivo exista.** Dos filas de esta tabla —el
+> «1028 × 655» y el «41 de 96»— **no tienen comando que las reproduzca**. Las midió el
+> agente de GUI por su cuenta y están escritas en su informe y en `gui/NOTAS.md`, pero
+> nadie más las ha podido comprobar. Según la regla de `CONTRATOS.md` **no deberían
+> publicarse como medidas**, y aquí están marcadas como lo que son. Las dejo porque las
+> dos describen el estado *anterior* al arreglo, que ya no se puede montar sin deshacerlo;
+> pero si alguien las cita, que cite también esta línea.
+>
+> Lo encontré al verificar los comandos de este archivo uno a uno, que es exactamente
+> para lo que sirve hacerlo.
+
+### Dos cifras de la interfaz que están medidas y NO arregladas
+
+| Cifra | Valor | Por qué no se arregla |
+|---|---|---|
+| `INSIGNIA_ANCHO` | **108 px**, y «MEDIA 100%» necesita **115** | La columna CONFIANZA mide `INSIGNIA_ANCHO + 16` y es la más ancha de las fijas: subirla **subiría la anchura mínima**, que es justo lo que no tocaba. Hoy no se ve porque un 100% siempre sale `alta`, y «ALTA» es la palabra más corta. |
+| Tracking de las cabeceras de tabla | **0** | Límite de Qt, comprobado por dos vías: `setFont()` sobre el `QHeaderView` lo borra Qt en el siguiente `polish`, y `headerData(…, FontRole)` no cambia ni un píxel. Haría falta un `QHeaderView` propio que se pinte las secciones. |
