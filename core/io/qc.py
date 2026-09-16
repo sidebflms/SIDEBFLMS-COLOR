@@ -117,6 +117,14 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from core.contracts import LUT3D
+from core.umbrales import (
+    SALTO_MINIMO_BANDING,
+    TOL_GAMUT,
+    TOL_MONOTONIA,
+    UMBRAL_BANDING,
+    UMBRAL_RECORRIDO_LUT_PLANO,
+    UMBRAL_SOMBRAS,
+)
 
 __all__ = [
     "ProblemaQC",
@@ -143,26 +151,11 @@ CODIGO_BANDING = "banding"
 CODIGO_GAMUT = "gamut"
 CODIGO_CANALES_INVERTIDOS = "canales_invertidos"
 
-#: Cuántas veces el paso típico tiene que saltarse un cambio de pendiente para
-#: contar como banding.
-UMBRAL_BANDING: float = 3.0
-
-#: Cambio de pendiente mínimo, en unidades de salida, para que cuente. 0.02 son
-#: ~5/255: por debajo no se ve una banda ni buscándola.
-SALTO_MINIMO_BANDING: float = 0.02
-
-#: Hasta qué nivel de ENTRADA se considera que un escalón está "en sombras".
-#: 0.125 es un octavo del recorrido de la rejilla. Con 17 puntos son los dos
-#: primeros intervalos, con 33 los cuatro primeros y con 65 los ocho primeros:
-#: siempre la misma zona de la imagen, mida lo que mida el LUT.
-#:
-#: No es un umbral de detección —no cambia lo que se marca ni cuánto— sino de
-#: REDACCIÓN: decide si el aviso lleva la explicación de "esto es normal en un
-#: LUT de salida" o la de "esto no es lo normal, míralo". Medido: la curva de
-#: gamma de salida `x**(1/2.2)` marca exactamente un escalón por eje y siempre
-#: en la posición 0, en 17, 33 y 65. O sea que cae del lado de "sombras" en los
-#: tres tamaños, que es lo que Mario quiere que diga.
-UMBRAL_SOMBRAS: float = 0.125
+# Los seis umbrales que deciden si algo se marca como banding, como no
+# monótono, como fuera de gamut o como LUT plano —o sea, los códigos que Mario
+# lee antes de escribir nada en Resolve— viven en `core.umbrales`. Aquí se
+# reexportan con el mismo nombre de siempre. Lo que se queda en este módulo son
+# los parámetros de presentación y las guardas numéricas, que no deciden nada.
 
 #: La frase que explica un escalón pegado al negro. Es lo que Mario pidió que
 #: dijera, con sus palabras: si el LUT lleva la conversión a Rec.709, los
@@ -183,14 +176,11 @@ EXPLICACION_MEDIOS = (
 )
 
 #: Suelo de la mediana de pasos, para no dividir por cero en un LUT plano.
+#: **No confundir con `UMBRAL_RECORRIDO_LUT_PLANO`**, que vale lo mismo y
+#: significa otra cosa: éste es una guarda de división y aquél es el criterio de
+#: "este LUT aplasta la imagen a un solo color". Estaban a unas ciento cuarenta
+#: líneas el uno del otro y el segundo iba escrito a pelo, sin nombre.
 _PISO_ESCALA: float = 1e-6
-
-#: Tolerancia de monotonía. Por debajo de esto es ruido de float32, no un LUT
-#: que baja.
-TOL_MONOTONIA: float = 1e-5
-
-#: Tolerancia de gamut: 1/2048, medio escalón de 11 bits. Por debajo no se ve.
-TOL_GAMUT: float = 1.0 / 2048.0
 
 #: Cuántas celdas se listan como mucho por cada tipo de problema. La GUI no va a
 #: pintar 274.625 avisos; el total va en `metricas`.
@@ -322,7 +312,7 @@ def _lut_plano(table: np.ndarray) -> list[ProblemaQC]:
     if not np.isfinite(plano).all():
         return []  # ya lo cuenta _no_finitos; ptp con NaN no dice nada
     recorrido = float(np.ptp(plano, axis=0).max())
-    if recorrido > 1e-6:
+    if recorrido > UMBRAL_RECORRIDO_LUT_PLANO:
         return []
     color = tuple(round(float(v), 6) for v in plano[0])
     return [

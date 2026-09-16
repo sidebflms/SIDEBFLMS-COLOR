@@ -123,3 +123,46 @@ Lo que se guarda y se abre: un `.sidebcolor`, que es un zip con `session.json`,
 | `NODE_NORMALIZACION` / `_BALANCE` / `_LOOK` | `1` / `2` / `3` | E, H |
 | `CONFIDENCE_ALTA` / `_MEDIA` | `0.75` / `0.45` | todos |
 | `LUMA_REC709` | `(0.2126, 0.7152, 0.0722)` | sólo el CDL |
+
+---
+
+## La regla de las cifras — añadida el día 3, y por un motivo concreto
+
+**Ninguna cifra se publica sin poder decir de dónde salió.**
+
+«Publicar» es cualquiera de estas cinco: `BITÁCORA.md`, el `reason` de un `xfail` o un
+`skip`, un comentario del código, un `NOTAS.md`, o un texto que se vea en la interfaz.
+
+Cada número publicado tiene que tener una fila en **[`CIFRAS.md`](CIFRAS.md)** con:
+
+| qué | por qué |
+|---|---|
+| **el valor** | obvio |
+| **el montaje exacto** sobre el que se midió | es donde falló: la cifra estaba bien medida, pero **sobre otro montaje** |
+| **el comando que lo reproduce** | si no se puede reproducir, no es una medida, es un recuerdo |
+| **la fecha** | un número de hace tres semanas sobre un módulo que cambió ayer no vale |
+
+**Si un número no puede tener esa fila, no se publica: se escribe «no medido».**
+
+### Y en concreto, para `xfail` y `skip`
+
+**Un `xfail` o un `skip` sin cifras reproducibles en su mensaje es un test mal marcado.**
+El `reason` no es un comentario: es lo que va a leer quien se encuentre ese test dentro de
+seis meses, y es lo único que le va a decir si el límite sigue ahí o ya se arregló.
+
+Un `reason` bien escrito dice **qué falla, con qué número, contra qué umbral, y qué haría
+falta para cerrarlo**. Uno mal escrito dice «no funciona todavía».
+
+### De dónde sale esta regla
+
+La noche del 14 al 15 de septiembre de 2026 se publicó un `xfail` que decía
+`lut_reproducible = 0.851` y `R² = 0.076`. Los dos números estaban **medidos sobre un
+montaje distinto del que usaba el test**. Los reales eran **0.7319** y **0.2887**.
+
+No fue un error de precisión: **cambiaba el diagnóstico**. Con 0.076 la lectura era «el
+residuo no tiene nada de radial», o sea un problema de fondo; con 0.2887 la lectura era
+que de las tres puertas del detector pasaban dos y sólo cerraba la tercera, **por un 4%**.
+Mandaba a buscar un problema estructural donde había un umbral rozando.
+
+Lo cazó una auditoría independiente al día siguiente, no el que lo escribió. Ver
+`AUDITORIA-DIA2.md`, caso 4.

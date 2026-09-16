@@ -12,7 +12,8 @@ digo. Donde no, lo digo también: hay un apartado entero, el §10, que se llama
 «esto no sé por qué es así» vale más que una explicación inventada que suene
 bien.
 
-Lo que empieza por **[día 2]** lo he decidido yo, no el agente H.
+Lo que empieza por **[día 2]** lo decidió el agente de GUI del día 2. Lo que
+empieza por **[día 3]** lo he decidido yo.
 
 ---
 
@@ -96,13 +97,29 @@ nada. Salía así en la primera tanda de capturas.
 
 ## 3. La anchura mínima real
 
-**Hoy son 985 × 643 px.** No es un número elegido: es lo que contesta
+**[día 3] Hoy son 973 × 651 px.** No es un número elegido: es lo que contesta
 `VentanaPrincipal.minimumSizeHint()` después de un `ensurePolished()` sobre
 todos los hijos, que es lo que hace `anchura_minima()`. Sin el `ensurePolished`
 sale más pequeño de lo real y la captura sale engañosa.
 
-**Era 966 la noche del 14. [día 2] Lo he subido a 985, y no para que algo
-quepa.** He quitado tres números puestos a ojo que se quedaban cortos:
+**966 la noche del 14, 985 el día 2, 973 × 651 hoy.** Los dos cambios de hoy:
+
+* **El ancho baja 12 px.** Las cinco columnas de cifras de la tabla de clips han
+  dejado de medirse por su cabecera (§13). Ocupaban 439 px de los 492 de la
+  tabla; ahora ocupan 345. La tabla pide 480 en vez de 492 y **el nombre del
+  clip tiene sus 124 px garantizados**. Que la ventana encoja más no es un
+  efecto secundario: es lo que sobraba de pagar por unas cabeceras de tres
+  palabras.
+* **El alto sube 8 px.** Las cifras grandes vuelven a ser grandes (§12). El
+  panel de ingeniería inversa, que es el más alto de los cuatro, pide 564 px.
+
+Y una comprobación que conviene tener: con el `font-size: 13px` aplanado puesto
+otra vez sobre el árbol de hoy, la ventana pediría **1028 × 655**. La escala
+aplanada no era «más pequeña»: era uniforme, y al subir a 13 px todo el texto
+de 10, 11 y 12 salía **más ancha**.
+
+**Era 966 la noche del 14. [día 2] Se subió a 985, y no para que algo quepa:**
+se quitaron tres números puestos a ojo que se quedaban cortos.
 
 | Dónde | Decía | Necesita de verdad |
 |---|---|---|
@@ -125,7 +142,7 @@ ventana se dejaba encoger hasta 911 px. Ahí sí se recortaba texto. `PantallaCl
 fija ahora su anchura mínima en el constructor, con la tabla y la ficha como
 testigos, y ya no se mueve.
 
-**Ojo con las tipografías.** 985 es el número **con las alternativas** (Helvetica
+**Ojo con las tipografías.** 973 es el número **con las alternativas** (Helvetica
 Neue y Menlo). Si Mario instala Inter, Chakra Petch y JetBrains Mono, las
 métricas cambian y el número también. No es un fallo, es otra tipografía; el
 test que fija el número se salta solo si detecta alguna de las tres instalada.
@@ -382,9 +399,9 @@ Todos arreglados salvo el último, que está como `xfail` con el límite explica
    QSS la pinta a 11px; el tracking absoluto (que el QSS no puede expresar) se
    quedaba en el de 10.
 5. **«1 clips»** en el pie con un solo clip.
-6. **La columna CLIP se queda en 56 px a la anchura mínima** y enseña «A…a» (a
-   1024 px, en 66: «A00…oma»). **Éste no lo he arreglado**, y está como
-   `xfail(strict=True)` con el motivo entero en el test. El resumen:
+6. **La columna CLIP se quedaba en 56 px a la anchura mínima** y enseñaba «A…a»
+   (a 1024 px, en 66: «A00…oma»). **[día 3] Arreglado, y está en el §13.** Lo
+   que sigue es el diagnóstico del día 2, que era correcto. El resumen:
    `PantallaClips.ancho_minimo_util()` promete 124 px de nombre pero se equivoca
    al estimar —da 356 px a las cinco columnas fijas y de verdad ocupan 441,
    porque `ResizeToContents` las mide por el texto de la **cabecera** (fuente de
@@ -402,25 +419,26 @@ Todos arreglados salvo el último, que está como `xfail` con el límite explica
 Va aparte y con su nombre, porque inventarme el porqué sería peor que dejarlo en
 blanco.
 
-1. **Por qué `Cifra` acepta un `px=` que la hoja de estilo ignora.** Los tamaños
-   que pide el código (17, 18, 22, 24, 26 px para las cifras grandes) **no se
-   aplican**: el QSS los pisa y todas las cifras salen a 13 px. Lo he
-   comprobado quitando la hoja de estilo: la misma etiqueta pasa de 13 px a 22.
-   **No sé si el agente H lo sabía.** Hay dos pistas que apuntan a que no: la
-   hoja de estilo define una regla `QLabel#cifraGrande { font-size: 26px }` que
-   **no usa nadie**, y los `px=` están elegidos con criterio (22 para el ΔE de
-   la ficha, 26 para «cabe en un .cube»), que es lo que uno hace cuando cree que
-   funcionan. **No lo he tocado**: la interfaz que Mario ha visto y le gusta es
-   la de 13 px uniformes, y arreglarlo cambiaría el aspecto de las cuatro
-   pantallas. Es una decisión suya, no mía.
+1. ~~**Por qué `Cifra` acepta un `px=` que la hoja de estilo ignora.**~~
+   **[día 3] RESUELTO, y era un bug, no una decisión de diseño.** Lo ha dicho
+   Mario: lo que aprobó no es «la interfaz de 13 px uniformes», es un accidente
+   con la jerarquía aplanada. La causa, la evidencia y el arreglo están en el
+   §12. La pista que el día 2 apuntaba —la regla `#cifraGrande` que no usaba
+   nadie— era buena: el agente H creía que los `px=` funcionaban.
 2. **Por qué el sustituto de `reverse_puente` usa una rejilla de 17 y no de 33.**
    El comentario dice que es «un motivo de pantalla, no de calidad» —con 33 el
    mapa de cobertura sale prácticamente en negro— y eso me parece razonable y
    comprobable. Lo que no sé es si además se midió el coste en calidad de
    invertir a 17, o si se dio por bueno porque el sustituto era provisional.
-3. **Por qué `INSIGNIA_ANCHO` es 108 y no otro número.** Cabe «ALTA 97%» con el
-   medidor delante, pero no he encontrado la medición que lo fijó. Puede ser
-   ajuste a ojo.
+3. ~~**Por qué `INSIGNIA_ANCHO` es 108 y no otro número.**~~ **[día 3] Medido:
+   no sale de ningún sitio y además se queda corto.** Con el reparto que hace
+   `pintar_insignia_confianza`, «ALTA 97%» necesita 99 px y «MEDIA 100%»
+   necesita 115. Hoy no se ve porque una confianza del 100% sale `alta` y
+   «ALTA» es la palabra más corta, o sea que es una trampa latente y no un
+   fallo en pantalla. **No lo he subido a 115**: la columna CONFIANZA mide
+   `INSIGNIA_ANCHO + 16` y es la más ancha de las fijas de la tabla, así que
+   subirla sube la anchura mínima de la ventana, que es justo lo que el encargo
+   de hoy pedía no hacer. Está anotado junto a la constante.
 4. **Por qué `fila_dato()` existe.** Está exportada en `widgets.py` y **no la
    usa nadie**. Puede ser una pieza de una versión anterior del diseño o algo
    que se dejó preparado. La he dejado (le he quitado un `setMinimumWidth(0)`
@@ -476,7 +494,184 @@ blanco.
 
 ---
 
-## 12. Qué probar la próxima vez
+## 12. [día 3] La escala tipográfica estaba rota, y la causa era una línea
+
+### Qué pasaba
+
+Todas las cifras grandes salían a 13 px: los 22 px del ΔE de la ficha del clip,
+los 24 del «lo que cambia» de antes/después, los 26 del «cabe en un .cube». Y no
+sólo las cifras: **el texto de cuerpo también**. Los 15 px del nombre del clip
+en la ficha, los 12 del nombre de la referencia, los 10 del pie del carril —
+todos a 13. La jerarquía entera aplanada, y en las dos direcciones: lo grande
+encogía y lo pequeño crecía.
+
+Medido sobre la ventana entera antes de tocar nada: **96 widgets pedían una
+fuente de la identidad y 41 no conseguían el tamaño (o la familia) que pedían.**
+
+### La causa, con la evidencia
+
+Era esta línea de `hoja_de_estilo()`:
+
+```
+QWidget { ...; font-family: Inter...; font-size: 13px; }
+```
+
+Dos cosas que hay que saber de Qt para leerla:
+
+1. **`QWidget` casa con TODOS los widgets de la app**, no sólo con los que son
+   literalmente un `QWidget`. Un selector de tipo casa también con las
+   subclases.
+2. **Una propiedad de fuente declarada por una regla que casa le gana a
+   `setFont()`**, y la mezcla es *por propiedad*: lo que la regla declara lo
+   pone la regla, y lo que no declara se queda como lo dejó el widget.
+
+O sea que esa línea le declaraba `font-size: 13px` a cada widget de la
+interfaz, y ahí acababa cualquier `px=`. La regla `QLabel.cifra` sólo declara
+`font-family`, así que la familia monoespaciada sí llegaba — y por eso se veía
+sólo como «todas las cifras del mismo tamaño» y no como «las cifras salen en
+Inter».
+
+La prueba, en tres medidas sobre la misma etiqueta (una `QLabel` con
+`setFont(fuente_cifra(26))` y la clase `cifra`):
+
+```
+sin hoja de estilo                          familia=JetBrains Mono  px=26
+con la hoja del día 2                       familia=JetBrains Mono  px=13   <-- el bug
+con la hoja sin font-size en QWidget        familia=JetBrains Mono  px=26
+```
+
+Y la mezcla por propiedad, en la misma tanda: `QLabel#titulo` declara
+`font-weight: 700` y el código pedía 600 → sale 700 (gana la regla); no declara
+tamaño → se queda el del `setFont()` (gana el código).
+
+Eso **refina** lo que el auditor del día 2 midió («el QSS no compite con
+`setFont()`, lo borra»). Lo que borraba era lo que declaraba, que resultaba ser
+familia y tamaño para todo el mundo.
+
+### El arreglo, y la regla que lo sostiene
+
+**En la hoja de estilo no se declara `font-size` en ninguna regla. El tamaño lo
+decide `fuente_texto()` / `fuente_cifra()` / `fuente_rotulo()` y nadie más.** El
+tamaño base de la app lo pone `QApplication.setFont(fuente_texto(13))` en
+`crear_app()`, que sí cede ante el `setFont()` de un widget.
+
+Se le quitó el `font-size` a cinco reglas: `QWidget`, `QLabel#rotulo`,
+`QLabel#titulo`, `QLabel#cifraApagada` y `QPushButton#navegacion`. Y se borró
+`QLabel#cifraGrande`, que no usaba nadie y era una trampa esperando a que
+alguien le pusiera ese id a una cifra de otro tamaño.
+
+**La familia sí se queda en `QWidget`**, a propósito: es la única declaración
+de fuente que interesa universal (que nada salga en la del sistema por un
+descuido), y la de cada rol la traen las reglas de debajo. La contrapartida es
+que un `setFont(fuente_cifra(...))` sobre una etiqueta sin marcar sigue sin dar
+monoespaciada — que es justo lo que le pasaba a `ruta_look`, ver abajo.
+
+**La excepción, con motivo medido: `QHeaderView::section`.** Es la única regla
+que declara un tamaño, porque la cabecera de una tabla es un pseudo-elemento y
+**no hay forma de vestirla desde el código**. Las dos que parecía que valdrían
+están comprobadas y no valen:
+
+* `QHeaderView.setFont(fuente_rotulo(10))` → Qt se la borra en el siguiente
+  `polish` y la deja en la heredada (medido: pasa de «Chakra Petch 10 px» a
+  «Inter 13 px» en cuanto el layout se asienta).
+* `headerData(..., Qt.FontRole)` → el dibujo de la cabecera **no cambia ni un
+  píxel**; manda la regla.
+
+Consecuencia que hay que saber: como QSS no sabe escribir el tracking, **las
+cabeceras de la tabla son el único rótulo en mayúsculas de la app que va sin el
+0,15-0,18em de la identidad**. Para poder medir con la misma letra con la que se
+pinta existe `idn.fuente_cabecera_tabla()`.
+
+### Rol por rol, cómo quedó
+
+| Rol | Antes | Ahora |
+|---|---|---|
+| texto de cuerpo (10, 11, 12, 13, 15 px) | **roto**, todo a 13 | cada uno el suyo |
+| rótulos en mayúsculas (10 / 11 px) | bien: 0,1594em y 0,1591em | igual, y ahora el tamaño y el tracking salen los dos de `fuente_rotulo(px)` |
+| cifras normales (11, 12, 13 px) | **roto** en 11 y 12 | cada una la suya |
+| cifras grandes (17, 18, 22, 24, 26 px) | **roto**, todas a 13 | cada una la suya |
+| código, rutas e IDs | **roto** en la ruta del `.cube` | monoespaciada de verdad |
+| cabecera de tabla | 10 px sin tracking, y Qt la **medía** con otra letra (13 px) de la que **pintaba** | 10 px sin tracking (límite de Qt), medida con la misma que se pinta |
+
+Tres cosas más que salieron al mirar rol por rol:
+
+* **`ruta_look` (`pantalla_aplicar.py`)** pedía `fuente_cifra(11)` y salía en la
+  de texto, porque sin la clase `cifra` la única regla que le declaraba familia
+  era la universal. Es la ruta del `.cube`: una ruta con espacios elidida por el
+  medio, o sea el sitio donde más se nota. Arreglado con
+  `setProperty("class", "cifra")`.
+* **Los dos bloques `#cifraApagada`** (el CDL de antes/después y los datos del
+  LUT) ya no sacan el tamaño de la hoja: el id les da la familia y un
+  `setFont(fuente_cifra(11))` el tamaño.
+* **El selector de clip de antes/después** pedía `fuente_texto(13)` y la hoja lo
+  pintaba monoespaciado, porque `QLineEdit, QComboBox...` declara la familia de
+  cifra. Se ha cambiado la petición a `fuente_cifra(13)`, que además es lo
+  correcto: lo que lista son nombres de clip, o sea identificadores. Pedir una
+  cosa y pintar otra es el despiste que ha costado la escala entera.
+
+### Lo que impide que vuelva
+
+* `test_el_selector_universal_no_declara_tamano_de_letra`
+* `test_la_hoja_de_estilo_solo_declara_un_tamano_de_letra_y_es_el_de_la_cabecera`
+* `test_cada_widget_se_pinta_con_el_tamano_de_letra_que_pide` — el de fondo:
+  intercepta cada `setFont()` de la construcción de la ventana entera y compara
+  lo pedido con lo pintado, tamaño, familia y tracking.
+* `test_la_ruta_del_cube_va_en_monoespaciada`
+
+---
+
+## 13. [día 3] Los anchos de columna: ceden los ΔE, no el nombre
+
+**Decisión de Mario.** Un ΔE es un número de formato acotado; un nombre de clip
+es lo que te dice qué fila estás mirando.
+
+Lo que había: las cinco columnas que no son el nombre iban a `ResizeToContents`,
+que **las mide por el texto de su cabecera** (que es lo más ancho que hay en
+ellas, no la cifra), y la del nombre estiraba con un suelo de 56 px. A la
+anchura mínima las cinco se llevaban 439 px de los 492 de la tabla y el nombre
+se quedaba en 56: «A…a».
+
+Lo que hay ahora:
+
+* **Las cinco llevan un ancho fijo calculado**, `PantallaClips.anchos_fijos()`.
+  Cada una se lleva lo que necesite la más ancha de sus dos cosas: la cifra (en
+  monoespaciada de 12) o su propia cabecera (en la letra con la que el QSS la
+  pinta). La del nombre es la única que estira.
+* **Un solo cálculo para dos usos.** Con `anchos_fijos()` se fijan las columnas
+  y con `anchos_fijos()` se calcula `ancho_minimo_util()`. Ése era el fondo del
+  problema: el día 2 eran dos cuentas distintas y se llevaban 85 px de
+  diferencia.
+* **Los dos rótulos de ΔE van en dos líneas.** «ΔE DESPUÉS» seguido mide 63 px
+  y obliga a una columna de 83; partido en «ΔE» / «DESPUÉS», la palabra más
+  ancha mide 47 y la columna baja a 67. Los 16 px por columna son los que se
+  lleva el nombre. **No se abrevia ninguna palabra**: «ΔE DESP.» habría costado
+  lo mismo y diría menos.
+* **`ancho_minimo_util()` cuenta ahora el envoltorio**: la barra de
+  desplazamiento vertical (siempre puesta con doscientos clips) y los dos bordes
+  del marco. Sin contarlos, los píxeles que faltan salen de la columna que
+  estira, o sea del nombre.
+
+Medido, con doscientos clips:
+
+| ventana | columna CLIP antes | columna CLIP ahora |
+|---|---|---|
+| anchura mínima | 56 px («A…a») | **124 px** |
+| 1024 px | 81 px | **175 px** |
+| 1440 px | 361 px | **455 px** |
+
+Y las cinco fijas pasan de 439 px a 345: `#` 42, ΔE antes 63, ΔE después 67,
+confianza 124, aviso 49.
+
+**Sin subir la anchura mínima**: ha bajado de 985 a 973. El `xfail(strict=True)`
+de `test_la_columna_del_nombre_de_clip_no_desaparece` **se ha quitado** y el
+test pasa de verdad. Y hay uno nuevo,
+`test_ninguna_cabecera_de_la_tabla_sale_recortada`, que le pregunta al estilo
+cuánto hueco le deja de verdad al texto de cada sección: si alguien alarga un
+rótulo de cabecera o toca `RELLENO_CABECERA_PX`, salta antes que una captura.
+
+---
+
+## 14. Qué probar la próxima vez
 
 * **La ventana no se ha probado a más de 1440 px.** Los `setMaximumWidth` del
   lateral de comparar (300) y del selector de clip (460) no se han mirado en una
@@ -487,3 +682,11 @@ blanco.
 * **Las capturas no enseñan la tipografía de la marca.** Inter, Chakra Petch y
   JetBrains Mono no están instaladas en este Mac. El layout, el color, los
   tamaños y el tracking sí son los buenos; las letras no.
+* **[día 3] Las cabeceras de la tabla van sin tracking**, y es un límite de Qt,
+  no un descuido: son un pseudo-elemento de QSS, QSS no sabe escribir el
+  tracking y ni `setFont()` ni `Qt.FontRole` llegan hasta ahí (§12). La salida
+  sería un `QHeaderView` propio que se pinte las secciones él. No está hecho.
+* **[día 3] `INSIGNIA_ANCHO` se queda 7 px corto para «MEDIA 100%»** (§10.3).
+  Hoy no se ve; subirlo sube la anchura mínima de la ventana y hoy no tocaba.
+* **[día 3] Nadie ha visto la interfaz a más de 1440 px** (sigue del día 2), y
+  ahora además con la escala tipográfica de verdad.

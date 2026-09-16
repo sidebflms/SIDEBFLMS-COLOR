@@ -283,6 +283,12 @@ class PantallaAplicar(QWidget):
         izq.caja.addWidget(Rotulo("look · nodo 3", acento=True))
         self.ruta_look = EtiquetaElidida(estado.look_rel, modo=Qt.TextElideMode.ElideMiddle,
                                          ancho_minimo_px=60)
+        # Una RUTA es codigo, y la identidad pide monoespaciada para toda ruta.
+        # La clase `cifra` no es decoracion: es lo que hace que la hoja de
+        # estilo le de la familia monoespaciada. Sin ella, el `setFont()` de
+        # aqui pedia JetBrains Mono y la regla `QWidget` le devolvia Inter, que
+        # es justo donde mas se nota (ruta con espacios, elidida por el medio).
+        self.ruta_look.setProperty("class", "cifra")
         self.ruta_look.setFont(idn.fuente_cifra(11))
         izq.caja.addWidget(self.ruta_look)
         self.texto_look = QLabel("")

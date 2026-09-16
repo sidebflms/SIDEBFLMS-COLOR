@@ -34,6 +34,11 @@ from core.contracts import (
     ColorSpaceName,
     ColorStats,
 )
+from core.umbrales import (
+    FRACCION_PIEL_MINIMA,
+    PIXELES_PIEL_MINIMOS,
+    UMBRAL_NEUTRA_TOTAL,
+)
 
 from .fingerprint import huella_de_contenido
 from .frames import N_FOTOGRAMAS_POR_DEFECTO, extraer_fotogramas_con_avisos
@@ -48,11 +53,9 @@ PERCENTIL_NEGRO: float = 1.0
 #: `studio_scene` el brillo de la frente se sale a 2.4 y ocupa el 0.1% justo.
 PERCENTIL_BLANCO: float = 99.0
 
-#: Cuanta piel hace falta para fiarse del locus: 0.5% de los pixeles Y al menos
-#: 64 pixeles. Lo primero es para que un plano general no se guie por una cara
-#: de 20 pixeles; lo segundo para que en una miniatura pequena no baste con dos.
-FRACCION_PIEL_MINIMA: float = 0.005
-PIXELES_PIEL_MINIMOS: int = 64
+# Cuanta piel hace falta para fiarse del locus, y cuando se avisa de que la
+# imagen es neutra entera: los dos son avisos que Mario lee, asi que viven en
+# `core.umbrales`. Aqui se reexportan con el nombre de siempre.
 
 #: Tope de pixeles que entran en la estadistica de un clip entero. 12 fotogramas
 #: de 4K son 100 millones de pixeles y en float64 no caben en memoria; con 2
@@ -180,7 +183,7 @@ def _avisos_de_calidad(pixeles: np.ndarray, stats: ColorStats) -> list[str]:
             f"No hay piel suficiente para el locus: {stats.skin_fraction * 100:.2f}% de la "
             f"imagen (hace falta {FRACCION_PIEL_MINIMA * 100:.1f}% y {PIXELES_PIEL_MINIMOS} pixeles)."
         )
-    if float(stats.saturation_hist[0]) >= 0.999:
+    if float(stats.saturation_hist[0]) >= UMBRAL_NEUTRA_TOTAL:
         avisos.append("La imagen es practicamente neutra entera: no hay color que emparejar.")
     return avisos
 

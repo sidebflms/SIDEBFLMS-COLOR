@@ -582,3 +582,60 @@ Dos cosas que le pediría al orquestador:
 1. **El salto del negro en `rgb_to_lab`** (§8). Es del agente A y es una línea.
 2. Nada más. Las fixtures `estudio_trabajo` / `exterior_trabajo` /
    `pieles_trabajo` y `a_trabajo()` de `conftest.py` me han valido tal cual.
+
+
+---
+
+## DÍA 3 · dónde viven ahora los umbrales de decisión
+
+El hallazgo más grave del día 2 no fue ninguno de los cuatro casos auditados:
+fue que **`gui/reverse_puente.py` tenía su propia definición, más floja, de
+«esto es un LUT puro»** (0.92 a secas, frente al 0.95 **y** el percentil 95 por
+debajo de 1.0 ΔE2000 que pide el núcleo), y que la GUI caía a ese criterio ante
+cualquier excepción. Eso no es un bug suelto: es una clase de bug, la de un
+criterio que se puede escribir dos veces.
+
+Los umbrales de este módulo que **deciden un veredicto que Mario lee** se han
+mudado a **`core/umbrales.py`**, que es desde hoy el único sitio donde se
+escribe un criterio de decisión. Aquí se reexportan con el mismo nombre de
+siempre, así que nada de lo que importaba de este módulo se ha roto.
+
+**Ni un valor se ha movido.** Lo afirma `tests/test_umbrales.py`, que lleva la
+tabla de valores de origen tecleada desde el código anterior al barrido, y lo
+confirman las cuatro cifras de titular de `tests/test_entregables.py`, que
+salen idénticas.
+
+Lo que **no** se ha mudado son los parámetros de implementación: sólo le
+importan a este módulo y llevarlos a un archivo común habría creado un
+módulo-Dios que acopla todo con todo.
+
+`tests/test_umbrales_literales.py` recorre el AST de `core/` y se pone rojo si
+vuelve a aparecer un literal de umbral suelto.
+
+**De este módulo se han mudado**: `UMBRAL_DESAJUSTE` y `UMBRAL_HUELLA` (deciden
+`content_mismatch`, o sea la frase «estas dos escenas no son comparables»), y
+`PENA_DESAJUSTE` más las siete rampas de `UMBRALES` (deciden la nota, y la nota
+decide el alta/media/baja de la lista de clips). Las rampas se llaman
+`RAMPAS_DE_CONFIANZA` en `core/umbrales.py` y se siguen reexportando aquí como
+`UMBRALES`, **el mismo objeto**, con un test que lo comprueba.
+
+**Y tres que no tenían nombre**: el `0.35` de `d_croma`, el `0.12` de
+`d_perfil` (los dos deciden qué razones en castellano se escriben) y el `0.85`
+de `subnotas[clave] < 0.85` de `confianza.py`, que decide qué subnotas se
+convierten en una frase que Mario lee. Hoy son `UMBRAL_CROMA_EXPLICABLE`,
+`UMBRAL_PERFIL_EXPLICABLE` y `UMBRAL_SUBNOTA_EXPLICABLE`. De ninguno de los tres
+hay medida escrita en ninguna parte, y así está dicho.
+
+Un detalle que conviene tener anotado y que **no se ha tocado**: el `100.0` del
+extremo malo de la rampa `ganancia` vale lo mismo que `mkl.GANANCIA_MAX`, que es
+el recorte duro. Son el mismo número haciendo dos trabajos distintos —uno puntúa
+y el otro recorta— así que se dejan separados, pero ahora está escrito.
+
+**Se quedan aquí**: `LIMITES_CDL`, `MAX_PUNTOS_AJUSTE`, `SEMILLA`,
+`MAX_PIXELES_EMPAREJAR`, `TOL_RANGO`, `GANANCIA_MAX`, `BINS_CROMA`,
+`RANGO_CROMA`, `ALFA_SUAVIZADO`, `PESO_PERFIL` y `PESO_CROMA`. Son parámetros
+del método, no criterios de decisión.
+
+El `UMBRAL_HUELLA * 0.5` de `contenido.py` sigue escrito así, derivado del
+umbral bueno, y no como un `0.25` a pelo. Es a propósito: derivar es mejor que
+copiar.

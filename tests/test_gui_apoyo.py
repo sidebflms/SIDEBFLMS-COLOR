@@ -33,24 +33,31 @@ pytestmark = pytest.mark.gui
 #: anchura de captura de `docs/IDENTIDAD.md` y la que se usa para buscar
 #: recortes de texto.
 #:
-#: **Era 966 la noche del 14 y ahora son 985.** No se ha subido para que algo
-#: quepa: se han quitado tres numeros puestos a ojo que mentian, y 985 es lo que
-#: sale al preguntarle al contenido.
+#: **Ha bajado de 985 a 973, y el alto ha subido de 643 a 651.** Las dos cosas
+#: son consecuencia del dia 3, y ninguna se ha elegido a ojo:
 #:
-#: * La columna derecha del panel de ingenieria inversa declaraba 300 px de
-#:   minimo y necesita 366 para que quepan «cabe en un .cube», «ΔE medio»,
-#:   «ΔE p95» y «ΔE peor» en la misma fila.
-#: * La ficha del clip declaraba 240 y necesita 246 para el rotulo «desajuste
-#:   de contenido» con su rombo delante.
-#: * Y los rotulos de acento se construian a 10px aunque la hoja de estilo los
-#:   pinta a 11, asi que llevaban el tracking de 10 (0,145em donde la identidad
-#:   pide 0,15-0,18). Al ponerles el suyo crecen 4 px.
+#: * **El ancho baja 12 px** porque las columnas de cifras de la tabla de clips
+#:   han dejado de medirse por su cabecera. Las cinco columnas fijas ocupaban
+#:   439 px de los 492 de la tabla y la del nombre se quedaba en 56 («A...a»);
+#:   ahora ocupan 345, la tabla pide 480 y el nombre tiene sus 124 px
+#:   garantizados a la anchura minima. Que la ventana pueda encoger MAS no es
+#:   un efecto secundario molesto: es lo que sobra al dejar de pagar por unas
+#:   cabeceras de tres palabras.
+#: * **El alto sube 8 px** porque las cifras grandes vuelven a ser grandes. La
+#:   hoja de estilo declaraba `font-size: 13px` en el selector `QWidget`, que
+#:   casa con todo, y aplastaba los 22, 24 y 26 px a 13. Quien fija el alto es
+#:   el panel de ingenieria inversa, que es el mas alto de los cuatro: pide 564
+#:   px de los 651.
+#:
+#: Antes de esto fueron 966 (noche del 14) y 985 (dia 2). Cada vez que cambia,
+#: cambian las capturas y cambia la documentacion: no se toca el numero aqui y
+#: ya.
 #:
 #: Ademas, la anchura minima ya NO depende del estado: antes, con cero clips,
 #: la tabla se escondia y la ventana se dejaba encoger hasta 911 px, y ahi si
 #: se recortaba texto de verdad. Ver `gui/NOTAS.md`.
-ANCHURA_MINIMA = 985
-ALTO_MINIMO = 643
+ANCHURA_MINIMA = 973
+ALTO_MINIMO = 651
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +143,7 @@ def tipografias_de_marca_instaladas() -> list[str]:
 
     Importa para los tests que fijan un numero de pixeles: si Mario instala
     Inter, Chakra Petch y JetBrains Mono, las metricas cambian y la anchura
-    minima de la ventana deja de ser 966. No es un fallo, es otra tipografia.
+    minima de la ventana deja de ser 973. No es un fallo, es otra tipografia.
     """
     app_qt()  # sin QApplication, QFontDatabase aborta el proceso entero
     familias = set(QFontDatabase.families())

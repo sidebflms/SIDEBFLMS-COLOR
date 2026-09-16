@@ -471,3 +471,147 @@ def test_ningun_qlabel_pinta_su_propio_rectangulo_de_fondo():
                 raise AssertionError(f"{lab.text()[:20]!r} pinta su propio fondo")
     finally:
         v.close()
+
+
+# ---------------------------------------------------------------------------
+# La escala tipografica: que lo que se pide sea lo que se pinta
+# ---------------------------------------------------------------------------
+#
+# El dia 2 la hoja de estilo declaraba `font-size: 13px` en el selector
+# `QWidget`, que casa con TODOS los widgets de la app. En Qt, una propiedad de
+# fuente declarada por una regla que casa gana a `setFont()`, asi que los 22, 24
+# y 26 px de las cifras grandes y los 10, 11, 12 y 15 px del texto de cuerpo
+# salian todos a 13: la jerarquia entera aplanada. No era una decision de
+# diseno; era un accidente. Estos tres tests son para que no vuelva.
+
+
+def _familias_de_rol() -> dict[tuple[str, ...], str]:
+    return {
+        tuple(idn.FAMILIAS_TEXTO): "texto",
+        tuple(idn.FAMILIAS_CIFRA): "cifra",
+        tuple(idn.FAMILIAS_ROTULO): "rotulo",
+    }
+
+
+def _sin_comentarios(hoja: str) -> str:
+    return re.sub(r"/\*.*?\*/", "", hoja, flags=re.DOTALL)
+
+
+def test_la_hoja_de_estilo_solo_declara_un_tamano_de_letra_y_es_el_de_la_cabecera():
+    """**El tamano de letra lo decide `fuente_*()`, no el QSS.** Una excepcion.
+
+    Es la regla que impide que vuelva el aplanamiento: si una regla del QSS
+    declara `font-size`, ese tamano pisa al que pida el codigo, y el dia que
+    alguien escriba `Cifra(px=26)` debajo de esa regla se llevara un 13 sin
+    enterarse.
+
+    La unica excepcion es `QHeaderView::section`, y no por comodidad: la
+    cabecera de una tabla es un pseudo-elemento y **no hay forma de vestirla
+    desde el codigo**. Las dos que parecen que valdrian estan comprobadas y no
+    valen: `QHeaderView.setFont()` lo borra Qt en el siguiente `polish`, y el
+    `Qt.FontRole` del modelo no cambia el dibujo. Ver `fuente_cabecera_tabla()`.
+    """
+    hoja = _sin_comentarios(idn.hoja_de_estilo())
+    con_tamano = []
+    for selector, cuerpo in re.findall(r"([^{}]+)\{([^{}]*)\}", hoja):
+        if "font-size" in cuerpo:
+            con_tamano.append(selector.strip())
+    assert con_tamano == ["QHeaderView::section"], (
+        f"reglas del QSS que declaran font-size: {con_tamano}. Solo puede declararlo "
+        f"la cabecera de tabla; el resto de tamanos salen de `fuente_*()`."
+    )
+
+
+def test_el_selector_universal_no_declara_tamano_de_letra():
+    """El caso concreto del que salio todo, dicho con su nombre."""
+    hoja = _sin_comentarios(idn.hoja_de_estilo())
+    universal = re.search(r"QWidget\s*\{([^}]*)\}", hoja)
+    assert universal is not None, "ha desaparecido la regla QWidget de la hoja"
+    assert "font-size" not in universal.group(1), (
+        "`QWidget` ha vuelto a declarar font-size. Esa regla casa con todos los widgets "
+        "de la app y aplana la escala tipografica entera: las cifras de 22, 24 y 26 px "
+        "salen a ese tamano y no al suyo."
+    )
+
+
+def test_cada_widget_se_pinta_con_el_tamano_de_letra_que_pide():
+    """LA PRUEBA DE FONDO, y se hace sobre la ventana entera, no en un banco.
+
+    Se intercepta cada `setFont()` de la construccion; de los que reciben una
+    fuente de la identidad se apunta el tamano pedido, y al final —con la hoja
+    aplicada y la ventana asentada— se mide el tamano que de verdad tiene el
+    widget. Si no coinciden, alguien esta pidiendo una cosa y pintando otra.
+
+    Antes de arreglarlo: 96 widgets pedian fuente de la identidad y 41 no
+    conseguian el tamano (o la familia) que pedian.
+    """
+    from PySide6.QtWidgets import QWidget
+
+    app_qt()
+    pedidas: dict[int, tuple[str, int, float]] = {}
+    original = QWidget.setFont
+    roles = _familias_de_rol()
+
+    def espia(self, fuente):  # noqa: ANN001
+        try:
+            rol = roles.get(tuple(fuente.families()))
+            if rol is not None:
+                pedidas[id(self)] = (rol, fuente.pixelSize(), fuente.letterSpacing())
+        except Exception:  # noqa: BLE001 - un espia no puede tumbar la construccion
+            pass
+        return original(self, fuente)
+
+    QWidget.setFont = espia
+    try:
+        v = ventana(demo())
+        asentar()
+    finally:
+        QWidget.setFont = original
+
+    try:
+        mirados, fallos = 0, []
+        for w in v.findChildren(QWidget):
+            pedido = pedidas.get(id(w))
+            if pedido is None:
+                continue
+            rol, px, tracking = pedido
+            f = w.font()
+            mirados += 1
+            if f.pixelSize() != px:
+                fallos.append(f"{type(w).__name__}: pide {px}px y se pinta a {f.pixelSize()}px")
+            elif rol == "cifra" and not es_monoespaciada(f):
+                fallos.append(f"{type(w).__name__}: pide monoespaciada y no la consigue")
+            elif abs(f.letterSpacing() - tracking) > 0.01:
+                fallos.append(
+                    f"{type(w).__name__}: pide {tracking:.2f} de tracking y tiene "
+                    f"{f.letterSpacing():.2f}"
+                )
+        assert mirados > 50, f"el espia solo ha visto {mirados} widgets: se ha quedado ciego"
+        assert not fallos, (
+            f"{len(fallos)} de {mirados} widgets piden una letra y se pintan con otra:\n"
+            + "\n".join(fallos)
+        )
+    finally:
+        v.close()
+
+
+def test_la_ruta_del_cube_va_en_monoespaciada():
+    """Una ruta es codigo, y la identidad pide monoespaciada para toda ruta.
+
+    `gui/pantalla_aplicar.py`, `ruta_look`: se le ponia `fuente_cifra(11)` a
+    mano y salia en la de texto, porque sin la clase `cifra` la unica regla que
+    le declaraba familia era la universal. Y es justo donde mas se nota: una
+    ruta con espacios, elidida por el medio.
+    """
+    v = ventana(demo())
+    try:
+        v.ir_a(2)
+        asentar()
+        ruta = v.p_aplicar.ruta_look
+        assert ruta.texto_completo().endswith(".cube"), "esto ya no es la ruta del look"
+        assert es_monoespaciada(ruta.font()), (
+            f"la ruta del .cube sale en {ruta.font().families()[:1]} y tiene que ir "
+            f"en monoespaciada"
+        )
+    finally:
+        v.close()
