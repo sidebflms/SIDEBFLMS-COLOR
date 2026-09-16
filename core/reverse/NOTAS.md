@@ -470,6 +470,146 @@ El contrapeso está en los tests y no es negociable: **T2d tiene cero hotspots**
 detector que siempre dice «aquí hay algo» es tan inútil como uno que nunca lo
 dice, y además es peor, porque el que lo lea dejará de hacerle caso.
 
+### 6.7 La zona PRINCIPAL (día 4): el mapa acertaba y la primera línea no
+
+**El fallo** (medición independiente del día 3, `MEDICION-INDEPENDIENTE.md`
+§3): con una viñeta y una ventana suaves aplicadas **en luz lineal** y una
+sombra profunda en una esquina, el 93.6% de los 500 píxeles de mayor residuo
+caían dentro de la ventana, pero la primera «zona local» era un cuadrito de
+31×29 px en la esquina, con solape 0.0.
+
+**La causa, medida antes de tocar nada.** Había tres sospechosos: el pico, el
+campo y el recorte de la caja. Cifras sobre la escena de la medición:
+
+```bash
+# desde la raiz del repo; ~40 s. La columna ΔE rectangulo es la magnitud de antes.
+.venv/bin/python - <<'PY' 2>/dev/null
+import numpy as np
+from scipy import ndimage
+from core.color import delta_e2000
+from core.reverse import invertir_grado, analizar_espacial
+from core.reverse import diagnostico as D
+from tests.medicion import escena as E
+for nombre, kw in (("vineta+ventana", {}), ("ventana sola", {"vineta": 0.0})):
+    o = E.escena_trabajo(); c = E.coloreado_con_lo_espacial(o, E.tabla_lut_conocida(), **kw)
+    r = invertir_grado(o, c); p = r.lut.apply(r.cdl.apply(o.astype(np.float64)))
+    de = np.asarray(delta_e2000(p, c.astype(np.float64)), dtype=np.float64)
+    a = analizar_espacial(de, p, c.astype(np.float64))
+    g = D.campo_de_ganancia(p, c); lado = min(de.shape)
+    f = np.linalg.norm(np.stack([D._gaussiana(g[..., k], D.SIGMA_LOCAL * lado) for k in range(3)], -1)
+                       - np.stack([D._gaussiana(g[..., k], D.SIGMA_LOCAL * lado) for k in range(3)], -1).reshape(-1, 3).mean(0), axis=-1)
+    for (x, y, w, h), m, rz in zip(a.zonas, a.masas, a.residuos_zonas):
+        print(f"{nombre:15s} caja=({x},{y},{w},{h}) pico={f[y:y+h, x:x+w].max():.3f} masa={m:.0f} "
+              f"dE_componente={rz:.2f} dE_rectangulo={de[y:y+h, x:x+w].mean():.2f}")
+PY
+```
+
+| montaje | zona | pico | masa | ΔE píxeles | ΔE rectángulo |
+|---|---|---|---|---|---|
+| viñeta+ventana | **ventana** (89,301,251,104) | **0.469** | **3909** | **14.93** | 11.38 |
+| viñeta+ventana | esquina (0,284,31,29) | 0.217 | 142 | 12.30 | **12.73** |
+| ventana sola | esquina (0,274,41,41) | **0.146** | **170** | **6.06** | **5.82** |
+| ventana sola | trozo de ventana (249,267,32,88) | 0.107 | 161 | 5.38 | 4.68 |
+
+Se lee así:
+
+1. **No era el pico.** En el caso publicado `analizar_espacial` ya ponía la
+   ventana primera (0.469 contra 0.217). El que le daba la vuelta era
+   `_recortar`, que **reordenaba por `magnitude`**, y `magnitude` era el
+   ΔE2000 medio **del rectángulo**.
+2. **Era la dilución del rectángulo.** La ventana ocupa 14.418 píxeles de un
+   rectángulo de 26.104 (el 55%): su ΔE se diluye de 14.93 a 11.38. El cuadrito
+   ocupa 731 de 899 y no se diluye. **El ΔE2000 no se amplificaba en la
+   sombra**: sobre sus píxeles, la esquina tiene MENOS ΔE que la ventana.
+3. **El pico tampoco es de fiar.** En mi montaje del taller
+   (`test_T2g_*`), el pico sí ponía la esquina primero. Pico y ΔE de rectángulo
+   son estadísticos de intensidad, y los dos premian lo pequeño y concentrado.
+4. **El campo sí es causa, pero en otro caso** («ventana sola»): ahí todos los
+   criterios eligen la esquina, porque en el logaritmo de valores
+   **codificados** una ganancia de luz lineal vale ~`C·log2(g)/y`, o sea que se
+   amplifica donde el valor codificado es bajo. Medido dentro de la ventana:
+   |log-ganancia codificada| (sonda de sesión, sin script en el repo) 0.0835 en píxeles con luma codificada 0.15–0.3
+   contra 0.0270 con 0.3–0.5 (×3.1); la misma ganancia en luz lineal da 0.2307
+   contra 0.1438 (×1.6, lo que queda es lo que el LUT absorbe). **Eso no se ha
+   arreglado**: ver «lo que se probó y no entró».
+
+**El arreglo**, entero en `diagnostico.py` y sin ningún umbral nuevo:
+
+- las zonas se ordenan por **masa** = suma de la fuerza local (log-ganancia
+  suavizada) sobre los píxeles de la componente, o sea área × intensidad;
+- `Hotspot.magnitude` es el ΔE2000 medio **sobre los píxeles de la
+  componente** (el contrato dice «residuo medio en la zona», y la zona es la
+  componente, no su rectángulo);
+- `_recortar` **ya no reordena**: respeta el orden por masa, que es el que ve
+  la GUI y por el que se corta a `MAX_HOTSPOTS`.
+- La caja sigue siendo el rectángulo de la componente conexa del campo de baja
+  frecuencia umbralizado. Ya lo era.
+
+**Lo que NO cambia, y es a propósito**: qué zonas salen y con qué caja. El
+conjunto de componentes es idéntico bit a bit; sólo cambia el orden y la
+magnitud. Por eso no puede aparecer ni un falso positivo nuevo, y por eso T1
+(0.1415 / 1.7409), T2 (0.7002 / solape 0.9941) y la salida de los seis casos
+del día 2 son idénticos.
+
+**Ojo, consecuencia**: `max(hotspots, key=magnitude)` **ya no es la zona
+principal**. La principal es la primera de la tupla. En «ventana sola» del
+taller, la primera es la ventana (5.31 ΔE) y la segunda la esquina (6.20 ΔE).
+`tests/test_entregables.py` y `tests/medicion/` eligen por `max(magnitude)`;
+en sus montajes de hoy coincide, pero no está garantizado.
+
+**Lo que sale en la medición independiente después del arreglo**: las dos
+cajas son las mismas, en orden inverso: #0 la ventana (89,301,251,104),
+magnitud 14.9342, solape 0.4294; #1 la esquina (0,284,31,29), magnitud 12.2974,
+solape 0.0000. El centinela `test_T2_las_dos_cajas_y_su_desempate_estan_aferrados`
+se pone rojo (es lo que tiene que hacer) y el `xfail` **sigue siendo xfail**:
+la zona principal ya es la ventana, pero su caja sólo solapa el 43% y el
+criterio pide 80%.
+
+**Lo que se probó para la caja y no entró** (sonda de sesión, cifras en el
+informe del día 4, no hay script en el repo):
+
+- **log-ganancia en luz lineal** con el suelo de la propia curva DaVinci
+  Intermediate (`log(lin + 0.0075)`): arregla «ventana sola» de la medición,
+  pero **empeora** la caja del taller (IoU 0.90 → 0.56) y **añade zonas** donde
+  no hay grado (la huella del LUT en la cara con una ventana floja o de tinte:
+  1 → 2 zonas; viñeta lineal sola: 2 → 4 y 2 → 5). Un falso positivo nuevo no
+  compensa;
+- separar lóbulos por signo: la esquina es 100% negativa y la ventana
+  positiva, pero lo que ensancha la caja de la ventana es residuo positivo y
+  cromático justo debajo, así que no cambia nada (solape 0.54);
+- caja por momentos (rectángulo uniforme con la misma media y varianza): encoge
+  demasiado; la ventana del día 2 pasa de IoU 0.98 a 0.64;
+- restar siempre el perfil radial: quita la esquina y las zonas de viñeta
+  lineal sola, pero la caja de la ventana se queda en IoU 0.32.
+
+**Por qué la caja no llega al 80%**: el LUT se traga la ventana allí donde los
+colores sólo existen dentro de ella (los parches de la fila de abajo), y deja
+residuo real, mismo signo, en el fondo de colores parecidos justo debajo y a la
+derecha. Ninguna forma de recortar un campo de residuo distingue eso de la
+ventana; haría falta mirar **bordes**, que es otro detector.
+
+**Tests nuevos** (`tests/test_reverse_espacial.py`, 9 más, 27 en total):
+
+| test | qué afirma |
+|---|---|
+| `test_T2g_la_zona_principal_es_la_ventana_y_no_la_esquina_en_sombra` ×2 | en el taller (escena propia, sombra en la esquina inferior derecha, luz lineal) la primera zona es la ventana: IoU 0.898 con viñeta, 0.922 sin ella. Con el código del día 3 era la esquina, IoU 0.000 |
+| `test_T2g_el_montaje_sigue_teniendo_la_trampa` | centinela: con el criterio viejo la esquina seguiría primera (IoU 0.000); si deja de serlo, el test de arriba no prueba nada |
+| `test_T2g_una_ventana_en_sombra_de_verdad_se_sigue_viendo` | ventana a −1.33 paradas de la mediana: primera, IoU 0.755 |
+| `test_T2g_una_ventana_en_sombra_sin_vineta_limite_conocido` | **xfail estricto**: sin viñeta, la huella del LUT en la franja oscura de la izquierda (6.04 ΔE, 113×360 px) pesa más que la ventana |
+| `test_T2g_el_taller_sin_nada_espacial_no_se_inventa_zonas` | contrapeso: la sombra sola no es una zona; cero hotspots, LUT puro |
+| `test_T2h_una_zona_grande_y_floja_va_antes_que_una_pequena_e_intensa` | 240×140 a ×1.35 (12.35 ΔE) va antes que 60×50 a ×1.9 (24.17 ΔE), y la pequeña sigue listada |
+| `test_T2h_si_la_intensa_tambien_cambia_mas_imagen_va_primera` | se ordena por masa, no por área |
+| `test_zonas_ordena_por_masa_y_mide_el_residuo_sobre_la_componente` | `_zonas` con un campo fabricado, sin LUT |
+
+**Masa contra intensidad, y por qué gana la masa.** La primera línea dice qué
+reconstruir primero para recuperar más imagen, y lo pequeño e intenso es
+justo lo que fabrican los artefactos (el cuadrito de la esquina). El precio,
+dicho: un retoque diminuto y muy fuerte (unos ojos) sale detrás de un lavado
+amplio y suave aunque al ojo le importe más. Y un límite que ya existía y que
+este test destapó: **si la floja no llega al 40% del pico de la intensa, ni
+sale** (sonda de sesión: 240×140 a ×1.2 junto a 60×50 a ×2.2 da una sola zona, la pequeña). El umbral local es
+relativo al pico del cuadro, así que una ventana fuerte esconde a una floja.
+
 ---
 
 ## 7. `spatial_residual`

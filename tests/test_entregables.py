@@ -594,7 +594,11 @@ def test_T2_la_zona_senalada_cae_donde_esta_la_ventana(estudio_trabajo):
 
     locales = [hp for hp in resultado.diagnosis.hotspots if hp.label == "zona local"]
     assert locales, "no emite ninguna zona local"
-    hp = max(locales, key=lambda z: z.magnitude)
+    # La principal es la PRIMERA de la lista, no la de mayor magnitud: es lo que
+    # dice el contrato desde el dia 4. Con `max(magnitude)` este test seguia
+    # pasando hoy por casualidad -- en este montaje coinciden -- pero dejaba de
+    # probar lo que la interfaz ensena.
+    hp = locales[0]
     solape_x = max(0, min(x + w, hp.x + hp.w) - max(x, hp.x))
     solape_y = max(0, min(y + h, hp.y + hp.h) - max(y, hp.y))
     fraccion_solape = (solape_x * solape_y) / float(hp.w * hp.h)
