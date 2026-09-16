@@ -37,8 +37,9 @@ dispara nada** y sigue diciendo que el grado cabe entero en un LUT. Los falsos p
 importan tanto como los negativos, y ambos están probados.
 
 ### Decirte de qué se está inventando el color
-Un solo plano cubre **165 celdas de las 35.937** de un LUT de 33³. El otro 99.5% está
-extrapolado. La app te enseña un mapa con las celdas que tienen datos reales y las que
+Un solo plano cubre **165 celdas de las 35.937** de un LUT de 33³ — el **0.46%**. El otro
+**99.5% está inventado** por el relleno de huecos, y conviene decirlo en voz alta al
+entregar un `.cube`. La app te enseña un mapa con las celdas que tienen datos reales y las que
 son invento. Eso no es un detalle: es la diferencia entre fiarte de un LUT y fiarte de
 una suposición.
 
@@ -122,6 +123,17 @@ existe la llamada.
   pero el filtro se comería una ventana escondida bajo una viñeta fuerte, que es el lado
   peligroso. Lleva aviso escrito.
 - **El modelo de viñeta es isótropo**: una viñeta ovalada o anamórfica no encaja.
+- **La caja de la zona señalada puede equivocarse aunque el mapa de calor acierte.**
+  Medido el 15-09-2026: con una viñeta y una ventana suaves, el 93.6% de los píxeles de
+  mayor residuo caen dentro de la ventana real, pero la zona que se declara **principal**
+  es un cuadrito en una esquina en sombra. **Fíate del mapa de calor antes que de la
+  primera línea de la lista.** Ver `MEDICION-INDEPENDIENTE.md` §4.
+- **El etiquetado de viñeta está calibrado para el dominio codificado.** Una viñeta óptica
+  aplicada en luz lineal —que es lo que hace una lente de verdad— no lo dispara.
+- **Los dos márgenes más ajustados**, sobre un montaje independiente: el ΔE2000 **máximo**
+  de la ingeniería inversa queda a **0.11** del límite de 3.0, y el **peor par** del
+  igualado de cámaras a **0.094** del límite de 2.0. Los titulares publican la media, que
+  es la cifra holgada.
 - **La huella de contenido no mira el color.** Dos escenas con la misma composición y
   colores distintos le parecen la misma.
 - **Un plano sin gradar no vuelve exacto** por la ida y vuelta: deja 0.31 ΔE2000 de

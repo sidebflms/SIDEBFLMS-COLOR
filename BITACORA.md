@@ -484,3 +484,200 @@ ayer dice 966; era correcto ayer y ya no lo es.)* Las capturas `*-966.png` son a
    como están, o las arreglamos y cambia el aspecto?
 4. Instala Inter, Chakra Petch y JetBrains Mono si quieres ver la interfaz con la
    tipografía de verdad. **Las capturas siguen sin enseñarla.**
+
+---
+---
+
+# DÍA 3 — 15 al 16 de septiembre de 2026
+
+Los días 1 y 2 siguen arriba sin tocar.
+
+**Lo primero, porque cambia cómo hay que leer los titulares del proyecto:** las cuatro
+cifras se han vuelto a medir desde fuera, y **no hay ninguna inventada** — eso estaba
+bien. Lo que sí se ha descubierto es que **son honestas para su montaje, y su montaje es
+más benévolo de lo que parecía**. Está entero en §D3-2.
+
+---
+
+## D3-0 · Semáforo
+
+| | Día 2 | Hoy |
+|---|---|---|
+| Las cuatro cifras | autoinformadas | **remedidas desde fuera**, con arnés propio y ΔE2000 de `colour-science` |
+| Procedencia de las cifras | no existía | **`CIFRAS.md`**, con montaje, comando y fecha de cada número |
+| Umbrales dispersos | 1 duplicado conocido | **4 más encontrados**, todos centralizados en `core/umbrales.py` |
+| Escala tipográfica | rota, y se creía una decisión | **arreglada** — era una línea |
+| Columna del nombre de clip | «A…a» a la anchura mínima | **124 px**, y la ventana **encoge** de 985 a 973 |
+
+**1.817 tests en verde, 1 rojo declarado, `ruff` limpio.** Ayer 1.699.
+
+---
+
+## D3-1 · Lo que se hizo mal hoy, y lo cazó el procedimiento
+
+Escribí `CIFRAS.md` por la mañana con la regla de que ningún número se publica sin su
+comando. Por la tarde verifiqué los comandos uno a uno y **dos de las filas que yo mismo
+acababa de escribir no seleccionaban ningún test**.
+
+Las dos siguen en el archivo, marcadas como **«sin comando»**, porque describen el estado
+anterior al arreglo y ése ya no se puede montar sin deshacerlo. Pero quedan señaladas.
+
+Lo cuento porque es el mejor argumento a favor del archivo: **lo cazó el procedimiento el
+mismo día que se estrenó, y a quien lo escribió.**
+
+---
+
+## D3-2 · Las cuatro cifras, medidas desde fuera
+
+Un agente que no escribió nada del repo las volvió a medir con **su propio material, su
+propio CDL y su propio LUT**, entrando sólo por la API pública, y calculando el ΔE2000 con
+`colour-science` **y no con el del repo** — porque verificar las cifras de ΔE del repo
+usando su propio ΔE es un círculo: si la métrica estuviera mal, los dos lados fallarían
+igual y saldría verde.
+
+**Primero, la buena noticia:** corrió su arnés también contra una copia limpia de
+`git archive HEAD` y **las cifras publicadas se reproducen exactamente**. Su ΔE2000
+coincide con el del repo con error **1.6e-13** y su camino de conversión de espacios con
+**2.2e-13**; los dos pasan los 34 pares de Sharma. **No hay ninguna cifra inventada.**
+
+**Y ahora lo que no se sabía:**
+
+| | Publicado (montaje del repo) | Medido aparte (montaje propio) |
+|---|---|---|
+| T1 medio · **máximo** | 0.1415 · 1.7409 | 0.1687 · **2.8867** |
+| T2 reproducible · solape | 70.0% · 0.9941 | 90.8% · **0.0000** |
+| T3 antes → después · **peor par** | 17.674 → 0.661 · 0.981 | 15.499 → 1.085 · **1.906** |
+| T4 | 3/3, identidad limpia | **coincide** |
+
+Los cuatro criterios se siguen cumpliendo. Pero:
+
+1. **Las dos cifras que de verdad deciden no son las que se publican.** En T1 manda el
+   máximo, no el medio: **2.8867, a 0.11 del límite de 3.0**. En T3 manda el peor par, no
+   la media: **1.906, a 0.094 del límite de 2.0**. Los titulares enseñan las holgadas.
+2. **El solape de T2 no se reproduce**, y por un motivo concreto: el medidor aplicó la
+   viñeta y la ventana **en luz lineal**, que es como se comporta una viñeta óptica de
+   verdad; el repo las aplica sobre la imagen ya codificada. Con la convención del repo
+   sale 0.8053 y pasaría.
+3. **Falta una cifra en todos los titulares:** la cobertura del cubo es del **0.46%**. O
+   sea que **el 99.5% del `.cube` que se entrega está inventado** por el relleno de huecos.
+   Debería decirse al entregar un LUT.
+
+### Y un hallazgo que vale por sí solo el encargo del día
+
+**El detector espacial sabe dónde está la ventana, pero no sabe dibujar la caja.** El
+**93.6%** de los píxeles de mayor residuo caen dentro de la ventana real, y el residuo
+medio dentro es **4.74 veces** el de fuera — o sea que el mapa de calor acierta. Pero la
+zona que declara **principal** es un cuadrito de 31×29 en una esquina en sombra, con
+solape **0.0000**. La interfaz lista las zonas ordenadas por magnitud, así que **hoy la
+primera línea señala el sitio equivocado**.
+
+Las dos cajas se llevan un **11.85%**, o sea que no basta con retocar un umbral: el que
+gana, gana por poco y por el motivo equivocado.
+
+**No se ha arreglado hoy, a propósito.** Arreglar y volver a medir en el mismo movimiento
+es exactamente cómo se cuela un número que no es. Queda como `xfail(strict=True)` con un
+`reason` que cumple la regla nueva, más un test centinela **en verde** que aferra las dos
+cajas y sus magnitudes: si mañana se mueven, salta ése diciendo qué cambió, en vez de un
+`XPASS` que nadie sabe interpretar.
+
+---
+
+## D3-3 · Umbrales: cuatro duplicados más, ninguno conocido
+
+El hallazgo grave del día 2 —la interfaz con su propia definición, más floja, de «LUT
+puro»— no era un bug: era una **clase** de bug. Barrida del lado de `core/`:
+
+| Criterio | Estaba escrito en |
+|---|---|
+| «el plano casi no cubre el cubo» (0.005) | `diagnostico.py` **y** `invertir.py`, literal suelto en los dos, con dos frases distintas |
+| «esta celda tiene datos suficientes» (4) | `acumulacion.py`, `invertir.py` **y** `contracts.py` |
+| ΔE2000 = 1.0, «dos colores indistinguibles» | tres constantes con el mismo comentario dicho de tres formas |
+| `1e-6` en `qc.py` | guarda de división **y** criterio de «este LUT aplasta la imagen a un color» |
+
+**38 constantes a `core/umbrales.py`**, cada una con nombre, valor, **unidad** y una línea
+de por qué. La unidad no estaba en ningún sitio, y es justo lo que evita confundir un
+`1.0` que es ΔE2000 con un `0.95` que es una fracción.
+
+**Y 95 se quedaron donde estaban, a propósito.** Semillas, topes de memoria, binning y
+coeficientes publicados no son criterios de decisión; juntarlos habría creado un
+módulo-Dios que acopla todo con todo. Un barrido que mueve las 115 está mal hecho.
+
+Hay un test que recorre el AST y **falla si aparece un literal de umbral fuera de ese
+módulo**. Caza `if reproducible > 0.92` aunque esté sin espacios o dentro de un ternario,
+y no da la lata con `len(x) > 0`. Tiene **control negativo**: le planta a propósito el
+literal del día 2 y comprueba que lo caza.
+
+**Verificación independiente de que el traslado no cambió nada:** comparé todos los
+literales numéricos que desaparecen de `core/` en ese commit contra las constantes que
+aparecen. **Ningún valor cambió.** Tres números quedaban huérfanos y los tres estaban en
+comentarios, no en código.
+
+### Lo que salió del barrido y no esperaba nadie
+
+**`CONFIDENCE_ALTA` = 0.75 y `CONFIDENCE_MEDIA` = 0.45 no tienen ninguna medida detrás.**
+Ni en el código, ni en los commits, ni en la bitácora, ni en las notas. **Es el veredicto
+más visible de la app** — lo que lees en cada clip — y los dos números salieron de la
+nada. Están marcados como «no medido» en `core/umbrales.py` y en `CIFRAS.md` §6, junto a
+otros once.
+
+---
+
+## D3-4 · La tipografía era una línea
+
+```
+QWidget { …; font-size: 13px; }
+```
+
+`QWidget` casa con **todos** los widgets, subclases incluidas; y una propiedad de fuente
+declarada por una regla que casa **gana a `setFont()`**, mezclándose propiedad a propiedad.
+Por eso la familia monoespaciada sí llegaba (la declara la regla `.cifra`) y el tamaño no
+(sólo lo declaraba la universal). Medido sobre la misma etiqueta: **sin hoja 26 px, con la
+hoja 13 px, con la hoja sin `font-size` en `QWidget` 26 px**.
+
+La regla que lo sostiene: **la hoja de estilo no declara `font-size` en ninguna regla.**
+
+Estaban rotos los cinco tamaños de texto, las cinco cifras grandes, dos de las cifras
+normales, las entradas y la ruta del `.cube`. Ahora no falla ninguno.
+
+**Una excepción con motivo medido:** las cabeceras de tabla son el único rótulo en
+mayúsculas **sin el tracking de marca**, porque un `QHeaderView::section` es un
+pseudo-elemento y no se puede vestir desde el código — comprobadas las dos vías.
+
+**La columna del nombre de clip** pasa de 56 a **124 px** a la anchura mínima. El fondo era
+que el ancho **se calculaba dos veces** y no coincidían. Y **la anchura mínima baja de 985
+a 973 px**: los rótulos de 10 px vuelven a ser de 10 y no de 13.
+
+*(El encargo de hoy decía «que sigue en 966×643». Era cierto el día 1; el día 2 pasó a 985
+y hoy a 973×651.)*
+
+---
+
+## D3-5 · Sin resolver
+
+1. **La caja principal del detector espacial señala el sitio equivocado** (§D3-2). Es lo
+   primero de mañana.
+2. **`CONFIDENCE_ALTA` y `CONFIDENCE_MEDIA` no están medidos**, y son lo que más se lee.
+3. **El etiquetado de viñeta está calibrado para el dominio codificado**: una viñeta
+   óptica aplicada en luz lineal —que es lo físicamente correcto— no lo dispara.
+4. **`INSIGNIA_ANCHO` se queda 7 px corto** para «MEDIA 100%». No se ve hoy porque un 100%
+   siempre sale `alta`. Subirlo subiría la anchura mínima.
+5. **Las cabeceras de tabla, sin tracking**, por el límite de Qt de arriba.
+6. **La auditoría del día 3 quedó a medias**: el agente se colgó dos veces. Alcanzó a
+   verificar que el traslado de umbrales no cambió valores —lo confirmé yo aparte— pero
+   **no llegó a revisar la tipografía ni la anchura mínima ni su propio test de
+   cuarentena**, que hoy pasa en vacío (`test_AUDF_ninguna_etiqueta_pide_fuente_de_cifra…`:
+   son 35 de 35 y su aserción es `0 <= 1`). **Queda pendiente y no lo arreglo yo**, porque
+   soy parte.
+7. **Sigue sin ejecutarse nada contra un Resolve real.** Lo de siempre, y lo más importante.
+
+---
+
+## D3-6 · Lo que necesito de ti
+
+1. **El probe.** Sigue siendo lo primero y no ha cambiado.
+2. **Los dos márgenes ajustados** (§D3-2): T1 pasa por 0.11 y T3 por 0.094 sobre montajes
+   razonables. ¿Te vale así, o quieres que se aprieten antes de enseñárselo a un cliente?
+3. **`CONFIDENCE_ALTA` = 0.75 y `CONFIDENCE_MEDIA` = 0.45**: nadie los midió nunca. ¿Los
+   dejamos, o los calibramos contra material tuyo cuando lo haya?
+4. **La convención de la viñeta** (§D3-5 punto 3): ¿la calibramos para luz lineal, que es
+   lo que hace una lente de verdad?
