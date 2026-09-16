@@ -218,3 +218,42 @@ Todas medidas el 16-09-2026, después de arreglar la escala tipográfica.
 |---|---|---|
 | `INSIGNIA_ANCHO` | **108 px**, y «MEDIA 100%» necesita **115** | La columna CONFIANZA mide `INSIGNIA_ANCHO + 16` y es la más ancha de las fijas: subirla **subiría la anchura mínima**, que es justo lo que no tocaba. Hoy no se ve porque un 100% siempre sale `alta`, y «ALTA» es la palabra más corta. |
 | Tracking de las cabeceras de tabla | **0** | Límite de Qt, comprobado por dos vías: `setFont()` sobre el `QHeaderView` lo borra Qt en el siguiente `polish`, y `headerData(…, FontRole)` no cambia ni un píxel. Haría falta un `QHeaderView` propio que se pinte las secciones. |
+
+---
+
+## 8 · T5 — el LUT extraído de un plano, aplicado a otro plano (día 4)
+
+**El caso de uso real**, que no se había medido: extraer el look de un plano y aplicarlo a
+los demás del mismo trabajo. Medido por un agente independiente contra la copia congelada
+de `v0.3.0`, con escenas propias y ΔE2000 de `colour-science`. Informe completo en
+[`MEDICION-T5.md`](MEDICION-T5.md).
+
+**El comando es el mismo para todas las filas**, y **hay que ejecutarlo desde la copia
+congelada**, no desde la raíz (si no, mide el repo vivo y los tests se saltan diciendo por
+qué):
+
+```bash
+git worktree add --detach .snapshots/v0.3.0 v0.3.0   # sólo si no existe
+cd .snapshots/v0.3.0 && PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest ../../tests/fuera_de_plano -s -p no:cacheprovider --import-mode=importlib --noconftest -rxXs
+```
+
+Cada fila dice qué línea de la salida mirar. **Verificadas el 16-09** re-ejecutando el
+comando: las cifras marcadas con ✔ salen idénticas.
+
+| Cifra | Valor | Montaje | Línea de la salida | Fecha |
+|---|---|---|---|---|
+| **T5 máximo en B, plano normal (A2, 0.41% del cubo)** | **3.593 – 5.921; 0 de 12 bajo 3.0** ✔ | escena A2 contra 6 escenas B × 2 looks | `[T5 AB …]` con `A2 interior`, campo `todo_max` | 16-09 |
+| T5 medio en B, plano normal | 0.338 – 1.685 | ídem | ídem, `todo_medio` | 16-09 |
+| T5 p95 en B, plano normal | 0.912 – 4.010 | ídem | ídem, `todo_p95` | 16-09 |
+| T5 pares A→B con máximo bajo 3.0 | **5 de 72** (11 de 72 quitando L\* > 100) | 6 A × 6 B × 2 looks | `[T5 nivel …]` | 16-09 |
+| T5 corte de cobertura para máximo < 3.0 | **no existe** en 0.15% – 4.8% | ídem | `[T5 corte ambos looks … todo_max]` | 16-09 |
+| T5 corte de fracción de B cubierta, para p95 < 3.0 | ≥ 0.8767 | ídem | `[T5 corte ambos looks … todo_p95]` | 16-09 |
+| Correlación (Spearman) del máximo en B con la cobertura de A | **+0.780** — al revés de lo esperado | ídem | `[T5 spearman todo_max]` | 16-09 |
+| Peor píxel en celda cubierta / a medias / inventada | 46 / 7 / 19 de 72 | ídem | `[T5 peor pixel todo]` | 16-09 |
+| **T1 A→A máximo en escena rica (A5)** | **4.00095 / 3.85405 — NO cumple < 3.0** ✔ | escena A5, look global / con secundarias | `[T5 ref … A5 muy variada]`, `todo_max` | 16-09 |
+| Power azul del CDL extraído, frente al conocido 1.02 | 1.193 – 1.466 | 12 extracciones | `[T5 cdl …]` | 16-09 |
+
+**Lo que dicen juntas:** con un plano, el LUT **no sirve** fuera de su plano; **más
+cobertura no arregla el máximo**, porque los peores errores vienen de nodos del cubo con
+pocas muestras, no de celdas vacías; y el **titular de T1 «cumple» no es general**: con
+una escena rica falla en su propio plano.
