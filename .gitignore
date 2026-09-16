@@ -18,3 +18,7 @@ informe_probe_resolve.*
 
 # Copias congeladas para medir sin que otro agente cambie el codigo a la vez
 .snapshots/
+
+# Carpeta de trabajo de la primera prueba con material real: fotogramas extraidos
+# de los brutos y del master de Mario. NUNCA se versiona.
+pruebas/trabajo/
