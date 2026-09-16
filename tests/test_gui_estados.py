@@ -305,8 +305,11 @@ def test_con_rejilla_de_65_la_cobertura_es_casi_nula_y_se_dice():
         assert res.coverage.size == 65
         fraccion = res.coverage.coverage_fraction()
         assert fraccion < 0.01, f"la cobertura de 65³ ha salido {fraccion:.4f}"
-        assert f"{fraccion * 100:.2f} %" in v.p_reverse.cifra_cobertura.text()
-        assert f"{65 ** 3:,}".replace(",", ".") in v.p_reverse.cifra_cobertura.text()
+        # [dia 4] El porcentaje subio al diagnostico, a tamano de titular y sin
+        # espacio antes del `%` (como el de reproducible); el recuento de celdas
+        # se queda en la cabecera del mapa, en `celdas_cobertura`.
+        assert v.p_reverse.cifra_cobertura.text() == f"{fraccion * 100:.2f}%"
+        assert f"{65 ** 3:,}".replace(",", ".") in v.p_reverse.celdas_cobertura.text()
         assert abs(v.p_reverse.barra_repro.valor() - res.diagnosis.lut_reproducible) < 1e-6
     finally:
         v.close()

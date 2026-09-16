@@ -333,9 +333,11 @@ class PantallaComparar(QWidget):
         panel_cifras = Panel(margenes=(14, 12, 14, 12))
         panel_cifras.caja.addWidget(Rotulo("lo que cambia", acento=True))
         self._cifras: dict[str, Cifra] = {}
+        # [dia 4] «ΔE medio»: `MatchResult.delta_e_before/after` son medias y
+        # el contrato no trae el maximo por clip. Se rotula lo que hay.
         for clave, rotulo, sec in (
-            ("antes", "ΔE antes", False),
-            ("despues", "ΔE después", True),
+            ("antes", "ΔE medio antes", False),
+            ("despues", "ΔE medio después", True),
         ):
             panel_cifras.caja.addWidget(Rotulo(rotulo))
             etiqueta = Cifra("—", px=24, peso=QFont.Weight.DemiBold, secundario=sec)

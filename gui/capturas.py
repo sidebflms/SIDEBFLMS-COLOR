@@ -82,7 +82,16 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
     patron.show()
     _asentar(app, patron)
     minimo = patron.anchura_minima()
-    alto_minimo = max(patron.minimumSizeHint().height(), 560)
+    # [dia 4] El alto minimo se pregunta A LA ANCHURA MINIMA y en cada pantalla,
+    # no en la ventana de 1440: el texto que parte en lineas ocupa mas alto
+    # cuanto mas estrecha es la ventana (`gui.widgets.TextoAjustado`), asi que
+    # el minimo medido a 1440 se queda corto justo en la captura que importa.
+    alto_minimo = 560
+    for indice in range(4):
+        patron.ir_a(indice)
+        patron.resize(QSize(minimo, 400))
+        _asentar(app, patron)
+        alto_minimo = max(alto_minimo, patron.minimumSizeHint().height())
     patron.close()
 
     anchuras = (*ANCHURAS_NOMINALES, minimo)

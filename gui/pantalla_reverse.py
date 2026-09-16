@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
 
 from core.contracts import CDL, LUT_SIZES_SOPORTADOS, CoverageMap, ReverseResult
 from core.io import qc_lut
+from core.umbrales import LIMITE_T1_DELTA_E_MAXIMO
 from gui import identidad as idn
 from gui.imagen import a_qimage, tira_de_color
 from gui.reverse_puente import SIN_VEREDICTO, TAM_REJILLA_PANEL, Inversion, invertir
@@ -66,8 +67,10 @@ from gui.widgets import (
     Cifra,
     EtiquetaElidida,
     InsigniaConfianza,
+    MarcaLimite,
     Panel,
     Rotulo,
+    TextoAjustado,
     separador,
 )
 
@@ -75,6 +78,33 @@ from gui.widgets import (
 #: filas de cuatro a 1024 px sin que la celda baje de 4 px, que es donde deja de
 #: distinguirse el tablero de ajedrez del relleno.
 CORTES_MONTAJE = 8
+
+#: [dia 4] Tamano de las cifras que DECIDEN: el ΔE2000 maximo, cuanto cabe en un
+#: `.cube` y cuanto del cubo esta medido. Un solo numero para las tres, para que
+#: la cobertura no pueda volver a quedarse pequena al lado de la
+#: reproducibilidad.
+PX_TITULAR = 26
+
+#: Las cifras de detras: la media y el p95 del ΔE, y el «inventado».
+PX_DETRAS = 12
+
+#: Lo que significa la cobertura, en una linea y sin numeros: los numeros ya
+#: estan encima y salen del resultado. Lo que dice esta medido fuera de la
+#: interfaz (`MEDICION-T5.md`): un LUT sacado de un plano, aplicado a otro,
+#: pasa del limite del ΔE maximo en 12 de 12 casos con la cobertura de un plano
+#: normal. Aqui no se repite ninguna de esas cifras, porque no son de este
+#: resultado.
+#: [dia 4] Altos minimos de los dos mapas. Solo mandan cuando la ventana esta a
+#: su alto minimo; con sitio, los dos estiran. Bajaron (170 -> 120 y 110 -> 90)
+#: para pagar parte del alto que ha crecido el diagnostico. A 120 px una celda
+#: de la rejilla de 17 sigue midiendo ~3 px; la de 33, ~1,5.
+ALTO_MINIMO_MAPA = 120
+ALTO_MINIMO_RESIDUO = 90
+
+#:
+#: Corta a proposito: a 973 px cabe en una linea (medido: 323 px de 361), y cada
+#: linea de mas aqui sube el alto minimo de la ventana.
+TEXTO_ALCANCE = "Medido sobre este plano: en otro plano no está garantizado."
 
 
 # ---------------------------------------------------------------------------
@@ -516,60 +546,144 @@ class PantallaReverse(QWidget):
         # px con el timeline vacio y ahi salian «cabe en …», «mapa de cobertu…»
         # y «residuo espaci…». Ahora la anchura minima la calcula Qt a partir
         # del contenido, que es lo que ya hace la columna de al lado.
+        # [dia 4] Esos cuatro rotulos ya no van en fila; lo que manda ahora es la
+        # fila del titular de error (maximo + marca de limite, y media y p95 al
+        # lado). Sigue calculado por Qt, no puesto a mano.
         col = QVBoxLayout(envoltorio)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(12)
 
+        # [dia 4] EL ORDEN DE ESTE PANEL ES LA JERARQUIA, DE ARRIBA ABAJO:
+        #
+        # 1. El ΔE2000 MAXIMO, grande, con el limite y el margen al lado. Es la
+        #    cifra que suspende el criterio (T1); la media es la holgada y va
+        #    detras, pequena. Hasta el dia 3 era al reves: «ΔE peor» era la
+        #    cifra mas pequena de las cuatro.
+        # 2. Cuanto cabe en un .cube y CUANTO DEL CUBO ESTA MEDIDO, las dos al
+        #    mismo tamano. La cobertura es la que dice cuanto del LUT es medido
+        #    y cuanto inventado; hasta hoy era una cifra de 13 px en la esquina
+        #    del mapa.
+        # 3. Una linea llana de lo que eso significa fuera de este plano.
+        #
+        # Y ESTE PANEL VA ARRIBA DEL TODO en la columna, por encima del mapa:
+        # hasta el dia 3 lo primero que se veia a la derecha era el mapa, y el
+        # diagnostico quedaba debajo. Lo que decide se ve primero.
+        panel_diag = Panel(margenes=(12, 12, 12, 12))
+        panel_diag.caja.addWidget(Rotulo("diagnóstico", acento=True))
+
+        # Dos filas. Arriba, el rotulo y la marca de limite (cumple / no cumple,
+        # con su margen), que se leen juntos: «ΔE2000 MAXIMO · NO CUMPLE ·
+        # MARGEN -15.29». Abajo, la cifra grande con su limite, y a la derecha,
+        # pequenas, la media y el p95. La marca va arriba y no debajo de la
+        # cifra porque asi el bloque se ahorra una fila (16 px), y el alto es lo
+        # que ha pagado este cambio.
+        error = QVBoxLayout()
+        error.setSpacing(2)
+        fila_rotulo = QHBoxLayout()
+        fila_rotulo.setSpacing(12)
+        fila_rotulo.addWidget(Rotulo("ΔE2000 máximo"), 0, Qt.AlignmentFlag.AlignVCenter)
+        # Pegada al rotulo y el estirador DESPUES: con el estirador delante, a
+        # 1440 px la marca se iba al borde derecho, lejos de la cifra que juzga.
+        self.marca_max = MarcaLimite()
+        fila_rotulo.addWidget(self.marca_max, 0, Qt.AlignmentFlag.AlignVCenter)
+        fila_rotulo.addStretch(1)
+        error.addLayout(fila_rotulo)
+
+        fila_cifra = QHBoxLayout()
+        fila_cifra.setSpacing(6)
+        self._de_max = Cifra("—", px=PX_TITULAR, peso=QFont.Weight.DemiBold)
+        fila_cifra.addWidget(self._de_max, 0, Qt.AlignmentFlag.AlignBaseline)
+        self.limite_max = Cifra(f"/ {LIMITE_T1_DELTA_E_MAXIMO:.1f}", px=13)
+        self.limite_max.setObjectName("apagado")
+        self.limite_max.setToolTip(
+            "Límite del ΔE2000 máximo que fijó el encargo (criterio T1). Es un objetivo, "
+            "no una medida de a partir de dónde se nota la diferencia."
+        )
+        fila_cifra.addWidget(self.limite_max, 0, Qt.AlignmentFlag.AlignBaseline)
+        fila_cifra.addStretch(1)
+
+        # Detras y mas pequenas: la media y el p95. Siguen, porque dicen si el
+        # maximo es un pixel suelto o una zona; pero no son las que deciden.
+        detras = QGridLayout()
+        detras.setHorizontalSpacing(10)
+        detras.setVerticalSpacing(2)
+        for f, (clave, rotulo) in enumerate((("media", "ΔE medio"), ("p95", "ΔE p95"))):
+            detras.addWidget(Rotulo(rotulo), f, 0)
+            etq = Cifra("—", px=PX_DETRAS, secundario=True)
+            etq.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            setattr(self, f"_de_{clave}", etq)
+            detras.addWidget(etq, f, 1)
+        fila_cifra.addLayout(detras, 0)
+        error.addLayout(fila_cifra)
+        panel_diag.caja.addLayout(error)
+        panel_diag.caja.addWidget(separador())
+
+        # Reproducible y cobertura: DOS BLOQUES GEMELOS, construidos por la
+        # misma funcion para que no puedan salir a tamanos distintos.
+        pareja = QHBoxLayout()
+        pareja.setSpacing(18)
+        repro, self.cifra_repro, self.barra_repro = self._bloque_titular("cabe en un .cube")
+        pareja.addLayout(repro, 1)
+        cobertura, self.cifra_cobertura, self.barra_cobertura = self._bloque_titular(
+            "cubo medido"
+        )
+        inventado = QHBoxLayout()
+        inventado.setSpacing(6)
+        self.cifra_inventado = Cifra("—", px=PX_DETRAS)
+        self.cifra_inventado.setObjectName("apagado")
+        inventado.addWidget(self.cifra_inventado, 0)
+        etq_inventado = QLabel("inventado")
+        etq_inventado.setObjectName("apagado")
+        etq_inventado.setFont(idn.fuente_texto(11))
+        inventado.addWidget(etq_inventado, 0)
+        inventado.addStretch(1)
+        # Antes del estirador que pone `_bloque_titular`, no despues.
+        cobertura.insertLayout(cobertura.count() - 1, inventado)
+        pareja.addLayout(cobertura, 1)
+        panel_diag.caja.addLayout(pareja)
+
+        # `TextoAjustado` y no `QLabel`: a la anchura minima esta linea ocupa
+        # dos, y un `QLabel` se lo callaba al layout (ver `TextoAjustado`).
+        self.texto_alcance = TextoAjustado(TEXTO_ALCANCE)
+        self.texto_alcance.setFont(idn.fuente_texto(12))
+        self.texto_alcance.setToolTip(
+            "Medido fuera de la interfaz (MEDICION-T5.md): un LUT extraído de un plano no "
+            "reproduce el grado en otros planos con el criterio del proyecto."
+        )
+        panel_diag.caja.addWidget(self.texto_alcance)
+        col.addWidget(panel_diag, 0)
+
         panel_cob = Panel(margenes=(12, 12, 12, 12))
         cab = QHBoxLayout()
         cab.addWidget(Rotulo("mapa de cobertura", acento=True), 1)
-        self.cifra_cobertura = Cifra("—", px=13)
-        cab.addWidget(self.cifra_cobertura, 0)
+        # [dia 4] Aqui queda solo el recuento de celdas, pequeno. El porcentaje
+        # sube al diagnostico, al tamano de la reproducibilidad: antes estaba
+        # aqui a 13 px y era la cifra que menos se veia de la pantalla.
+        self.celdas_cobertura = Cifra("—", px=13)
+        self.celdas_cobertura.setObjectName("apagado")
+        cab.addWidget(self.celdas_cobertura, 0)
         panel_cob.caja.addLayout(cab)
-        self.leyenda = QLabel(
-            "Relleno = celdas medidas de verdad.   "
-            "Tablero de ajedrez = celdas inventadas (las rellena el módulo, "
-            "no las ha visto nadie).   Cortes a lo largo del azul; dentro de "
-            "cada corte, horizontal = rojo, vertical = verde."
+        # [dia 4] Leyenda en dos lineas y no en tres: la linea que se ahorra es
+        # parte de lo que paga que el diagnostico haya crecido. Dice lo mismo.
+        self.leyenda = TextoAjustado(
+            "Relleno = celda medida.  Ajedrez = celda inventada (la rellena el módulo).  "
+            "Cortes por el azul: horizontal = rojo, vertical = verde."
         )
-        self.leyenda.setWordWrap(True)
         self.leyenda.setObjectName("tenue")
-        self.leyenda.setMinimumWidth(0)
         self.leyenda.setFont(idn.fuente_texto(11))
         panel_cob.caja.addWidget(self.leyenda)
-        self.vista_cobertura = VistaMapa(alto_minimo=170)
+        self.vista_cobertura = VistaMapa(alto_minimo=ALTO_MINIMO_MAPA)
         panel_cob.caja.addWidget(self.vista_cobertura, 1)
         col.addWidget(panel_cob, 3)
 
-        panel_diag = Panel(margenes=(12, 12, 12, 12))
-        panel_diag.caja.addWidget(Rotulo("diagnóstico", acento=True))
-        fila = QHBoxLayout()
-        fila.setSpacing(18)
-        bloque = QVBoxLayout()
-        bloque.setSpacing(2)
-        bloque.addWidget(Rotulo("cabe en un .cube"))
-        self.cifra_repro = Cifra("—", px=26, peso=QFont.Weight.DemiBold)
-        bloque.addWidget(self.cifra_repro)
-        self.barra_repro = BarraProporcion(0.0)
-        bloque.addWidget(self.barra_repro)
-        fila.addLayout(bloque, 1)
-        for clave, rotulo in (("media", "ΔE medio"), ("p95", "ΔE p95"), ("max", "ΔE peor")):
-            b = QVBoxLayout()
-            b.setSpacing(2)
-            b.addWidget(Rotulo(rotulo))
-            etq = Cifra("—", px=18, peso=QFont.Weight.DemiBold, secundario=(clave != "media"))
-            setattr(self, f"_de_{clave}", etq)
-            b.addWidget(etq)
-            b.addStretch(1)
-            fila.addLayout(b, 0)
-        panel_diag.caja.addLayout(fila)
-        panel_diag.caja.addWidget(separador())
-
+        # [dia 4] Panel propio, debajo del mapa. Sin fila de titulo aparte: los
+        # dos rotulos de columna hacen de titulo, y asi no se paga una linea.
+        panel_no_lut = Panel(margenes=(12, 12, 12, 12))
         fila2 = QHBoxLayout()
         fila2.setSpacing(12)
         izq = QVBoxLayout()
         izq.setSpacing(4)
-        izq.addWidget(Rotulo("qué NO es un lut"))
+        izq.addWidget(Rotulo("qué NO es un lut", acento=True))
         # QTextBrowser: el diagnostico de `core.reverse` son varios parrafos
         # largos y un QLabel se come en silencio todo lo que no le cabe. Aqui
         # aparece una barra y se lee entero.
@@ -584,13 +698,29 @@ class PantallaReverse(QWidget):
         # «en el fotograma» se recortaba a la anchura minima. «residuo espacial»
         # dice lo mismo, cabe, y ademas es el nombre del campo del contrato
         # (`ReverseDiagnosis.spatial_residual`), asi que une los dos vocabularios.
-        der.addWidget(Rotulo("residuo espacial"))
-        self.vista_residuo = VistaMapa(alto_minimo=110)
+        der.addWidget(Rotulo("residuo espacial", acento=True))
+        self.vista_residuo = VistaMapa(alto_minimo=ALTO_MINIMO_RESIDUO)
         der.addWidget(self.vista_residuo, 1)
         fila2.addLayout(der, 2)
-        panel_diag.caja.addLayout(fila2, 1)
-        col.addWidget(panel_diag, 2)
+        panel_no_lut.caja.addLayout(fila2, 1)
+        col.addWidget(panel_no_lut, 2)
         return envoltorio
+
+    @staticmethod
+    def _bloque_titular(rotulo: str) -> tuple[QVBoxLayout, Cifra, BarraProporcion]:
+        """Rotulo, cifra de titular y barra. El mismo para reproducible y cobertura."""
+        bloque = QVBoxLayout()
+        bloque.setSpacing(2)
+        bloque.addWidget(Rotulo(rotulo))
+        cifra = Cifra("—", px=PX_TITULAR, peso=QFont.Weight.DemiBold)
+        bloque.addWidget(cifra)
+        barra = BarraProporcion(0.0)
+        bloque.addWidget(barra)
+        # Sin esto, el bloque mas corto (reproducible, que no lleva la linea de
+        # «inventado») repartia el hueco entre sus piezas y su cifra salia mas
+        # abajo que la de al lado. Se veia en la captura de 1440.
+        bloque.addStretch(1)
+        return bloque, cifra, barra
 
     # -- calculo -----------------------------------------------------------
 
@@ -692,10 +822,16 @@ class PantallaReverse(QWidget):
         cob = res.coverage
         fraccion = cob.coverage_fraction()
         celdas = int(cob.covered_mask().sum())
-        self.cifra_cobertura.setText(
+        self.celdas_cobertura.setText(
             f"{celdas:,}".replace(",", ".") + f" / {cob.size ** 3:,}".replace(",", ".")
-            + f"  ·  {fraccion * 100:.2f} %"
+            + " celdas"
         )
+        # El porcentaje de celdas medidas y su complemento, y nada mas: los dos
+        # salen de `coverage_fraction()` del resultado. Dos decimales en los dos,
+        # para que un 0.04% no se lea como «100.0% inventado».
+        self.cifra_cobertura.setText(f"{fraccion * 100:.2f}%")
+        self.cifra_inventado.setText(f"{(1.0 - fraccion) * 100:.2f}%")
+        self.barra_cobertura.set_valor(fraccion)
         self.vista_cobertura.poner(montaje_cobertura(cob),
                                    vacio="ni una celda con datos reales")
 
@@ -707,9 +843,11 @@ class PantallaReverse(QWidget):
         # ayuda a leer, asi que se quedan como estan.
         self.cifra_repro.setText(f"{diag.lut_reproducible * 100:.1f}%")
         self.barra_repro.set_valor(diag.lut_reproducible)
+        self._de_max.setText(f"{res.delta_e_max:.2f}")
+        # El limite se IMPORTA de `core.umbrales`; la marca solo resta y compara.
+        self.marca_max.poner(res.delta_e_max, LIMITE_T1_DELTA_E_MAXIMO, que="ΔE2000 máximo")
         self._de_media.setText(f"{res.delta_e_mean:.2f}")
         self._de_p95.setText(f"{res.delta_e_p95:.2f}")
-        self._de_max.setText(f"{res.delta_e_max:.2f}")
 
         # El veredicto se PINTA, no se decide. Y si no lo ha dado el nucleo, lo
         # que se escribe es «no se ha podido decidir», que no es lo mismo que
@@ -725,7 +863,12 @@ class PantallaReverse(QWidget):
                 if diag.is_pure_lut
                 else "NO es un LUT puro: queda algo que depende de dónde está el píxel."
             )
+        lineas.append(
+            f"· El límite de {LIMITE_T1_DELTA_E_MAXIMO:.1f} del ΔE2000 máximo es el objetivo "
+            f"que fijó el encargo, no una medida de dónde empieza a notarse la diferencia."
+        )
         lineas += [f"· {n}" for n in diag.notes]
+        # En el orden del contrato: la zona principal primero.
         for h in diag.hotspots:
             lineas.append(
                 f"· {h.label} en ({h.x}, {h.y}) {h.w}×{h.h} px — {h.magnitude:.2f} ΔE"
@@ -764,6 +907,9 @@ class _MiniPar(QWidget):
 
 __all__ = [
     "CORTES_MONTAJE",
+    "PX_DETRAS",
+    "PX_TITULAR",
+    "TEXTO_ALCANCE",
     "EditorCDL",
     "PantallaReverse",
     "TiraParches",

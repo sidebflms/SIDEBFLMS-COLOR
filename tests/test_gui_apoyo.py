@@ -56,8 +56,19 @@ pytestmark = pytest.mark.gui
 #: Ademas, la anchura minima ya NO depende del estado: antes, con cero clips,
 #: la tabla se escondia y la ventana se dejaba encoger hasta 911 px, y ahi si
 #: se recortaba texto de verdad. Ver `gui/NOTAS.md`.
+#:
+#: **[dia 4] El ancho se queda en 973; el alto sube de 651 a 727.** No se ha
+#: elegido. El panel de ingenieria inversa ensena ahora las cifras que deciden
+#: (el ΔE2000 maximo con su margen al limite, y la cobertura del cubo al mismo
+#: tamano que la reproducibilidad) y una linea de lo que significa la
+#: cobertura, en un panel propio encima del mapa. Para pagarlo se bajaron los
+#: altos minimos de los dos mapas (170 -> 120 y 110 -> 90), la leyenda del mapa
+#: paso de tres lineas a dos y la marca de limite se puso en la fila del
+#: rotulo. Ademas el alto se mide ahora a la anchura minima y no en la ventana
+#: de 1440, porque a 973 px el texto parte en mas lineas: medido como antes
+#: saldria 713, y seria un minimo que la pantalla no cumple.
 ANCHURA_MINIMA = 973
-ALTO_MINIMO = 651
+ALTO_MINIMO = 727
 
 
 # ---------------------------------------------------------------------------

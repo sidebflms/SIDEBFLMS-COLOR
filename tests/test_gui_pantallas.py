@@ -421,9 +421,10 @@ def test_las_cifras_del_diagnostico_son_las_del_reverseresult():
         assert v.p_reverse._de_p95.text() == f"{res.delta_e_p95:.2f}"
         assert v.p_reverse._de_max.text() == f"{res.delta_e_max:.2f}"
         celdas = int(res.coverage.covered_mask().sum())
-        assert f"{celdas:,}".replace(",", ".") in v.p_reverse.cifra_cobertura.text()
-        assert f"{res.coverage.coverage_fraction() * 100:.2f} %" in (
-            v.p_reverse.cifra_cobertura.text()
+        # [dia 4] Recuento en la cabecera del mapa; porcentaje, en el diagnostico.
+        assert f"{celdas:,}".replace(",", ".") in v.p_reverse.celdas_cobertura.text()
+        assert v.p_reverse.cifra_cobertura.text() == (
+            f"{res.coverage.coverage_fraction() * 100:.2f}%"
         )
     finally:
         v.close()
