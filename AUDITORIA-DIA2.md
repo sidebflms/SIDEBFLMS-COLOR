@@ -887,3 +887,91 @@ Dos cosas que sí miraría de ese cambio, y las dejo comprobadas:
   Resolve de verdad. Todo lo que hemos hecho esta noche alrededor de esa llamada —las
   cuatro respuestas raras, `VersionIndeterminada`, la pregunta V-0 del probe— es
   preparación, no verificación. Sigue siendo lo primero que hay que comprobar mañana.
+
+---
+---
+
+# DÍA 3 (parcial) · ¿el barrido de `core/umbrales.py` cambió algún valor?
+
+Sólo esto. Método: leer el diff de `1d4330e` y comparar, para cada nombre nuevo, el
+literal que **desaparece** en el sitio de uso con el valor del nombre que **aparece**.
+Sin ejecutar la suite: es una comparación de texto contra texto y no necesita más.
+
+## Punto de partida (barrido mecánico sobre el AST de `core/` antes y después)
+
+```
+constantes en core/umbrales.py hoy: 37 (con mi filtro de tipos; ver nota al final)
+IGUALES  : 26
+CAMBIADOS: 0
+NUEVOS (no existian con ese nombre antes): 11
+umbrales que ANTES estaban definidos en MAS DE UN sitio: 0
+```
+
+Los 26 que ya tenían nombre **conservan su valor exacto**. Ninguno cambió. Lo que
+quedaba por verificar eran los 11 nombres nuevos, que es donde un cambio se puede colar
+sin que se vea: no hay un «antes» con el mismo nombre contra el que comparar.
+
+## Los once, uno a uno
+
+| Nombre nuevo | Valor hoy | Literal que sustituye (línea `-` del diff) | ¿Coincide? |
+|---|---|---|---|
+| `UMBRAL_MOVIMIENTO_NULO` | `0.05` | `elif mov_medio < 0.05:` y `1.0 if res_medio < 0.05 else 0.0` (`reverse/diagnostico.py`) | **Sí** |
+| `UMBRAL_COBERTURA_BAJA` | `0.005` | `if fraccion < 0.005 and not puro:` (`diagnostico.py`) y `if fraccion < 0.005:` (`invertir.py`) | **Sí** |
+| `UMBRAL_FUERA_DE_DOMINIO_AVISO` | `0.001` | `if fuera > 0.001:` (`reverse/invertir.py`) | **Sí** |
+| `MUESTRAS_MINIMAS_CELDA` | `4` | `min_samples: int = 4` (`contracts.py`), `min_muestras: int = 4` (`acumulacion.py`, `invertir.py`) | **Sí** |
+| `UMBRAL_RECORRIDO_LUT_PLANO` | `1e-6` | `if recorrido > 1e-6:` (`io/qc.py`) | **Sí** |
+| `UMBRAL_NEUTRA_TOTAL` | `0.999` | `if float(stats.saturation_hist[0]) >= 0.999:` (`analysis/stats.py`) | **Sí** |
+| `UMBRAL_SUBNOTA_EXPLICABLE` | `0.85` | `if subnotas[clave] < 0.85 and clave in frases:` (`matching/confianza.py`) | **Sí** |
+| `UMBRAL_CROMA_EXPLICABLE` | `0.35` | `if d_croma > 0.35:` (`matching/contenido.py`) | **Sí** |
+| `UMBRAL_PERFIL_EXPLICABLE` | `0.12` | `if d_perfil > 0.12:` (`matching/contenido.py`) | **Sí** |
+| `DELTA_E_INDISTINGUIBLE` | `1.0` | tres sitios, abajo | **Sí** |
+| `TOL_GAMUT` | `1.0 / 2048.0` | **no sustituye ningún literal**: ya tenía nombre, abajo | **Sí** |
+
+### Los dos que no eran un cambio simple
+
+**`DELTA_E_INDISTINGUIBLE = 1.0`** no sustituye un literal suelto: se convierte en la
+**base** de la que ahora cuelgan tres cosas que ya existían. Verificadas las tres contra
+el estado anterior:
+
+```
+antes  core/reverse/diagnostico.py:167  UMBRAL_DE_HOTSPOT: float = 1.0
+antes  core/reverse/diagnostico.py:171  UMBRAL_DE_PURO:    float = 1.0
+antes  core/matching/confianza.py:82    "residuo_de": (1.0, 8.0),
+
+hoy    UMBRAL_DE_PURO:    float = DELTA_E_INDISTINGUIBLE     -> 1.0
+hoy    UMBRAL_DE_HOTSPOT: float = DELTA_E_INDISTINGUIBLE     -> 1.0
+hoy    "residuo_de": (DELTA_E_INDISTINGUIBLE, 8.0)           -> (1.0, 8.0)
+```
+
+Las tres valen exactamente lo que valían. Y de paso queda dicho por escrito algo que
+antes estaba implícito: que esos tres unos eran **el mismo** uno (el ΔE2000 clásico de
+«dos colores que no se distinguen»), no tres coincidencias. Eso es una mejora real, no
+sólo una mudanza.
+
+**`TOL_GAMUT`** es un falso positivo **de mi propio barrido**, y lo digo porque es un
+fallo de mi herramienta y no del suyo. Ya tenía nombre antes:
+
+```
+antes  core/io/qc.py:193  TOL_GAMUT: float = 1.0 / 2048.0
+hoy    core/umbrales.py   TOL_GAMUT: float = 1.0 / 2048.0
+```
+
+Idéntico. Me salió como «nuevo» porque mi extracción usaba `ast.literal_eval`, que no
+evalúa una división: `1.0 / 2048.0` es una expresión, no un literal. O sea que pertenece
+a los 28 que ya tenían nombre, no a los 10 literales.
+
+## Cruce con lo que el agente declaró
+
+Declaró **38 = 28 con nombre + 10 literales sueltos**. Cuadra: sus diez literales son
+exactamente los diez primeros de mi tabla (los nueve `if`/parámetro más
+`DELTA_E_INDISTINGUIBLE`), y el undécimo nombre de mi lista (`TOL_GAMUT`) es uno de los
+28, mal clasificado por mi script. **Su declaración es exacta.**
+
+## Veredicto
+
+**Ningún valor cambió al mudarse. Cero cambios de comportamiento colados en el commit.**
+El barrido es lo que dice ser: movimiento de constantes.
+
+*(Nota sobre el 37 contra 38: mi recuento filtra por tipo `int/float/str/tuple`, así que
+se deja fuera alguna constante de otro tipo. No afecta a esta verificación —los 11 nombres
+nuevos están todos comprobados— pero el número 37 es mío y no contradice su 38.)*
