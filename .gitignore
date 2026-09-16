@@ -15,3 +15,6 @@ tests/media/out/
 
 # Informes del probe: los genera Mario al ejecutarlo, no se versionan
 informe_probe_resolve.*
+
+# Copias congeladas para medir sin que otro agente cambie el codigo a la vez
+.snapshots/
