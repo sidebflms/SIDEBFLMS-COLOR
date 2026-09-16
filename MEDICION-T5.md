@@ -414,3 +414,237 @@ No es mi archivo; van aquí, en su formato, para quien lo lleve. Montaje de toda
 | T1 A→A máx. en escena rica (A5) | **4.0009 / 3.8541** — no cumple < 3.0 | T5, escena A5 | §1 `\| grep "T5 ref"` | 16-09 |
 | Cobertura A que no dispara el aviso y peor se lleva a otro plano | A4 1.0546% · A5 0.9600%, máx. en B 7.03–16.46 | T5 | §1 `\| grep "T5 ref"` y `"T5 AB"` | 16-09 |
 | Power azul del CDL extraído frente al conocido (1.02) | 1.1930 – 1.4663 | T5, 12 extracciones | §1 `\| grep "T5 cdl"` | 16-09 |
+
+---
+---
+
+# SEGUNDA VUELTA — el modo por lote (`invertir_grado_lote`), medido fuera del lote
+
+**Medidor de T5, 16-09-2026, de 14:15 a 14:41 CEST.** Lo de arriba no se ha tocado y se
+sigue reproduciendo desde `.snapshots/v0.3.0`. Esta sección se mide contra
+**`.snapshots/dia4-lote`** (commit `a90b59c`). No he tocado `core/` ni he arreglado nada.
+
+## Veredicto
+
+**Con el modo por lote y `informacion="suma_w2"`, sí sirve fuera de su plano en los
+planos del mismo trabajo: con 3 planos acumulados, el ΔE2000 máximo baja de 3.0 en los 12
+planos que no entraron en el lote, con los dos looks suaves (peor 1.95 y 1.67), y con 40
+baja a 0.80 y 0.76.** Con `suma_w` hacen falta los 40 planos (peor 2.43 y 2.91, este
+último a 0.09 del límite). **Con un look de secundarias estrechas no llega con ningún N
+ni con ninguna de las dos `informacion`:** con 40 planos y `suma_w2` pasan 10 de 12, el
+peor da 4.20 y **le falta 1.20**. Y con planos **ajenos** al trabajo hay siempre al menos uno que falla,
+con cualquier look, N e `informacion` (con 40 planos, el peor va de 12.7 a 22.1, en celdas
+inventadas).
+
+Todo es material sintético mío. En material real: **no medido**.
+
+## 1 · Contra qué código se ha medido
+
+Comando de todas las cifras de esta sección, desde la raíz del repo, con el `-k` que
+indica cada tabla:
+
+```bash
+cd .snapshots/dia4-lote && PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest \
+  ../../tests/fuera_de_plano/test_t5_lote.py -s -p no:cacheprovider --import-mode=importlib \
+  --noconftest -rxXs -k <K>
+```
+
+| `-k` | Qué mide | Salida guardada | Tiempo, 16-09 |
+|---|---|---|---|
+| `"guardia or material or cobertura_media"` | guardia, looks, cobertura a 320×180 | `tests/fuera_de_plano/salida_t5l_guardia_or_material_or_cobertura_media.txt` | 25.6 s |
+| `t5l_secundarias` | lote × N × `informacion`, look secundarias | `salida_t5l_secundarias.txt` | 2 min 14 s |
+| `t5l_global` | ídem, look global | `salida_t5l_global.txt` | 2 min 20 s |
+| `t5l_estrechas` | ídem, look de secundarias estrechas + su xfail | `salida_t5l_estrechas.txt` | 2 min 10 s |
+| `t5l_un_plano` | la pregunta de un plano | `salida_t5l_un_plano.txt` | 2 min 24 s |
+| `t5l_manana` | el montaje de esta mañana, cambiando sólo `informacion` | `salida_t5l_manana.txt` | 1 min 11 s |
+
+Una invocación cada vez, nada en segundo plano. La carga de la máquina osciló entre 3 y 9
+(`uptime`). **No he tenido que bajar la resolución:** todo va a 640×360, salvo la tabla de
+cobertura a 320×180, que existe sólo para ponerla al lado de la del autor. Datos por punto
+en `resultados_t5_lote_<look>.csv` y `lotes_t5_lote_<look>.csv`.
+
+La comprobación (`-k "guardia or material or cobertura_media"`):
+
+```
+[T5L guardia] core.__file__=/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color/.snapshots/dia4-lote/core/__init__.py
+[T5L guardia] core.reverse.__file__=/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color/.snapshots/dia4-lote/core/reverse/__init__.py
+[T5L guardia] t5_lote_material.__file__=/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color/tests/fuera_de_plano/t5_lote_material.py
+[T5L guardia] defecto de informacion en invertir_grado_lote = 'suma_w2'
+[T5L guardia] defecto de informacion en invertir_grado = 'suma_w'
+```
+
+Los defectos que dice el autor están confirmados en la firma. La copia se creó a las
+14:14:22; `find .snapshots -type f -newermt "2026-09-16 14:15:00"` sale vacío, así que no
+he escrito nada dentro. `test_t5_lote.py` se salta entero si `core` no resuelve a
+`.snapshots/dia4-lote`, y `test_t5_fuera_de_plano.py` se salta si no resuelve a
+`.snapshots/v0.3.0`.
+
+**Comprobación cruzada entre las dos copias** (`-k t5l_manana`): el montaje de esta mañana,
+extraído en `dia4-lote` con `invertir_grado(..., informacion="suma_w")`, da **las mismas
+cifras** que en `v0.3.0`: A2 de 3.5931 a 5.9213 (secundarias) y de 3.7446 a 5.1275 (global),
+peores 42.4492 y 44.3838, y 4 y 1 pares por debajo de 3.0. `invertir_grado` no ha cambiado
+con `suma_w`, y mi arnés mide lo mismo en las dos copias.
+
+## 2 · Montaje
+
+`tests/fuera_de_plano/t5_lote_material.py`, que no importa `core`. No usa
+`tests/test_reverse_lote_material.py` (lo he leído, no lo he usado).
+
+- **El trabajo:** cuatro montajes que se repiten: interior cálido, exterior de día, noche
+  fría y retrato. Cada plano es su montaje con otra semilla (otra composición) y con la paleta
+  movida: tono ±12°, exposición ±0.5 pasos, saturación ×0.85–1.15. Todos a 640×360.
+- **Lote:** planos L00–L39, alternando montajes. Con N = 1 sólo hay interior; con N = 3 faltan
+  los retratos; desde N = 4 están los cuatro. Los lotes son anidados: los 3 primeros, los 5
+  primeros, etc.
+- **Fuera del lote, del mismo trabajo:** F00–F11, con semillas que el lote no usa. **Es el
+  caso de uso.** El solape de histograma de cada uno con el lote de 40 es ≥ 0.1383.
+- **Ajenos al trabajo:** 4 planos (bosque, neón magenta, «muy variada», desierto) con
+  paletas que no tiene ningún montaje. Sirven para ver el límite, no cuentan para el veredicto.
+- **Grado conocido:** el CDL de esta mañana más uno de tres looks. `global` y `secundarias`
+  son los de esta mañana (`qc_lut` limpio). `estrechas` es nuevo: `global` más dos
+  secundarias de 20° de semiancho, amarillos +55% y azules −55%. Tiene otros tonos y otro
+  signo que el look duro del autor, a propósito. `qc_lut` le marca 67 escalones de banding,
+  que es lo esperable.
+- **Extracción:** `invertir_grado_lote(pares[:N], diagnosticar_planos=False,
+  verificar_coherencia=False, informacion=...)`. Aplicación: `lut.apply(cdl.apply(F))`.
+  Métrica: ΔE2000 de `colour-science`, el mismo camino que esta mañana, sobre todos los píxeles.
+
+## 3 · T5 con LUT acumulado: 12 planos del trabajo fuera del lote
+
+`grep "T5L resumen <look> | .* | del trabajo"`. Cada celda es **peor máximo · mediana del
+máximo · planos con máximo < 3.0 (de 12)**. Entre corchetes, la mediana del p95.
+
+| N | Secundarias, `suma_w` | Secundarias, `suma_w2` | Global, `suma_w` | Global, `suma_w2` | Estrechas, `suma_w` | Estrechas, `suma_w2` |
+|---|---|---|---|---|---|---|
+| 1 | 8.53 · 5.63 · **0** [1.97] | 3.03 · 2.04 · **11** [0.92] | 10.71 · 6.59 · **0** [2.59] | 2.77 · 2.04 · **12** [1.43] | 10.43 · 6.02 · **0** [2.74] | 9.99 · 3.36 · **1** [2.39] |
+| 3 | 8.96 · 2.98 · **6** [1.28] | **1.95** · 1.18 · **12** [0.62] | 9.42 · 2.85 · **7** [1.27] | **1.67** · 0.99 · **12** [0.50] | 7.52 · 5.73 · **1** [2.29] | 7.09 · 4.76 · **4** [1.73] |
+| 5 | 9.46 · 2.91 · **7** [0.95] | 2.02 · 1.53 · **12** [0.54] | 9.34 · 2.70 · **8** [0.86] | 1.64 · 1.22 · **12** [0.47] | 8.15 · 3.64 · **3** [1.59] | 7.68 · 2.42 · **8** [0.95] |
+| 10 | 6.75 · 1.09 · **10** [0.43] | 1.48 · 0.67 · **12** [0.22] | 6.27 · 1.50 · **9** [0.41] | 1.18 · 0.66 · **12** [0.26] | 7.48 · 2.32 · **7** [0.92] | 7.96 · 2.14 · **7** [0.86] |
+| 20 | 5.14 · 1.14 · **10** [0.14] | 1.56 · 0.44 · **12** [0.13] | 3.77 · 0.89 · **10** [0.11] | 1.13 · 0.41 · **12** [0.07] | 6.57 · 1.90 · **8** [0.71] | 5.79 · 1.98 · **9** [0.71] |
+| 40 | **2.43** · 1.10 · **12** [0.13] | **0.80** · 0.31 · **12** [0.11] | **2.91** · 1.05 · **12** [0.07] | **0.76** · 0.25 · **12** [0.05] | **4.97** · 1.72 · **10** [0.66] | **4.20** · 1.73 · **10** [0.62] |
+
+Cifras exactas, a 6 cifras, en las salidas.
+
+- **N = 1 es un único plano (L00)**, y el resultado depende de cuál sea. Con 11 extracciones
+  de un plano distinto cada vez (`-k t5l_un_plano`, look global, `suma_w2`), en 5 de 11 los 12
+  planos de fuera bajan de 3.0. En total pasan 109 de 132 pares plano extraído × plano de
+  fuera. **La fila N = 1 no es «un plano sirve»: es «este plano sirve».**
+- Desde N = 3 con `suma_w2` el resultado ya no depende del plano concreto. Con 3 planos faltan
+  los retratos en el lote, y los retratos de fuera pasan igual.
+- **Estrechas con 40 planos.** Fallan F01 (4.1987) y F05 (3.2471), los dos de exterior de día.
+  Los dos errores están en **celdas cubiertas**: el 99.999% y el 99.350% de sus píxeles caen
+  en celda cubierta, y el máximo en inventadas es 0.71. Sin brillos por encima del blanco la
+  cifra es la misma. No es falta de cobertura: el LUT acumulado no reproduce una secundaria de
+  20° ni teniendo los datos. Mi lectura, sin medir: es el precio del prior de suavidad, como
+  avisa el propio autor. Está marcado `xfail(strict=True)` en
+  `test_t5l_estrechas_criterio_lote_40_planos_suma_w2`.
+- **Ajenos, N = 40** (`grep "T5L ajenos"`): peor máximo de 12.70 / 12.90 (secundarias,
+  `suma_w` / `suma_w2`), 19.83 / 20.26 (global) y 21.57 / 22.09 (estrechas), en celdas
+  **inventadas**. `suma_w2` no mejora lo inventado. Acumular planos de un trabajo no vale
+  para colores que el trabajo no tiene.
+- **Dentro del propio lote** (`de_max_cubierto` del repo, campo
+  `repo_de_max_cubierto_en_el_lote` en `grep "T5L cobertura"`): con `suma_w` **no baja al
+  acumular**: secundarias 2.34 (N = 1) y 3.66 (N = 40), global 2.82 y 2.93. Con `suma_w2`:
+  0.94 y 0.68, 1.36 y 0.55. Es la misma dirección que el 8.996 → 2.763 del autor.
+
+Criterios afirmados (pasan): `test_t5l_secundarias_criterio_lote_suma_w2_desde_3_planos` y
+`test_t5l_global_criterio_lote_suma_w2_desde_1_plano`.
+
+## 4 · Cobertura frente a número de planos: la mía junto a la del autor
+
+La cobertura no depende de `informacion` (sale idéntica en las dos) y depende un poco del look,
+porque cambia el CDL extraído. Nodos = `counts` del `CoverageMap`.
+
+| N | **Autor**, 320×180, % del cubo · nodos 4–15 | **Mía**, 320×180, secundarias (`-k "...cobertura_media"`) | **Mía**, 640×360, secundarias (`-k t5l_secundarias`) | Mía, 640×360, global | Mía, 640×360, estrechas |
+|---|---|---|---|---|---|
+| 1 | 0.184% · 16 | 0.373% · 13 | 0.431% · 12 | 0.401% | 0.395% |
+| 3 | 0.746% · 59 | 0.787% · 18 | 0.843% · 11 | 0.838% | 0.874% |
+| 5 | 1.113% · 82 | 0.863% · 17 | 0.946% · 15 | 0.913% | 0.927% |
+| 10 | 1.647% · 62 | 1.121% · 14 | 1.222% · 14 | 1.169% | 1.183% |
+| 20 | 1.962% · 46 | 1.389% · 16 | 1.486% · 20 | 1.447% | 1.425% |
+| 40 | **2.310%** · 50 | **1.661%** · 26 | **1.812%** · 33 | 1.734% | 1.764% |
+
+Resto de nodos a 640×360, secundarias, N = 40: 1–3: 11 · 16–63: 35 · ≥64: 583.
+
+Cómo lo leo:
+
+- **Se reproduce la forma, no los números.** La cobertura se satura igual: de 20 a 40 planos
+  sólo gana 0.27 puntos a 320×180 (el autor, 0.35). Con 40 planos de un trabajo, más del 98%
+  del cubo sigue sin cobertura (menos de 4 muestras). Mis cifras son más bajas desde N = 5 porque mi trabajo son 4
+  montajes de paleta más estrecha. Con N = 1 son más altas porque mi plano es más variado.
+  Son materiales distintos: una tabla no invalida la otra.
+- **Se reproduce que a 640×360 la cobertura sale algo mayor** (N = 1: 0.373% → 0.431%;
+  N = 3: 0.787% → 0.843%). El autor da 0.184% → 0.223% y 0.746% → 0.824%.
+- **Nodos con 4–15 muestras:** a mí me salen menos (26–33 con 40 planos, frente a 50), pero
+  tampoco desaparecen al acumular. Eso se reproduce.
+
+## 5 · La pregunta de un plano con `suma_w2`
+
+`-k t5l_un_plano`: 11 planos del lote (L00–L10), extraídos uno a uno con
+`invertir_grado(..., informacion=...)`. A→A es el máximo en la zona cubierta con ΔE de
+`colour`, que coincide a 6 cifras con el `de_max_cubierto` del repo en los 44 casos.
+A→fuera es cada uno de esos 11 aplicado a los 12 planos de fuera.
+
+| Look | `informacion` | A→A: mediana · peor · **planos > 3** | A→fuera: pares con máx. < 3 (de 132) |
+|---|---|---|---|
+| **estrechas** | `suma_w` | 2.769 · 4.959 · **4 de 11** | 1 |
+| **estrechas** | `suma_w2` | 1.832 · 3.180 · **1 de 11** | 43 |
+| global | `suma_w` | 2.814 · 4.718 · 3 de 11 | 13 |
+| global | `suma_w2` | 1.401 · 2.448 · 0 de 11 | 109 |
+
+**Lo que dice el autor NO se reproduce en mi montaje.** El autor dice que con secundarias
+estrechas y un plano `suma_w2` empeora (7 de 11 por encima de 3.0, frente a 2 de 11). Con mis
+secundarias estrechas va **al revés**: 1 de 11 con `suma_w2` frente a 4 de 11 con `suma_w`,
+y fuera de plano, 43 pares frente a 1. Tampoco se reproduce que con el look suave empeore el
+máximo del plano 0: aquí L00 pasa de 2.819 a 1.363. Por la regla no he usado su look duro
+(30° +60%, −150° −60%), así que **no puedo decir que su cifra esté mal**. Lo que puedo decir
+es que no se generaliza a otro look de secundarias estrechas. Está afirmado en
+`test_t5l_un_plano_estrechas`.
+
+**Y con el montaje de esta mañana** (`-k t5l_manana`, 36 pares por look, un plano, las mismas
+escenas y semillas que la primera vuelta):
+
+| Look | `informacion` | Pares con máx. < 3 | Sin L\*>100 | Mediana del máx. | **A2 → sus 6 B** |
+|---|---|---|---|---|---|
+| secundarias | `suma_w` | 4 de 36 | 5 | 6.369 | 3.593–5.921, **0 de 6** (lo de esta mañana) |
+| secundarias | `suma_w2` | **15 de 36** | 18 | 3.405 | 0.837–5.550, **4 de 6** |
+| global | `suma_w` | 1 de 36 | 6 | 5.612 | 3.745–5.127, **0 de 6** (lo de esta mañana) |
+| global | `suma_w2` | **21 de 36** | 24 | 2.828 | 1.007–2.951, **6 de 6** |
+
+Con `suma_w2`, lo que queda por encima de 3.0 en A2 (B3 5.550 y B4 4.369, secundarias) cae en
+celdas **inventadas**, en escenas B poco parecidas. Es justo lo contrario del reparto de esta
+mañana, cuando lo que rompía el máximo eran las celdas cubiertas. Encaja con la hipótesis de
+§6 de la primera vuelta: el problema eran los nodos con pocas muestras mal determinados, y
+`suma_w2` lo ataca. Que `invertir_grado` siga con `suma_w` por defecto es una decisión de
+producto; estas cifras son para tomarla.
+
+## 6 · Filas para `CIFRAS.md` (segunda vuelta)
+
+Montaje de todas: **T5-lote, `tests/fuera_de_plano/test_t5_lote.py`, contra
+`.snapshots/dia4-lote` (a90b59c), 640×360 salvo que se diga, ΔE de `colour`**. Comando: el
+de §1 de esta sección con el `-k` indicado. Fecha: **16-09**.
+
+| Cifra | Valor | `-k` |
+|---|---|---|
+| Lote `suma_w2`, N = 3, 12 planos de fuera, peor máx. | **1.9516** (secundarias) · **1.6678** (global); 12 de 12 < 3.0 | `t5l_secundarias` / `t5l_global` |
+| Lote `suma_w2`, N = 40, peor máx. | 0.8047 · 0.7598 | ídem |
+| Lote `suma_w`, N = 40, peor máx. | 2.4271 · 2.9083; 12 de 12 | ídem |
+| Lote `suma_w`, N = 20, planos < 3.0 | 10 de 12 · 10 de 12 | ídem |
+| **Estrechas, lote de 40, `suma_w2`** | **10 de 12; peor 4.1987 (F01), falta 1.1987** | `t5l_estrechas` |
+| Estrechas, lote de 40, `suma_w` | 10 de 12; peor 4.9702 | ídem |
+| Ajenos al trabajo, N = 40, peor máx. | 12.70–22.09 según look e `informacion` | los tres |
+| Cobertura a 640×360, N = 1 / 3 / 5 / 10 / 20 / 40 (secundarias) | 0.431 / 0.843 / 0.946 / 1.222 / 1.486 / 1.812 % | `t5l_secundarias` |
+| Cobertura a 320×180, ídem | 0.373 / 0.787 / 0.863 / 1.121 / 1.389 / 1.661 % | `"guardia or material or cobertura_media"` |
+| Un plano, estrechas, A→A planos > 3.0 | `suma_w` 4 de 11 · `suma_w2` 1 de 11 | `t5l_un_plano` |
+| Un plano, global, A→fuera pares < 3.0 | `suma_w` 13 de 132 · `suma_w2` 109 de 132 | ídem |
+| Montaje de esta mañana, un plano, pares < 3.0 | secundarias 4 → 15 de 36 · global 1 → 21 de 36 (`suma_w` → `suma_w2`) | `t5l_manana` |
+| Montaje de esta mañana con `suma_w`, reproducido en `dia4-lote` | A2: 3.5931–5.9213 · 3.7446–5.1275, igual que en `v0.3.0` | ídem |
+
+## 7 · Límites de esta segunda vuelta
+
+- Un solo trabajo sintético, un solo orden de lote (lotes anidados) y una semilla por plano.
+  «Con 3 planos» es lo que sale con **estos** 3; con otros 3 no está medido.
+- `verificar_coherencia=False` y `diagnosticar_planos=False` en todo. El autor dice que no
+  cambian el LUT; eso **no lo he comprobado**.
+- Mi look de secundarias estrechas no es el del autor. La discrepancia de §5 puede depender
+  del look.
