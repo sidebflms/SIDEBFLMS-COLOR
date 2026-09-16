@@ -1,0 +1,48 @@
+{
+  "fecha": "2026-09-16",
+  "comando": ".venv/bin/python pruebas/medir_coste.py",
+  "maquina": {
+    "sistema": "macOS-26.5.1-arm64-arm-64bit",
+    "procesador": "arm",
+    "python": "3.12.14"
+  },
+  "material": "sintetico: ProRes 4444 10 bits de pruebas/sintetico.py",
+  "decodificar_s_por_fotograma_mpx": 0.0022145176662805945,
+  "decodificar_s_por_fotograma_fijo": 0.0010353595046694863,
+  "decodificar_medido_s_por_fotograma": {
+    "640x360": 0.0015455843749805354,
+    "1920x1080": 0.0056273833374689275
+  },
+  "extraer_s_por_fotograma_fijo": 0.03730341679056437,
+  "extraer_s_por_fotograma_mpx": 0.06265884205105378,
+  "extraer_medido_s_por_fotograma": {
+    "640x360": 0.051740013999127164,
+    "1920x1080": 0.1672327916676295
+  },
+  "png16_bytes_por_pixel_sintetico_liso": 4.9572038966049385,
+  "png16_bytes_por_pixel_con_grano_fuerte": 5.276678722993827,
+  "png16_bytes_por_pixel_maximo_aritmetico": 6.0,
+  "escaneo_master_s_por_fotograma": 0.0007639962686654365,
+  "escaneo_bruto_s_por_segundo": 0.022815249915462726,
+  "localizar_s_por_punto": 0.20553935107195034,
+  "afinar_s_por_plano_sin_leer": 0.0,
+  "fotogramas_leidos_por_plano": 32.5,
+  "lecturas_por_plano": 2.8333333333333335,
+  "montaje_medido": {
+    "puntos": 14,
+    "planos": 6,
+    "localizar_total_s_sin_leer": 2.877550915007305,
+    "lecturas_s": 1.0888048349879682,
+    "lecturas": 17,
+    "fotogramas_leidos": 195
+  },
+  "invertir_s_por_mpx": 17.863643744221132,
+  "invertir_medido_s": {
+    "480x270": 2.8017335410040687,
+    "960x540": 9.260512917004235
+  },
+  "t5_s_por_pareja_mpx": 0.5962224845658102,
+  "hoja_bytes_por_plano": 184543.0,
+  "memoria_bytes_por_fotograma_master": 9616.0,
+  "memoria_bytes_por_segundo_bruto": 158976.0
+}
