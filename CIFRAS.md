@@ -320,3 +320,33 @@ no se sabe si su cifra está mal: se sabe que **no generaliza**. No se publica c
 |---|---|---|---|---|
 | **Tamaño mínimo real de la ventana** | **973 × 727** | medido **a 973 px de ancho** en las cuatro pantallas | `.venv/bin/python -m pytest tests/test_gui_texto.py -k anchura_minima_real` | 16-09 |
 | ídem, midiendo `minimumSizeHint()` en ventana ancha | 973 × 713 — **no vale**: a 973 px la leyenda del mapa ocupa dos líneas | — | — | 16-09 |
+
+---
+
+## 12 · Calibración de la confianza (día 4)
+
+Medido por un agente independiente: 3.600 casos sintéticos con verdad conocida (2.400 de
+ingeniería inversa, 720 de igualado), 320×180 comprobado contra 640×360, ΔE2000 de `colour`.
+Informe en [`CALIBRACION-CONFIANZA.md`](CALIBRACION-CONFIANZA.md).
+
+```bash
+.venv/bin/python -m pytest tests/calibracion -q -rx          # tests
+.venv/bin/python -m tests.calibracion.analizar               # tablas; filtrar con grep
+```
+
+✔ = re-ejecutado el análisis el 16-09 y sale idéntico.
+
+| Cifra | Valor | Línea de la salida | Fecha |
+|---|---|---|---|
+| **Valores distintos de la nota de `reverse`, 33³, fuera de plano, sin compresión** | **1 en 500 casos — la nota es constante** ✔ | `[CAL spearman reverse 33^3 fuera \| compresion=0.0]` | 16-09 |
+| Máximo fuera de plano en esos mismos casos | 0.50 – 39.26 | `CALIBRACION-CONFIANZA.md` §3 | 16-09 |
+| Spearman nota–máximo, `reverse` 17³ fuera de plano, todo junto | −0.290 ✔ (y −0.078 sin compresión: el todo junto es paradoja de Simpson) | `[CAL spearman reverse 17^3 fuera …]` | 16-09 |
+| Fracción que cumple máximo < 3.0 entre los «alta» (nota ≥ 0.75), `reverse` 17³ fuera | **4.2%**, IC95 2.4 – 6.0% ✔ | `[CAL umbral reverse 17^3 fuera] t=0.75` | 16-09 |
+| Mejor fracción que cumple con cualquier umbral, `reverse` 33³ fuera | 17.0%, IC95 13.8 – 20.6% | `[CAL umbral reverse 33^3 fuera]` | 16-09 |
+| «alta» en su propio plano, rejilla 17³, que pasan de 3.0 | 165 de 171 (96.5%) | `CALIBRACION-CONFIANZA.md` §4 | 16-09 |
+| Igualado de clips, misma escena: AUC de la nota para predecir que cumple | 0.399, IC95 0.233 – 0.587 | `CALIBRACION-CONFIANZA.md` §2 | 16-09 |
+| **Umbrales resultantes** | **ninguno: 0.75 y 0.45 se quedan**, porque ningún corte llega al 95% | — | 16-09 |
+
+**Sin verificar, y por eso no va como cifra:** que `make_clip(codec="h264")` del generador
+codifica con matriz BT.601 y etiqueta BT.709 (error 0.027 frente a 0.0046). Lo midió a mano el
+agente de calibración; no hay test que lo fije.
