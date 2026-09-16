@@ -257,3 +257,66 @@ comando: las cifras marcadas con ✔ salen idénticas.
 cobertura no arregla el máximo**, porque los peores errores vienen de nodos del cubo con
 pocas muestras, no de celdas vacías; y el **titular de T1 «cumple» no es general**: con
 una escena rica falla en su propio plano.
+
+---
+
+## 9 · T5 con el modo por lote (día 4, segunda vuelta)
+
+Medido por el mismo agente independiente, contra **otra** copia congelada: `.snapshots/dia4-lote`
+(commit `a90b59c`, la que ya tiene `invertir_grado_lote`). 640×360, ΔE2000 de `colour`.
+
+```bash
+git worktree add --detach .snapshots/dia4-lote a90b59c   # sólo si no existe
+cd .snapshots/dia4-lote && PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest \
+  ../../tests/fuera_de_plano/test_t5_lote.py -s -p no:cacheprovider --import-mode=importlib \
+  --noconftest -rxXs -k <K>
+```
+
+**Cómo leer las filas:** «planos de fuera» son 12 planos **del mismo trabajo que no entraron
+en el lote** (líneas `F00`–`F11` de la salida). Los planos `X00`–`X03` son **ajenos** al
+trabajo y van aparte: mezclarlos cambia la cifra —me pasó a mí al verificarla, y el peor
+máximo saltaba de 1.67 a 20.96—.
+
+✔ = re-ejecutado el comando y salen idénticas.
+
+| Cifra | Valor | `-k` | Fecha |
+|---|---|---|---|
+| **Lote de 3 planos, `suma_w2`, look global: peor máximo en planos de fuera** | **1.66778 — 12 de 12 bajo 3.0** ✔ | `t5l_global` | 16-09 |
+| Lote de 3, `suma_w2`, look con secundarias | 1.9516 — 12 de 12 | `t5l_secundarias` | 16-09 |
+| Lote de 40, `suma_w2`, global | **0.759774** ✔ | `t5l_global` | 16-09 |
+| Lote de 40, `suma_w`, global | **2.90825 — 12 de 12, a 0.09 del límite** ✔ | `t5l_global` | 16-09 |
+| Lote de 3, `suma_w`, global | 9.42269 — 7 de 12 ✔ | `t5l_global` | 16-09 |
+| **Look de secundarias estrechas, lote de 40, `suma_w2`** | **4.1987 — 10 de 12. Falta 1.20. Falla en celdas CUBIERTAS** | `t5l_estrechas` | 16-09 |
+| Planos ajenos al trabajo, lote de 40, peor máximo | 12.70 – 22.09 según look | los tres | 16-09 |
+| Cobertura con 1 / 3 / 5 / 10 / 20 / 40 planos, 640×360 | 0.431 / 0.843 / 0.946 / 1.222 / 1.486 / **1.812 %** | `t5l_secundarias` | 16-09 |
+| Un solo plano, montaje de la mañana: pares bajo 3.0, `suma_w` → `suma_w2` | global **1 → 21 de 36** · secundarias 4 → 15 de 36 | `t5l_manana` | 16-09 |
+| Un solo plano, secundarias estrechas, A→A por encima de 3.0 | `suma_w` 4 de 11 · `suma_w2` **1 de 11** | `t5l_un_plano` | 16-09 |
+
+**Lo que dicen juntas:** el lote **sí** resuelve el caso de uso **con looks suaves, en planos
+del mismo trabajo, y con `suma_w2`** (que es el defecto del lote). No lo resuelve con
+secundarias estrechas —un LUT no puede con ellas, tenga los datos que tenga— ni con planos
+de otro trabajo.
+
+**Cifra del autor del lote que NO se reproduce:** él midió que `suma_w2` empeora planos
+sueltos con secundarias estrechas (7 de 11 por encima de 3.0, frente a 2). Con otro look
+de secundarias estrechas sale al revés (1 de 11 frente a 4). No es la misma escena, así que
+no se sabe si su cifra está mal: se sabe que **no generaliza**. No se publica como hecho.
+
+---
+
+## 10 · Detector espacial y ventana (día 4)
+
+| Cifra | Valor | Montaje | Comando | Fecha |
+|---|---|---|---|---|
+| Zona principal en el montaje independiente | **la ventana** `(89,301,251,104)` — antes era la esquina | viñeta 0.42 + ventana en luz lineal | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 16-09 |
+| **Solape de su caja con la ventana real** | **0.4294 — no cumple 0.80** | ídem | ídem | 16-09 |
+| T1 y T2 del repo tras el cambio | idénticos: 0.1415 / 1.7409 y 0.7002 / 0.9941 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k "T1 or T2"` | 16-09 |
+
+---
+
+## 11 · Interfaz (actualiza §7)
+
+| Cifra | Valor | Montaje | Comando | Fecha |
+|---|---|---|---|---|
+| **Tamaño mínimo real de la ventana** | **973 × 727** | medido **a 973 px de ancho** en las cuatro pantallas | `.venv/bin/python -m pytest tests/test_gui_texto.py -k anchura_minima_real` | 16-09 |
+| ídem, midiendo `minimumSizeHint()` en ventana ancha | 973 × 713 — **no vale**: a 973 px la leyenda del mapa ocupa dos líneas | — | — | 16-09 |
