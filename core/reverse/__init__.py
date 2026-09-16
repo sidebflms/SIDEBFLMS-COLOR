@@ -26,6 +26,8 @@ el pixel, y un LUT solo sabe de que COLOR es. `ReverseDiagnosis` contesta eso:
 LA API
 ------
     invertir_grado(original, coloreado, ...) -> ReverseResult   # el camino entero
+    invertir_grado_lote([(original, coloreado), ...]) -> ReverseResult  # N planos, UN grado
+    comprobar_coherencia([(original, coloreado), ...]) -> InformeCoherencia
     alinear(original, coloreado)                                # por si vienen torcidos
     acumular_correspondencias(original, coloreado, tam_lut)     # pares -> rejilla
     rellenar_huecos(acumulado, cobertura) -> LUT3D              # inventar lo que falta
@@ -59,7 +61,9 @@ from core.reverse.acumulacion import (
     DOMINIO_MAX,
     DOMINIO_MIN,
     PESO_DE_MUESTRA,
+    Estadisticos,
     acumular_correspondencias,
+    estadisticos_de_correspondencias,
     fraccion_fuera_de_dominio,
     pesos_trilineales,
 )
@@ -99,6 +103,14 @@ from core.reverse.invertir import (
     MUESTRAS_MINIMAS_CDL,
     invertir_grado,
 )
+from core.reverse.lote import (
+    ITERACIONES_COHERENCIA,
+    MUESTRAS_COHERENCIA,
+    InformeCoherencia,
+    PlanoDelLote,
+    comprobar_coherencia,
+    invertir_grado_lote,
+)
 from core.reverse.relleno import (
     BARRIDOS_SUAVIZADO,
     LAMBDA_SUAVIDAD,
@@ -114,6 +126,13 @@ from core.reverse.relleno import (
 __all__ = [
     # el camino entero
     "invertir_grado",
+    # el camino entero con muchos planos del mismo trabajo (dia 4)
+    "invertir_grado_lote",
+    "comprobar_coherencia",
+    "InformeCoherencia",
+    "PlanoDelLote",
+    "Estadisticos",
+    "estadisticos_de_correspondencias",
     # las piezas, por si alguien quiere otra cosa
     "alinear",
     "acumular_correspondencias",
@@ -147,6 +166,8 @@ __all__ = [
     "ITERACIONES_REFINADO",
     "MAX_PIXELES_CDL",
     "MUESTRAS_MINIMAS_CDL",
+    "ITERACIONES_COHERENCIA",
+    "MUESTRAS_COHERENCIA",
     "AREA_MINIMA_HOTSPOT",
     "UMBRAL_DE_HOTSPOT",
     "UMBRAL_DE_PURO",

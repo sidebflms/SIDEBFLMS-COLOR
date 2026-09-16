@@ -61,6 +61,9 @@ from __future__ import annotations
 
 __all__ = [
     "AREA_MINIMA_HOTSPOT",
+    "PENA_LOTE_INCOHERENTE",
+    "PIXELES_COMPARTIDOS_MINIMOS_LOTE",
+    "UMBRAL_DISCREPANCIA_LOTE",
     "LIMITE_T1_DELTA_E_MAXIMO",
     "LIMITE_T3_DELTA_E_PEOR_PAR",
     "CONFIDENCE_ALTA",
@@ -534,3 +537,44 @@ LIMITE_T1_DELTA_E_MAXIMO: float = 3.0
 #: **Criterio del encargo del día 1, no medido.** El encargo lo escribía sobre
 #: la media; desde el día 4 se aplica al peor par, que es la cifra que decide.
 LIMITE_T3_DELTA_E_PEOR_PAR: float = 2.0
+
+
+# ===========================================================================
+# 10. Modo por lote (día 4): ¿llevan todos los planos el mismo grado?
+#     Decide si Mario lee «estos 3 planos no llevan el mismo grado que el
+#     resto». Un aviso que salta siempre no lo lee nadie; uno que no salta
+#     entrega un LUT que no es de ningún plano con buena cara.
+# ===========================================================================
+
+#: **Unidad: ΔE2000, mediana** sobre los colores que un plano comparte con los
+#: demás, entre su salida real y la que predice el grado ajustado con los
+#: demás. Por encima, `core.reverse.comprobar_coherencia` dice que ese plano no
+#: lleva el mismo grado que el resto.
+#:
+#: **Por qué este valor**: es `DELTA_E_INDISTINGUIBLE`. Si en la mitad de los
+#: colores compartidos la diferencia no llega a lo que el ojo distingue, mezclar
+#: ese plano con los demás no cambia nada que se vea. **Medido** en el proyecto
+#: sintético de 20 planos (`.venv/bin/python -m pytest tests/test_reverse_lote.py
+#: -s -q`): el plano más alto de un proyecto coherente puntúa 0.0992, y una
+#: corrección extra puntúa más o menos lo que ella misma mueve su plano (mediana
+#: propia 1.071 -> 1.156; 0.531 -> 0.553, que no avisa). **En material real, con
+#: compresión de verdad, no medido.**
+UMBRAL_DISCREPANCIA_LOTE: float = DELTA_E_INDISTINGUIBLE
+
+#: **Unidad: píxeles** de la submuestra de un plano (20.000 como mucho) cuyos
+#: ocho nodos tienen datos de los demás planos. Por debajo, ese plano sale en
+#: `sin_comparar`: no hay con qué decir si lleva el mismo grado.
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO** más allá de «una mediana de menos de 200
+#: valores se mueve con poco». Es el 1% de la submuestra.
+PIXELES_COMPARTIDOS_MINIMOS_LOTE: int = 200
+
+#: **Unidad: fracción 0..1 (multiplicador)** de `Confidence.score` cuando el lote
+#: no es coherente y aun así se ajusta con todos (`excluir_discrepantes=False`).
+#: Multiplica por lo mismo que `PENA_DESAJUSTE`, y por la misma razón: un LUT
+#: que mezcla dos grados no es «una pega más», es que el número de arriba no
+#: significa lo que parece. Con 0.35 una nota perfecta baja a «baja».
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO** aparte de copiar el criterio de
+#: `PENA_DESAJUSTE`, que tampoco tiene medida detrás.
+PENA_LOTE_INCOHERENTE: float = PENA_DESAJUSTE

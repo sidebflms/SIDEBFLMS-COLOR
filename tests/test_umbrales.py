@@ -28,6 +28,10 @@ VALORES_DE_ORIGEN: dict[str, object] = {
     # Dia 4: los dos limites de los criterios de entrega, del encargo del dia 1.
     "LIMITE_T1_DELTA_E_MAXIMO": 3.0,
     "LIMITE_T3_DELTA_E_PEOR_PAR": 2.0,
+    # Dia 4: modo por lote (core.reverse.lote). Valores fijados al crearlos.
+    "UMBRAL_DISCREPANCIA_LOTE": 1.0,
+    "PIXELES_COMPARTIDOS_MINIMOS_LOTE": 200,
+    "PENA_LOTE_INCOHERENTE": 0.35,
     # core/contracts.py
     "CONFIDENCE_ALTA": 0.75,
     "CONFIDENCE_MEDIA": 0.45,

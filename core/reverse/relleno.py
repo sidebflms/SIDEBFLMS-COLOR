@@ -60,6 +60,7 @@ from core.contracts import LUT3D, CoverageMap
 __all__ = [
     "BARRIDOS_SUAVIZADO",
     "LAMBDA_SUAVIDAD",
+    "LAMBDA_SUAVIDAD_W2",
     "PESO_MINIMO",
     "RIDGE_BASE",
     "base_afin",
@@ -107,6 +108,26 @@ RIDGE_BASE: float = 1e-2
 #: llevar por sus vecinas. En unidades de "pixeles equivalentes", que es la
 #: unica forma de que el numero signifique algo.
 LAMBDA_SUAVIDAD: float = 0.25
+
+#: Peso de la regularizacion de suavidad cuando la informacion de un nodo se
+#: mide con `suma de w^2` (la diagonal de `A^T A`) en vez de con `suma de w`. Es
+#: el defecto de `invertir_grado_lote` desde el dia 4; `invertir_grado` sigue
+#: con `suma de w` y `LAMBDA_SUAVIDAD`.
+#:
+#: POR QUE `suma de w^2`. `suma de w` cuenta igual un pixel pegado al nodo
+#: (w ~ 1) que ocho pixeles en la esquina opuesta de la celda (w ~ 0.13 cada
+#: uno): los dos dan ~1. Pero el segundo caso casi no fija el valor del nodo, y
+#: el ajuste lo deja mandar igual. `suma de w^2` es lo que el nodo pesa de verdad
+#: en los minimos cuadrados: el primero da ~1 y el segundo ~0.13.
+#:
+#: MEDIDO, con su comando, en `core/reverse/NOTAS.md` §12
+#: (`tests/test_reverse_lote_cobertura.py` y
+#: `tests/test_reverse_lote_determinacion.py`): con 40 planos mejora la zona
+#: cubierta con el look suave y con uno de secundarias estrechas; con UN plano y
+#: el look de secundarias estrechas empeora lo tipico, y por eso NO es el defecto
+#: de `invertir_grado`. El 4 se eligio probando 1, 4 y 16 durante el desarrollo
+#: (16 ya no bajaba el maximo); esa comparacion no tiene comando en el repo.
+LAMBDA_SUAVIDAD_W2: float = 4.0
 
 
 def rejilla_de_entradas(n: int) -> np.ndarray:

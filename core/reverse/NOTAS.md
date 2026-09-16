@@ -777,3 +777,220 @@ calibrable, sólo tiene sentido dentro del reparto trilineal), `MAX_PIXELES_CDL`
 La lista de §9 —lo que no se pudo deducir— **se ha respetado entera**: los
 «no se sabe» van copiados tal cual en `core/umbrales.py`, sin inventar ninguna
 justificación que suene bien.
+
+---
+
+## 12. DÍA 4 · modo por lote: N planos del mismo trabajo, UN grado
+
+**Agente LOTE, 16-09-2026.** Punto de partida: `MEDICION-T5.md`. El grado de un
+plano no vale en otro, y dar más cobertura por sí sola no arregla el máximo. Si
+el colorista tiene el máster y los brutos enteros, todos los planos comparten
+look y se pueden acumular. Esta sección dice qué se ha hecho, qué se ha medido y
+qué **no**.
+
+Comandos de todas las cifras de esta sección (se copian tal cual desde la raíz):
+
+```bash
+.venv/bin/python -m pytest tests/test_reverse_lote_cobertura.py -s -q       # §12.3, ~40 s
+.venv/bin/python -m pytest tests/test_reverse_lote_determinacion.py -s -q   # §12.4 y §12.5, ~2.5 min
+.venv/bin/python -m pytest tests/test_reverse_lote.py -s -q                 # §12.5, ~4 min
+.venv/bin/python -m pytest tests/test_entregables.py -s -q -k T1            # contrato, sin cambios
+```
+
+**Montaje de todas**: proyecto sintético de `tests/test_reverse_lote_material.py`.
+Son 40 planos (retrato, exterior, interior y noche, alternando) a **320×180** por
+la carga de la máquina, con UN grado conocido: CDL + LUT 33³ de look suave
+(curva S, sombras frías, altas cálidas, compresión de croma, secundarias
+anchas). ΔE2000 del repo. **No es T5**: aquí ningún grado se aplica a un plano
+que no haya entrado en el ajuste. Eso lo mide el medidor independiente.
+
+### 12.1 La API
+
+```python
+from core.reverse import invertir_grado_lote, comprobar_coherencia
+
+r = invertir_grado_lote([(bruto1, master1), (bruto2, master2), ...], nombres=[...])
+r.lut.apply(r.cdl.apply(otro_bruto))                 # el grado, igual que invertir_grado
+r.confidence.metrics["lote_discrepantes"]            # 0.0 si todos llevan el mismo grado
+informe = comprobar_coherencia(pares_alineados)      # el detalle por plano, como datos
+```
+
+Devuelve el mismo `ReverseResult` que `invertir_grado`, **sin tocar
+`core/contracts.py`**. Lo que es del lote va en `confidence.metrics`
+(`lote_planos`, `lote_planos_usados`, `lote_discrepantes`, `lote_sin_comparar`,
+`lote_de_discrepancia_max`), en `notes` (ΔE y coherencia por plano) y, si hay
+discrepancia, como primera razón de `confidence.reasons`. `diagnosis` es la del
+plano peor. Para el medidor: `diagnosticar_planos=False` y
+`verificar_coherencia=False` sólo ahorran tiempo; el LUT sale igual.
+
+### 12.2 Cómo se acumula: se suman estadísticos, no LUTs
+
+El ajuste del LUT (Jacobi precondicionado, §3–4) sólo necesita `A^T y`,
+`A^T A` y `D`. Las tres cosas **se suman entre planos**. `Estadisticos`
+(`acumulacion.py`) las guarda, con `A^T A` como plantilla de 27 vecinos por
+nodo. `_ajustar_lut` ya no recorre píxeles: `D^-1 (A^T y − A^T A t)` es la misma
+cuenta que antes, reordenada. Consecuencias medidas:
+
+- **T1 idéntico**: 0.1415 / 1.7409 antes y después (comando de contrato).
+  `acumular_correspondencias` da el mismo resultado bit a bit que el bucle
+  anterior (test que copia ese bucle). Además comprobé a mano, contra una copia
+  del `invertir.py` del día 3, que la tabla del LUT de T1 sale igual bit a bit
+  (diferencia máxima 0.0). **Esa comprobación no tiene comando en el repo.**
+- Un lote de un plano con `informacion="suma_w"` da el mismo LUT, bit a bit,
+  que `invertir_grado` (test).
+- `invertir_grado` es más rápido, porque el ajuste de 60 vueltas era el bucle
+  por píxel. Tiempo orientativo, no es una cifra: depende de la carga.
+
+### 12.3 Cobertura frente a número de planos
+
+`[lote cobertura]` y `[lote determinacion]` en `test_reverse_lote_cobertura.py`.
+«Nodos 4–15» = cubiertos (≥ 4 muestras) pero con pocas. Error en celdas
+cubiertas: 8 puntos al azar por celda con los **8** nodos a ≥ 4 muestras, contra
+el grado conocido. Así se pregunta por un color nuevo dentro de la zona
+cubierta, no por los píxeles que se usaron para ajustar.
+
+| Planos | % del cubo (≥4) | Nodos 1–3 | **Nodos 4–15** | 16–63 | ≥64 | Fracción de cubiertos con 4–15 | Celdas con 8 nodos | Máx. en esas celdas `suma_w` → `suma_w2` | % puntos > 3 `suma_w` → `suma_w2` |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 0.184 | 10 | 16 | 6 | 44 | 0.242 | 2 | 3.80 → 0.93 | 6.2 → 0.0 |
+| 3 | 0.746 | 34 | 59 | 51 | 158 | 0.220 | 34 | 14.60 → 1.76 | 8.8 → 0.0 |
+| 5 | 1.113 | 36 | **82** | 65 | 253 | 0.205 | 79 | 13.30 → 3.09 | 5.1 → 0.2 |
+| 10 | 1.647 | 37 | 62 | 100 | 430 | 0.105 | 164 | 12.83 → 2.78 | 4.3 → 0.0 |
+| 20 | 1.962 | 40 | 46 | 71 | 588 | 0.065 | 221 | 12.01 → 2.61 | 2.4 → 0.0 |
+| 40 | **2.310** | 43 | **50** | 58 | 722 | 0.060 | 274 | **7.59 → 2.61** | 1.3 → 0.0 |
+
+Resolución (`[lote resolucion]`): con 640×360 la cobertura sale algo mayor. Con 1
+plano, 0.184% → 0.223%; con 3 planos, 0.746% → 0.824%.
+
+Cómo lo leo:
+
+1. **La cobertura se satura pronto.** De 20 a 40 planos sólo gana 0.35 puntos: 40
+   planos de un trabajo llenan el **2.3%** del cubo. Acumular no convierte el
+   LUT en «datos» fuera de la paleta del trabajo; el 97.7% sigue inventado.
+2. **Los nodos cubiertos con pocas muestras no desaparecen.** Con 40 planos
+   quedan **50** nodos con 4–15 muestras, del orden de los 59–82 que hay con 3–5
+   planos: son la frontera de la zona cubierta, y la frontera crece con la zona.
+   Lo que baja es su peso: del 24% de los cubiertos al 6%.
+3. **Con el ajuste de siempre (`suma_w`), esos nodos siguen dominando el
+   máximo.** Con 40 planos, el máximo en celdas cuyo nodo más flojo tiene 4–15
+   muestras es 5.92, y el 5.6% de esos puntos pasa de 3. **Y lo que ordena el
+   error es la distancia al píxel real**, como decía T5. A menos de 0.0025, el
+   máximo es 1.56; a 0.01 o más, 7.59.
+
+### 12.4 Lo que he cambiado de la determinación de los nodos: `suma_w2`
+
+**La hipótesis de T5, confirmada desde dentro.** El ajuste decide cuánto manda
+cada nodo frente a la suavidad con `alfa = suma_w / (suma_w + 0.25)`. `suma_w`
+cuenta igual un píxel pegado al nodo (w ≈ 1) que ocho en la esquina opuesta de
+la celda (w ≈ 0.13 cada uno): los dos suman ≈ 1. Pero los ocho lejanos casi no
+fijan el nodo. Los mínimos cuadrados le atribuyen entonces el error de
+interpolación de esos píxeles multiplicado por 1/w, y el nodo sale torcido
+aunque tenga datos.
+
+**Cambio**: medir la información con `suma_w2 = Σ w²`, que es la diagonal de
+`A^T A` y lo que el nodo pesa de verdad, con `LAMBDA_SUAVIDAD_W2 = 4`. Es el
+parámetro `informacion` de `_ajustar_lut`, `invertir_grado` e
+`invertir_grado_lote`.
+
+| Medida (comando) | `suma_w` (el de siempre) | `suma_w2` |
+|---|---|---|
+| **T1, un plano** (`[lote T1 informacion]`) | 0.1415 / **1.7409** | 0.1082 / **1.0325** |
+| Look suave, 40 planos, máx. en celdas cubiertas (`[lote determinacion]`) | 7.59 | **2.61** |
+| Look suave, 40 planos, máx. sobre los propios planos (`de_max_cubierto`) | 8.996 | 2.763 |
+| Look suave, **1 plano** (plano 0), máx. sobre el propio plano | **1.758** | **2.364** |
+| Look de secundarias estrechas, 40 planos, máx. en celdas cubiertas (`[lote look duro 40 planos]`) | 8.88 (2.2% > 3) | 5.67 (0.9% > 3) |
+| Ídem, máx. sobre los propios planos | 10.016 | 7.804 |
+| **Look de secundarias estrechas, UN plano, 11 planos A→A** (`[lote look duro un plano]`) | mediana 2.412, peor 10.213, **2 de 11 > 3** | mediana 3.146, peor 7.343, **7 de 11 > 3** |
+
+**Decisión**:
+
+- **Lote: `suma_w2` por defecto.** Con muchos planos gana en todo lo medido y con
+  los dos looks.
+- **Un plano: NO lo he cambiado.** `invertir_grado` sigue con `suma_w` y T1 sigue
+  en 0.1415 / 1.7409. Con un plano, `suma_w2` mejora T1 pero empeora lo típico
+  con un look de secundarias estrechas: 7 de 11 planos pasan de 3.0 frente a 2
+  de 11. Y con el look suave empeora el máximo del plano 0. Es una decisión de
+  producto con cifras en los dos sentidos, y le toca al orquestador. Cambiarla
+  es pasar `informacion="suma_w2"`.
+- El 4 salió de probar 1, 4 y 16 durante el desarrollo (16 ya no bajaba el
+  máximo). **Esa comparación no tiene comando en el repo**; las cifras de la
+  tabla son todas con λ = 4.
+
+**Respuesta a «¿acumular mejora los nodos que dominaban el máximo?»**:
+acumulando con el ajuste de siempre, **sólo en parte**. El máximo en celdas
+cubiertas baja de 14.60 (3 planos) a 7.59 (40), pero los nodos de 4–15 muestras
+siguen ahí (50) y siguen dominando el máximo (5.92). Acumulando **y** midiendo
+la información con `suma_w2`, el máximo en celdas cubiertas se queda en ≤ 3.09
+desde 5 planos y en 2.61 con 40. **Eso es dentro de la zona cubierta y con
+material sintético; en otro plano, no medido (T5 lo dirá).**
+
+### 12.5 La trampa: planos corregidos aparte
+
+`comprobar_coherencia`, llamada siempre por `invertir_grado_lote` antes de sumar:
+
+1. Suma los estadísticos de todos y, por cada plano `p`, **resta los suyos**.
+   Eso es el grado de los demás, sin releer un píxel (15 vueltas en caliente).
+2. En los píxeles de `p` cuyos 8 nodos tienen datos de los demás, compara la
+   predicción de ese grado con la salida real (ΔE2000, mediana). Le **resta la
+   mediana frente al LUT de `p` solo**, que es el suelo de lo que ningún LUT
+   explica (ruido, compresión).
+3. Saca al peor si pasa de `UMBRAL_DISCREPANCIA_LOTE` = 1.0 ΔE2000
+   (= `DELTA_E_INDISTINGUIBLE`), recalcula sin él y repite. Si hay que sacar la
+   mitad o más, dice «sin mayoría» y no señala a nadie.
+
+Por qué así y no otra forma:
+
+- **Píxel con píxel (vecino más cercano), descartado.** Un paso de 0.001 en un
+  canal de un gris medio del espacio de trabajo son **0.743 / 1.426 / 0.869
+  ΔE2000** (R / G / B; `[lote sensibilidad del espacio]`). Dos píxeles vecinos
+  con el mismo grado difieren varios ΔE.
+- **Sin restar el suelo, descartado** (`[lote suelo]`, proyecto coherente de 20
+  planos con ruido gaussiano en el coloreado): con σ = 0.002 salen **3 falsos
+  discrepantes** sin restar y 0 restando; con σ = 0.004, **10 y «sin mayoría»**
+  sin restar y 0 restando (exceso máximo 0.016).
+
+Resultados (`tests/test_reverse_lote.py`, proyecto de 20 planos; 3, 8 y 14
+corregidos aparte con un CDL extra):
+
+| Caso | Discrepantes | Exceso de los planos buenos (máx.) | Exceso de los corregidos |
+|---|---|---|---|
+| Coherente (`[lote coherente]`) | **ninguno** | 0.0992 | — |
+| Coherente con ruido σ = 0.004 | **ninguno** | (`[lote suelo]`: 0.016) | — |
+| 3 de 20, ×1.0 (`[lote 3 de 20]`) | **03, 08, 14** | < 1.0 (asertado) | 03 cálido 2.428 · 08 frío 6.321 · 14 abierto 12.918 |
+| ×0.5 (`[lote sensibilidad]`) | 03, 08, 14 | 0.144 | 1.156 · 3.209 · 6.299 |
+| ×0.25 | 08, 14 | 0.230 | **03: 0.553, no avisa** · 1.610 · 3.050 |
+
+La puntuación reproduce lo que la corrección mueve su propio plano. Con ×0.25,
+el cálido de noche mueve una mediana de 0.531 ΔE, por debajo de lo que se
+distingue: no avisar ahí es lo que se pretende. El aviso dice qué planos y hacia
+dónde, por ejemplo «08_retrato: 6.32 ΔE, más frío (L* −1.7, a* −2.1, b* −10.2)».
+Si se ajusta con todos, la nota se multiplica por `PENA_LOTE_INCOHERENTE` (0.35)
+y sale «baja» (`[lote avisa]`: 0.337). Con `excluir_discrepantes=True` ajusta
+sin ellos y lo dice (`[lote excluir]`).
+
+**Lo que todavía le engaña: lo espacial.** Con una viñeta de 0.45 en los 8
+planos marca 3 (`[lote vineta]`). No es del todo un falso positivo: con viñeta,
+el mismo color sale distinto según dónde esté, y el LUT acumulado **sí** falla
+en esos planos. Pero la causa no es otro grado. Como el diagnóstico espacial
+separa los dos casos (plano con otro grado: 0 hotspots; plano con viñeta:
+hotspot `vineta`), el aviso lo cruza y añade «puede que no lleven otro grado
+sino algo que un LUT no reproduce». Viñetas más suaves: **no medido**.
+
+**Coste**: con 3 discrepantes son 4 rondas de 20 ajustes en caliente, más 20
+ajustes propios que se hacen una sola vez. Del orden de decenas de segundos
+para 20 planos a 320×180. Orientativo, no es una cifra.
+
+### 12.6 Lo que no sé o no he hecho
+
+- **Nada de esto está medido en material real.** La mediana coherente con
+  compresión de verdad puede subir hacia el 1.0 del umbral. El ruido gaussiano
+  sólo es una aproximación.
+- **El umbral 1.0** tiene razón perceptual y margen medido (0.0992 frente a
+  1.156, el corregido más flojo que avisa), pero sólo en este montaje.
+- `PIXELES_COMPARTIDOS_MINIMOS_LOTE` = 200 y `PENA_LOTE_INCOHERENTE` = 0.35:
+  **no se sabe por qué valen eso** (anotado en `core/umbrales.py`).
+- `tests/test_umbrales.py::test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo`
+  **está rojo**. Pide anotar los tres umbrales nuevos en `VALORES_DE_ORIGEN`, y
+  ese archivo no es mío. Ver el informe del día 4.
+- Una corrección que sólo toca colores que ningún otro plano tiene no se puede
+  detectar: no hay con qué comparar. Ese plano sale en `sin_comparar` si no
+  comparte nada.
