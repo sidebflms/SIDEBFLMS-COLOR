@@ -6,6 +6,34 @@ Sin adornos. Lo que no está aquí, no está.
 
 ## Lo que la app hace
 
+### Ordenar la casa: detectar la cámara de cada clip y avisar de la doble conversión
+Antes de igualar nada, hay que saber en qué espacio de color viene cada clip. La app lee
+los metadatos de cámara (fabricante, curva) y decide con una tabla explícita, citada:
+Sony S-Log3, Panasonic V-Log, Canon C-Log3, DJI D-Log, o Rec.709 si ya venía convertido.
+
+**Lo que no se sabe con seguridad, no se adivina.** Un clip sin metadatos reconocibles, o
+con una curva que contradice el fabricante declarado, no se resuelve solo: se agrupa con
+los demás clips parecidos y se pregunta una sola vez por grupo, en castellano llano
+(«estos 42 clips parecen de la Sony, ¿lo son?»), con un fotograma de muestra al lado.
+
+También avisa de la **doble conversión**: cuando el proyecto ya convierte el color de
+entrada automáticamente y ADEMÁS hay un LUT de conversión puesto a mano, el color se
+convierte dos veces y el resultado sale con más contraste y saturación de la cuenta, sin
+ningún mensaje de error. Es el fallo silencioso más común con material mezclado.
+
+**Escribir la decisión en Resolve todavía no se puede**: depende de que el probe confirme
+que `SetClipProperty` acepta el espacio de entrada por clip (pregunta F0-7, sin
+responder). Hoy la app detecta y pregunta; no escribe nada por su cuenta.
+
+### Un modo para quien no es colorista
+Dos modos, mismo motor. El **modo fácil** es un asistente de cinco pasos —ordenar la
+casa, igualar, equilibrar, look, repasar— sin un solo ΔE, CDL ni porcentaje de cobertura
+en pantalla: una frase en castellano de qué se hizo, un antes/después grande, y
+deshacer. El paso final («repasar») no usa la nota de confianza —está sin calibrar, ver
+abajo— sino dos señales que sí están medidas: qué clips no se parecen a la referencia, y
+qué clips quedaron sin resolver en el primer paso. El **modo avanzado** es todo lo que
+sigue en este documento, sin cambios.
+
 ### Igualar cámaras
 Lleva varios planos al espacio de una referencia. Medido sobre material sintético con las
 cuatro cámaras de la casa (FX3, Canon, Lumix, DJI): **ΔE2000 medio entre cámaras de 17.67

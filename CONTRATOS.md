@@ -103,6 +103,25 @@ y `LiveResolve` (sólo si mañana el probe dice que se puede).
 
 Todo fallo hablando con Resolve sale como `ResolveError`. La GUI captura sólo eso.
 
+### `ClipRef` — extendido el día 5 con metadata de cámara **SIN VERIFICAR**
+Cinco campos nuevos, todos opcionales y `None` por defecto: `camera_manufacturer`,
+`camera_type`, `gamma_notes`, `camera_notes`, `input_color_space`. Se leen con
+`GetClipProperty(clave)` usando los nombres de clave más citados para Resolve, pero
+**nadie los ha comprobado contra una build real** — esa es la pregunta F0-7 del probe.
+Hasta que llegue la respuesta, cualquier módulo que los use tiene que tratar `None`
+como «no se sabe», nunca como «es Rec.709».
+
+### `DeteccionEspacio` / `GrupoAmbiguo` / `AvisoGestionColor` — `core.colormgmt`, día 5
+La gestión de color automática del modo fácil («ordenar la casa», tarea 1 del día 5).
+`DeteccionEspacio.segura=False` es el caso normal, no el raro: si la metadata no basta
+para decidir sin adivinar, no se aplica sola — va a un `GrupoAmbiguo` para preguntar una
+vez por grupo. `AvisoGestionColor` es la salida del verificador de doble conversión;
+`severidad="grave"` sólo para la doble conversión en sí, que es el fallo silencioso que
+no da ningún error. Las tres heurísticas del verificador (qué `color_science` cuenta como
+gestión automática, qué nombre de LUT "parece" conversión de entrada, qué
+`timeline_color_space` es el esperado) están aisladas en `core/colormgmt/verificacion.py`
+y marcadas SIN VERIFICAR: dependen de F0-8, igual que `ClipRef`.
+
 ### `ColorSession` — agente **D**
 Lo que se guarda y se abre: un `.sidebcolor`, que es un zip con `session.json`,
 `luts/*.cube` y miniaturas opcionales.

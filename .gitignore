@@ -22,3 +22,11 @@ informe_probe_resolve.*
 # Carpeta de trabajo de la primera prueba con material real: fotogramas extraidos
 # de los brutos y del master de Mario. NUNCA se versiona.
 pruebas/trabajo/
+
+# PowerGrades reales de Mario (.drx de su propio trabajo). Solo lectura: nunca
+# se sobrescriben, nunca se mueven, nunca se versionan. Ver tarea 4 del dia 5.
+tests/powergrades_reales/
+
+# Worktrees y estado de sesion de Claude Code (agentes en background, cachés).
+# No es parte del proyecto.
+.claude/

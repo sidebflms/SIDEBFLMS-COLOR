@@ -17,7 +17,7 @@ es mas pequeno de lo real y la captura sale enganosa.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -36,8 +36,14 @@ from gui.datos_demo import EstadoDemo, estado_demo, par_ingenieria_inversa, parc
 from gui.pantalla_aplicar import PantallaAplicar
 from gui.pantalla_clips import PantallaClips
 from gui.pantalla_comparar import PantallaComparar
+from gui.pantalla_facil import PantallaFacil
 from gui.pantalla_reverse import PantallaReverse
 from gui.widgets import Cifra, EtiquetaElidida, Rotulo, separador
+
+#: Clave de `QSettings` donde se recuerda el modo elegido. Por usuario: cada
+#: cuenta del sistema tiene su propio `QSettings`, así que Mario en modo
+#: avanzado no cambia lo que ve otra persona que abra la app.
+CLAVE_MODO_FACIL = "modo/facil"
 
 TITULO = "SIDEBFLMS COLOR"
 
@@ -82,13 +88,20 @@ class VentanaPrincipal(QMainWindow):
         self.p_comparar = PantallaComparar(self._estado)
         self.p_aplicar = PantallaAplicar(self._estado)
         self.p_reverse = PantallaReverse(original, coloreado, parches=parches_carta())
-        for w in (self.p_clips, self.p_comparar, self.p_aplicar, self.p_reverse):
+        self.p_facil = PantallaFacil(self._estado)
+        for w in (self.p_clips, self.p_comparar, self.p_aplicar, self.p_reverse, self.p_facil):
             self.pila.addWidget(w)
 
         self.p_clips.clip_elegido.connect(self.p_comparar.seleccionar)
         self.p_aplicar.aplicado.connect(self._refrescar_pie)
         self.ir_a(0)
         self._refrescar_pie()
+
+        # El modo se recuerda por usuario (`QSettings`, no un fichero del
+        # proyecto): cada cuenta del sistema abre la app en el modo que dejó.
+        self._settings = QSettings("SIDEBFLMS", "COLOR")
+        self.boton_modo_facil.setChecked(bool(self._settings.value(CLAVE_MODO_FACIL, False, type=bool)))
+        self._aplicar_modo(self.boton_modo_facil.isChecked())
 
     # -- construccion ------------------------------------------------------
 
@@ -111,6 +124,18 @@ class VentanaPrincipal(QMainWindow):
         marca.addWidget(sub)
         col.addLayout(marca)
         col.addWidget(separador())
+        col.addSpacing(8)
+
+        # El conmutador vive por encima de la navegación de 4 pantallas
+        # porque es el único control que tiene sentido en LOS DOS modos: en
+        # fácil, la navegación de abajo se oculta entera (ver `_aplicar_modo`).
+        self.boton_modo_facil = QPushButton("Modo fácil")
+        self.boton_modo_facil.setObjectName("navegacion")
+        self.boton_modo_facil.setFont(idn.fuente_rotulo(10))
+        self.boton_modo_facil.setCheckable(True)
+        self.boton_modo_facil.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.boton_modo_facil.toggled.connect(self._cambiar_modo)
+        col.addWidget(self.boton_modo_facil)
         col.addSpacing(8)
 
         self.grupo = QButtonGroup(self)
@@ -170,9 +195,44 @@ class VentanaPrincipal(QMainWindow):
         fila.addWidget(self.cifra_clips, 0)
         return pie
 
+    # -- modo fácil / avanzado -----------------------------------------------
+
+    def _cambiar_modo(self, activar_facil: bool) -> None:
+        self._settings.setValue(CLAVE_MODO_FACIL, bool(activar_facil))
+        self._aplicar_modo(activar_facil)
+
+    def _aplicar_modo(self, facil: bool) -> None:
+        for boton in self.grupo.buttons():
+            boton.setVisible(not facil)
+        if facil:
+            self.pila.setCurrentWidget(self.p_facil)
+            self.titulo_pantalla.setText("Modo fácil")
+            self.sub_pantalla.setText(
+                "cinco pasos, en castellano llano; nada se escribe hasta que confirmas en el "
+                "modo avanzado"
+            )
+        else:
+            self.ir_a(self.grupo.checkedId() if self.grupo.checkedId() >= 0 else 0)
+        self._refrescar_pie()
+
     # -- estado ------------------------------------------------------------
 
     def ir_a(self, indice: int) -> None:
+        # `ir_a` es "ve a esta pantalla del modo AVANZADO": si el modo fácil
+        # está activo, se desactiva primero (con las señales bloqueadas, para
+        # no reentrar por `_cambiar_modo` y perder el `indice` pedido) y se
+        # restaura la navegación. Sin esto, llamar `ir_a` con el modo fácil
+        # marcado dejaba `self.pila` en la pantalla pedida pero el
+        # conmutador seguía marcado y la cabecera seguía diciendo «Modo
+        # fácil» — un estado a medias que apareció de verdad al regenerar
+        # `capturas/` (ver `gui/NOTAS.md`).
+        if self.boton_modo_facil.isChecked():
+            self.boton_modo_facil.blockSignals(True)
+            self.boton_modo_facil.setChecked(False)
+            self.boton_modo_facil.blockSignals(False)
+            for boton in self.grupo.buttons():
+                boton.setVisible(True)
+            self._settings.setValue(CLAVE_MODO_FACIL, False)
         indice = max(0, min(len(PANTALLAS) - 1, int(indice)))
         self.pila.setCurrentIndex(indice)
         boton = self.grupo.button(indice)

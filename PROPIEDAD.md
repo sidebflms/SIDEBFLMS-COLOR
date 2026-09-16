@@ -18,6 +18,7 @@ Crear archivos **nuevos dentro de tu carpeta** sí es tuyo, sin preguntar.
 | **G · revisor 1** | `agente/g-revision1` | `tests/revision/test_ola1_*.py`, `docs/revision-ola1.md` |
 | **H · gui** | `agente/h-gui` | `gui/**`, `tests/test_gui_*.py`, `capturas/**` |
 | **I · revisor 2** | `agente/i-revision2` | `tests/revision/test_ola23_*.py`, `tests/test_e2e_*.py`, `docs/revision-ola23.md` |
+| **J · gestión de color** [día 5] | sin rama propia todavía | `core/colormgmt/**`, `tests/test_colormgmt_*.py` |
 
 Cada agente deja además un **`NOTAS.md` en su propia carpeta** (`core/color/NOTAS.md`,
 `gui/NOTAS.md`…): qué decidió, qué descartó y por qué. Es lo que permite que el

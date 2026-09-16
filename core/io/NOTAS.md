@@ -519,3 +519,26 @@ seguridad de fichero, no criterios de calidad.
 El punto 1 de «lo que dejo sin cerrar» sigue en pie tal cual: si algún día los
 avisos de banding cansan, lo que hay que tocar es `SALTO_MINIMO_BANDING`, que
 ahora está en `core/umbrales.py` con toda su historia escrita al lado.
+
+---
+
+## `drx.py` (día 5) — deliberadamente no confirma nada
+
+`core/io/drx.py` NO es un lector de PowerGrades: es un inspector honesto. La
+tarea 4 del día 5 pide "confirmar el formato real del `.drx`", y eso sólo se
+puede hacer con un `.drx` real delante — Blackmagic no lo publica, y todo lo
+que circula son suposiciones de foro (que es XML). Escribir un parser que
+asuma una estructura de nodos concreta sin haber visto un archivo real sería
+exactamente el tipo de invención que `CONTRATOS.md` prohíbe.
+
+Así que el módulo hace lo mínimo defendible: parsea como XML si puede, cuenta
+qué etiquetas aparecen (sin interpretar qué significan), y busca en el texto
+crudo fragmentos que parezcan rutas a LUTs/imágenes externas, para el
+avisador de dependencias. Todo declarado `SIN VERIFICAR` en el docstring.
+
+Los tests (`tests/test_io_drx.py`) están partidos en dos grupos a propósito:
+contra un XML fabricado a mano (prueba la mecánica, no el formato real) y
+contra `tests/powergrades_reales/*.drx` (los PowerGrades de verdad de Mario),
+que se saltan solos con `pytest.mark.skipif` mientras esa carpeta —ignorada
+por git, solo lectura— esté vacía. Cuando Mario deje material ahí, ese
+segundo grupo es el que dice si la suposición de foro se sostiene o no.

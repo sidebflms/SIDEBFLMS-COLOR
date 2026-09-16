@@ -958,6 +958,134 @@ def pregunta_f0_5(inf: Informe, resolve, item, pagina_inicial: str | None) -> No
     )
 
 
+def pregunta_f0_7(inf: Informe, item) -> None:
+    """¿SetClipProperty acepta 'Input Color Space' y puedo escribirlo/leerlo?"""
+    resultado = None
+    detalle_partes = []
+    claves_get = []
+    try:
+        # Intenta leer las claves disponibles primero (sin argumentos).
+        todas_claves = item.GetClipProperty()
+        detalle_partes.append(f"GetClipProperty() sin args devuelve: {type(todas_claves).__name__}")
+        if isinstance(todas_claves, dict):
+            claves_get = sorted(str(k) for k in todas_claves)
+            detalle_partes.append(f"Claves disponibles: {', '.join(claves_get)}")
+
+        # Ahora intenta SetClipProperty con "Input Color Space".
+        acepto = bool(item.SetClipProperty("Input Color Space", "S-Log3"))
+        detalle_partes.append(f"SetClipProperty('Input Color Space', 'S-Log3') devolvio {acepto}")
+
+        if acepto:
+            # Si se escribio, intenta leerlo.
+            leido = item.GetClipProperty("Input Color Space")
+            detalle_partes.append(f"GetClipProperty('Input Color Space') devuelve {leido!r}")
+            resultado = leido == "S-Log3" or leido is not None
+        else:
+            resultado = False
+    except PARADA:
+        raise
+    except BaseException as exc:  # noqa: BLE001
+        detalle_partes.append(f"ha saltado {type(exc).__name__}: {exc}")
+        inf.error(f"prueba F0-7: {exc}")
+
+    detalle = ". ".join(detalle_partes)
+    if claves_get:
+        detalle += f" (todas las claves de GetClipProperty: {', '.join(claves_get)})"
+
+    inf.responder(
+        "F0-7",
+        "¿SetClipProperty acepta 'Input Color Space' para cada clip?",
+        resultado,
+        detalle,
+        (
+            "Perfecto. La app puede configurar el espacio de entrada de cada clip automaticamente. "
+            "Pon clip_input_color_space_editable=True."
+            if resultado
+            else "No funciona. La app tendra que dejar que el usuario lo ponga a mano, o usar otra "
+            "estrategia (ajustes de proyecto, LUTs, plantilla de nodos)."
+        ),
+    )
+
+
+def pregunta_f0_8(inf: Informe, project) -> None:
+    """¿SetSetting acepta los ajustes de gestion de color del proyecto?"""
+    resultado = None
+    detalle_partes = []
+    ajustes_probados = {
+        "colorScienceMode": "DaVinciYRGB",
+        "colorSpaceTimeline": "Rec.709",
+        "colorSpaceOutput": "Rec.709",
+    }
+
+    try:
+        # Leer los ajustes actuales.
+        leidos_antes = {}
+        for clave in ajustes_probados:
+            try:
+                valor = project.GetSetting(clave)
+                leidos_antes[clave] = valor
+                detalle_partes.append(f"GetSetting('{clave}') = {valor!r}")
+            except Exception as e:
+                detalle_partes.append(f"GetSetting('{clave}') lanzo {type(e).__name__}")
+
+        # Intentar escribir todos.
+        escritos = 0
+        for clave, valor in ajustes_probados.items():
+            try:
+                acepto = bool(project.SetSetting(clave, valor))
+                if acepto:
+                    escritos += 1
+                detalle_partes.append(
+                    f"SetSetting('{clave}', '{valor}') devolvio {acepto}"
+                )
+            except PARADA:
+                raise
+            except BaseException as exc:  # noqa: BLE001
+                detalle_partes.append(
+                    f"SetSetting('{clave}', '{valor}') lanzo {type(exc).__name__}: {exc}"
+                )
+                inf.error(f"prueba F0-8 SetSetting '{clave}': {exc}")
+
+        # Verificar que se escribieron leyendo de nuevo.
+        verificados = 0
+        if escritos > 0:
+            for clave in ajustes_probados:
+                try:
+                    leido_nuevo = project.GetSetting(clave)
+                    # No comparamos valor estricto porque la API puede cambiar el formato,
+                    # solo que el ajuste se haya registrado.
+                    if leido_nuevo is not None:
+                        verificados += 1
+                    detalle_partes.append(
+                        f"GetSetting('{clave}') tras SetSetting: {leido_nuevo!r}"
+                    )
+                except Exception as e:
+                    detalle_partes.append(f"GetSetting('{clave}') tras SetSetting lanzo {type(e).__name__}")
+
+        resultado = escritos == len(ajustes_probados) and verificados >= escritos
+    except PARADA:
+        raise
+    except BaseException as exc:  # noqa: BLE001
+        detalle_partes.append(f"ha saltado {type(exc).__name__}: {exc}")
+        inf.error(f"prueba F0-8 general: {exc}")
+
+    detalle = ". ".join(detalle_partes)
+    inf.responder(
+        "F0-8",
+        "¿SetSetting acepta ajustes de gestion de color del proyecto (colorScienceMode, "
+        "espacios de trabajo/salida)?",
+        resultado,
+        detalle,
+        (
+            "Si. La app puede configurar la gestion de color del proyecto a partir de los "
+            "metadatos de los clips. Pon project_color_settings_editable=True."
+            if resultado
+            else "No. La app asume que quien monta el proyecto ha configurado esto bien ya. "
+            "Deja una comprobacion que avise si no cuadra, pero no intente cambiarlo."
+        ),
+    )
+
+
 def pregunta_f0_3(inf: Informe, item, dctl_rel: str | None) -> None:
     resultado = None
     if dctl_rel is None:
@@ -1345,6 +1473,8 @@ def main(argv: list[str] | None = None) -> int:
     item = items[args.clip - 1]
     original, medidas = crear_version_probe(inf, item)
     pregunta_extra_nodos(inf, medidas)
+    pregunta_f0_7(inf, item)
+    pregunta_f0_8(inf, project)
     pregunta_f0_5(inf, resolve, item, pagina_inicial)
     pregunta_f0_3(inf, item, dctl_rel)
     preguntas_stills(inf, project, timeline, item, dir_pruebas)

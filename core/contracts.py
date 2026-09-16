@@ -460,7 +460,16 @@ class ReverseResult:
 
 @dataclass(frozen=True)
 class ClipRef:
-    """Un clip del timeline, tal y como lo ve la app."""
+    """Un clip del timeline, tal y como lo ve la app.
+
+    Los cinco campos de metadata de camara son SIN VERIFICAR: se leen con
+    `GetClipProperty(clave)` usando los nombres de clave mas citados para
+    Resolve, pero nadie los ha comprobado contra una build real (esa es la
+    pregunta F0-7 del probe). Todos `None` por defecto y opcionales a
+    proposito: un `ClipRef` que no trae metadata de camara sigue siendo valido,
+    y `core.colormgmt` sabe tratar el `None` como "no se sabe" en vez de
+    lanzar. Ver `core/colormgmt/NOTAS.md`.
+    """
 
     clip_id: str  # identificador estable dentro de la sesion
     name: str
@@ -469,6 +478,18 @@ class ClipRef:
     start_frame: int
     end_frame: int
     file_path: str | None = None
+    #: `GetClipProperty("Camera Manufacturer")` sin verificar. p.ej. "Sony".
+    camera_manufacturer: str | None = None
+    #: `GetClipProperty("Camera Type")` sin verificar. p.ej. "ILME-FX3".
+    camera_type: str | None = None
+    #: `GetClipProperty("Gamma Notes")` sin verificar. p.ej. "S-Log3".
+    gamma_notes: str | None = None
+    #: `GetClipProperty("Camera Notes")` sin verificar. Texto libre que a veces
+    #: trae gamma y gamut juntos, p.ej. "S-Gamut3.Cine/S-Log3".
+    camera_notes: str | None = None
+    #: `GetClipProperty("Input Color Space")` sin verificar: lo que YA tenga
+    #: puesto el proyecto para este clip, si algo.
+    input_color_space: str | None = None
 
 
 @dataclass(frozen=True)
@@ -499,6 +520,50 @@ class StillRef:
 
 class ResolveError(RuntimeError):
     """Cualquier fallo hablando con Resolve. La GUI captura solo esto."""
+
+
+# ---------------------------------------------------------------------------
+# 8b. Gestion de color automatica ("ordenar la casa")
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DeteccionEspacio:
+    """A que espacio de entrada cree `core.colormgmt` que pertenece un clip.
+
+    `space is None` cuando no hay bastante metadata para decidir: ese clip cae
+    en un `GrupoAmbiguo` en vez de aplicarse solo. `segura=False` con
+    `space` puesto significa "hay una pista, pero contradice otra" (p.ej. la
+    curva declarada no es de ese fabricante): tampoco se aplica sola.
+    """
+
+    clip_id: str
+    space: ColorSpaceName | None
+    segura: bool
+    razon: str  # frase en castellano, la que ve Mario
+    regla: str | None = None  # nombre de la fila de la tabla de decision que aplico
+
+
+@dataclass(frozen=True, eq=False)
+class GrupoAmbiguo:
+    """Clips que no se pudieron clasificar solos, agrupados para preguntar UNA
+    vez por grupo en vez de clip a clip."""
+
+    grupo_id: str  # carpeta o patron de nombre que los agrupo
+    clip_ids: tuple[str, ...]
+    pregunta: str  # en castellano llano, p.ej. "Estos 42 clips parecen de la Sony, ¿lo son?"
+    sugerencia_espacio: ColorSpaceName | None  # la mejor conjetura, si hay alguna pista parcial
+    frame_muestra_clip_id: str | None  # clip del que enseñar un fotograma de muestra
+
+
+@dataclass(frozen=True)
+class AvisoGestionColor:
+    """Un aviso del verificador de doble conversion. `clip_id` None = aviso de proyecto."""
+
+    clip_id: str | None
+    tipo: Literal["doble_conversion", "curva_no_cuadra", "espacio_trabajo_inesperado"]
+    mensaje: str  # en castellano llano
+    severidad: Literal["aviso", "grave"]
 
 
 @runtime_checkable
@@ -605,5 +670,8 @@ __all__ = [
     "StillRef",
     "ResolveError",
     "ResolveBridge",
+    "DeteccionEspacio",
+    "GrupoAmbiguo",
+    "AvisoGestionColor",
     "ColorSession",
 ]

@@ -350,3 +350,32 @@ Informe en [`CALIBRACION-CONFIANZA.md`](CALIBRACION-CONFIANZA.md).
 **Sin verificar, y por eso no va como cifra:** que `make_clip(codec="h264")` del generador
 codifica con matriz BT.601 y etiqueta BT.709 (error 0.027 frente a 0.0046). Lo midió a mano el
 agente de calibración; no hay test que lo fije.
+
+---
+
+## 13 · Calibración de `FeaturesDestino` (día 5, tarea 2)
+
+Medido por un agente independiente de quien escribió `core/reverse/confianza_destino.py`:
+2.040 casos sintéticos con verdad conocida (1.440 de extracción de un solo plano, 600 de
+extracción por lote con `planos_acumulados` de 1 a 8), 320×180, ΔE2000 de `colour`. Informe en
+[`CALIBRACION-CONFIANZA-DESTINO.md`](CALIBRACION-CONFIANZA-DESTINO.md).
+
+```bash
+.venv/bin/python -m pytest tests/test_reverse_confianza_destino.py -q   # tests de aritmética
+.venv/bin/python -m tests.calibracion_destino.analizar                  # tablas; filtrar con grep
+```
+
+| Cifra | Valor | Línea de la salida | Fecha |
+|---|---|---|---|
+| **Veredicto: ¿las señales predicen el error?** | **Sí, algo — mucho más que la nota actual — pero ninguna combinación limpia llega al 95%** | `CALIBRACION-CONFIANZA-DESTINO.md` veredicto | 16-09 |
+| AUC de `cobertura_destino` dentro de cada una de las 8 clases de material | **0.726 – 0.966**, sin una sola inversión de signo (a diferencia de la nota actual, que daba 0.500 exacto) | `[CALD auc_clase cobertura_destino]` | 16-09 |
+| Spearman `cobertura_destino`–máximo, `simple` fuera de plano, todo junto | −0.309, y de −0.403 a −0.460 dentro de cada clase (más fuerte dentro que fuera: no es paradoja de Simpson) | `[CALD spearman cobertura_destino] simple, fuera de plano, TODO JUNTO` y `… simple \|` | 16-09 |
+| Mejor % que cumple con cualquier corte de `cobertura_destino`, dentro de la mejor clase (33³, sin comprimir, con recorte) | **82.4%** (n=17, cobertura ≥ 0.975) | `[CALD umbral_clase cobertura_destino]` \| `grep "tam=33 compresion=0 recorte=1"` | 16-09 |
+| Mejor % que cumple, TODAS las clases mezcladas | 74.1% (n=27, nota combinada ≥ 0.9997) | `[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8` | 16-09 |
+| `muestras_p10_zona` entre 1 y 8: peor que 0 (celda vacía, puro relleno) | cumple 0.0% frente a 2.5% con 0 muestras — se repite el hallazgo del día 4 | `[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO` | 16-09 |
+| `variance_zona`, AUC global vs. signo dentro de la clase comprimida | AUC global 0.248 (peor que azar); ρ **se invierte** de +0.29/+0.54 (sin comprimir) a −0.32/−0.68 (comprimido) | `[CALD auc variance_zona]` y `[CALD spearman variance_zona] simple \|` | 16-09 |
+| Única combinación que cruza el 95% (con `variance_zona`, DESCARTADA por el punto anterior) | t=0.95, cumple 100% (n=26) IC95=[1.000,1.000] | `[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control)` | 16-09 |
+| Spearman `planos_acumulados`–máximo (sólo bloque `lote`) | −0.140, IC95 [−0.248, −0.019] — real pero modesto | `[CALD rho_ic planos_acumulados]` | 16-09 |
+| ΔE máximo mediana con 1 plano acumulado vs. 8 | 5.07 → 3.56 (cumple 27.0% → 46.0%) | `[CALD tramos planos_acumulados]` | 16-09 |
+| «Alta» reusando `CONFIDENCE_ALTA = 0.75` para la nota candidata (sin `variance_zona`) | cumple **29.2%** de las veces — por eso no se conecta a `confidence_level()` | `[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4` fila `t=0.75` | 16-09 |
+| **Decisión** | **No se conecta a la GUI ni a `core.matching.confianza`.** `confianza_destino.py`, `core/umbrales.py`, `core/matching/confianza.py` y `core/contracts.py` sin tocar | — | 16-09 |

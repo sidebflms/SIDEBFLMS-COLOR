@@ -1,0 +1,207 @@
+[CALD guardia] filas simple=1440 lote=600 total=2040 | huellas en los CSV=['2c8eaea7888a']
+[CALD distribucion cobertura_destino] todo, fuera de plano: n=1700 percentiles 0/5/25/50/75/95/100 = 0.01182 0.1347 0.6578 0.881 0.9616 0.9993 1
+[CALD distribucion muestras_p10_zona] todo, fuera de plano: n=1700 percentiles 0/5/25/50/75/95/100 = 0 0 0 0 151.5 2171 2.341e+04
+[CALD distribucion muestras_mediana_zona] todo, fuera de plano: n=1700 percentiles 0/5/25/50/75/95/100 = 0 0 100 1246 5164 2.477e+04 1.278e+05
+[CALD distribucion variance_zona] todo, fuera de plano: n=1700 percentiles 0/5/25/50/75/95/100 = 4.607e-11 6.493e-09 7.265e-08 1.052e-06 1.311e-05 1.97e-05 2.843e-05
+[CALD distribucion planos_acumulados] todo, fuera de plano: n=1700 percentiles 0/5/25/50/75/95/100 = 1 1 1 1 1 8 8
+[CALD spearman cobertura_destino] simple, fuera de plano, TODO JUNTO: n=1200 valores_distintos=1198 | rho max -0.309 | p95 -0.281 | medio -0.284
+[CALD rho_ic cobertura_destino] simple, fuera de plano, TODO JUNTO: rho(señal, de_max) = -0.309 IC95=[-0.384, -0.228]
+[CALD spearman cobertura_destino] simple | tam=17 compresion=0 recorte=0: n= 150 valores_distintos= 150 | rho max -0.532 | p95 -0.411 | medio -0.397
+[CALD spearman cobertura_destino] simple | tam=17 compresion=0 recorte=1: n= 150 valores_distintos= 150 | rho max -0.535 | p95 -0.531 | medio -0.565
+[CALD spearman cobertura_destino] simple | tam=17 compresion=1 recorte=0: n= 150 valores_distintos= 150 | rho max -0.414 | p95 -0.420 | medio -0.411
+[CALD spearman cobertura_destino] simple | tam=17 compresion=1 recorte=1: n= 150 valores_distintos= 150 | rho max -0.525 | p95 -0.587 | medio -0.560
+[CALD spearman cobertura_destino] simple | tam=33 compresion=0 recorte=0: n= 150 valores_distintos= 150 | rho max -0.422 | p95 -0.331 | medio -0.411
+[CALD spearman cobertura_destino] simple | tam=33 compresion=0 recorte=1: n= 150 valores_distintos= 150 | rho max -0.441 | p95 -0.426 | medio -0.515
+[CALD spearman cobertura_destino] simple | tam=33 compresion=1 recorte=0: n= 150 valores_distintos= 150 | rho max -0.460 | p95 -0.231 | medio -0.262
+[CALD spearman cobertura_destino] simple | tam=33 compresion=1 recorte=1: n= 150 valores_distintos= 150 | rho max -0.403 | p95 -0.401 | medio -0.400
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: por cuantiles de cobertura_destino
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: [0.0118, 0.509) n= 200 | de_max mediana  11.60 min   1.79 max  56.98 | cumple 0.050
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: [0.509, 0.75) n= 200 | de_max mediana  11.66 min   2.60 max  39.71 | cumple 0.015
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: [0.75, 0.865) n= 200 | de_max mediana  10.66 min   2.48 max  33.60 | cumple 0.010
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: [0.865, 0.93) n= 200 | de_max mediana  10.28 min   1.94 max  37.58 | cumple 0.025
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: [0.93, 0.972) n= 200 | de_max mediana   8.39 min   1.08 max  44.22 | cumple 0.070
+[CALD tramos cobertura_destino] simple, fuera de plano, TODO JUNTO: [0.972, 1] n= 200 | de_max mediana   6.35 min   0.45 max  37.49 | cumple 0.240
+[CALD auc cobertura_destino] simple, fuera de plano, TODO JUNTO: cumplen 82 de 1200 | AUC = 0.759 IC95=[0.650, 0.840] (0.5 = no predice; señales donde MENOS es mejor —variance_zona— dan AUC < 0.5 si predicen bien)
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=0 recorte=0: n= 150 cumplen=  8 AUC=0.904
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=0 recorte=1: n= 150 cumplen= 10 AUC=0.962
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=1 recorte=0: n= 150 cumplen=  3 AUC=0.950
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=1 recorte=1: n= 150 cumplen=  4 AUC=0.966
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=0 recorte=0: n= 150 cumplen= 21 AUC=0.726
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=0 recorte=1: n= 150 cumplen= 34 AUC=0.756
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=1 recorte=0: n= 150 cumplen=  1 AUC=0.913
+[CALD auc_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=1 recorte=1: n= 150 cumplen=  1 AUC=0.913
+[CALD spearman muestras_p10_zona] simple, fuera de plano, TODO JUNTO: n=1200 valores_distintos= 321 | rho max -0.300 | p95 -0.269 | medio -0.255
+[CALD rho_ic muestras_p10_zona] simple, fuera de plano, TODO JUNTO: rho(señal, de_max) = -0.300 IC95=[-0.378, -0.217]
+[CALD spearman muestras_p10_zona] simple | tam=17 compresion=0 recorte=0: n= 150 valores_distintos=  80 | rho max -0.575 | p95 -0.419 | medio -0.394
+[CALD spearman muestras_p10_zona] simple | tam=17 compresion=0 recorte=1: n= 150 valores_distintos=  62 | rho max -0.509 | p95 -0.483 | medio -0.495
+[CALD spearman muestras_p10_zona] simple | tam=17 compresion=1 recorte=0: n= 150 valores_distintos=  83 | rho max -0.455 | p95 -0.411 | medio -0.401
+[CALD spearman muestras_p10_zona] simple | tam=17 compresion=1 recorte=1: n= 150 valores_distintos=  68 | rho max -0.433 | p95 -0.512 | medio -0.487
+[CALD spearman muestras_p10_zona] simple | tam=33 compresion=0 recorte=0: n= 150 valores_distintos=  49 | rho max -0.461 | p95 -0.366 | medio -0.351
+[CALD spearman muestras_p10_zona] simple | tam=33 compresion=0 recorte=1: n= 150 valores_distintos=  38 | rho max -0.566 | p95 -0.483 | medio -0.454
+[CALD spearman muestras_p10_zona] simple | tam=33 compresion=1 recorte=0: n= 150 valores_distintos=  48 | rho max -0.463 | p95 -0.312 | medio -0.297
+[CALD spearman muestras_p10_zona] simple | tam=33 compresion=1 recorte=1: n= 150 valores_distintos=  44 | rho max -0.418 | p95 -0.381 | medio -0.317
+[CALD tramos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: por cuantiles de muestras_p10_zona
+[CALD tramos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [0, 32) n= 797 | de_max mediana  10.71 min   1.79 max  56.98 | cumple 0.029
+[CALD tramos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [32, 282) n= 203 | de_max mediana   8.05 min   0.62 max  44.22 | cumple 0.113
+[CALD tramos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [282, 6.7e+03] n= 200 | de_max mediana   6.96 min   0.45 max  20.88 | cumple 0.180
+[CALD auc muestras_p10_zona] simple, fuera de plano, TODO JUNTO: cumplen 82 de 1200 | AUC = 0.751 IC95=[0.657, 0.823] (0.5 = no predice; señales donde MENOS es mejor —variance_zona— dan AUC < 0.5 si predicen bien)
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=17 compresion=0 recorte=0: n= 150 cumplen=  8 AUC=0.882
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=17 compresion=0 recorte=1: n= 150 cumplen= 10 AUC=0.903
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=17 compresion=1 recorte=0: n= 150 cumplen=  3 AUC=0.952
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=17 compresion=1 recorte=1: n= 150 cumplen=  4 AUC=0.918
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=33 compresion=0 recorte=0: n= 150 cumplen= 21 AUC=0.759
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=33 compresion=0 recorte=1: n= 150 cumplen= 34 AUC=0.802
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=33 compresion=1 recorte=0: n= 150 cumplen=  1 AUC=0.832
+[CALD auc_clase muestras_p10_zona] simple, fuera de plano | tam=33 compresion=1 recorte=1: n= 150 cumplen=  1 AUC=0.852
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: tramos de ancho fijo cerca de MUESTRAS_MINIMAS_CELDA (4)
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [0, 1) n= 640 | de_max mediana  11.04 min   1.79 max  56.98 | cumple 0.025
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [1, 4) n=  50 | de_max mediana  10.93 min   5.14 max  33.12 | cumple 0.000
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [4, 8) n=  20 | de_max mediana  10.34 min   4.77 max  33.33 | cumple 0.000
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [8, 16) n=  39 | de_max mediana  10.67 min   2.46 max  33.92 | cumple 0.077
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [16, 32) n=  48 | de_max mediana   7.29 min   2.41 max  32.29 | cumple 0.083
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [32, 64) n=  62 | de_max mediana   9.39 min   1.63 max  41.74 | cumple 0.065
+[CALD tramos_bajos muestras_p10_zona] simple, fuera de plano, TODO JUNTO: [64, inf) n= 341 | de_max mediana   7.41 min   0.45 max  44.22 | cumple 0.161
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: tramos de ancho fijo cerca de MUESTRAS_MINIMAS_CELDA (4)
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [0, 1) n= 219 | de_max mediana   5.20 min   0.35 max  63.34 | cumple 0.283
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [1, 4) n=  20 | de_max mediana   6.76 min   3.20 max  14.38 | cumple 0.000
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [4, 8) n=   9 | de_max mediana   3.91 min   1.12 max  10.20 | cumple 0.444
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [8, 16) n=  17 | de_max mediana   6.93 min   1.20 max  10.33 | cumple 0.118
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [16, 32) n=  22 | de_max mediana   3.51 min   0.65 max  13.52 | cumple 0.318
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [32, 64) n=  15 | de_max mediana   5.03 min   0.42 max  18.40 | cumple 0.333
+[CALD tramos_bajos muestras_p10_zona] lote, fuera de plano, TODO JUNTO: [64, inf) n= 198 | de_max mediana   2.98 min   0.15 max  19.65 | cumple 0.510
+[CALD spearman muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: n=1200 valores_distintos= 829 | rho max -0.223 | p95 -0.129 | medio -0.132
+[CALD rho_ic muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: rho(señal, de_max) = -0.223 IC95=[-0.281, -0.165]
+[CALD spearman muestras_mediana_zona] simple | tam=17 compresion=0 recorte=0: n= 150 valores_distintos= 126 | rho max -0.510 | p95 -0.342 | medio -0.266
+[CALD spearman muestras_mediana_zona] simple | tam=17 compresion=0 recorte=1: n= 150 valores_distintos= 117 | rho max -0.422 | p95 -0.293 | medio -0.277
+[CALD spearman muestras_mediana_zona] simple | tam=17 compresion=1 recorte=0: n= 150 valores_distintos= 129 | rho max -0.443 | p95 -0.298 | medio -0.215
+[CALD spearman muestras_mediana_zona] simple | tam=17 compresion=1 recorte=1: n= 150 valores_distintos= 126 | rho max -0.365 | p95 -0.268 | medio -0.218
+[CALD spearman muestras_mediana_zona] simple | tam=33 compresion=0 recorte=0: n= 150 valores_distintos= 115 | rho max -0.397 | p95 -0.262 | medio -0.319
+[CALD spearman muestras_mediana_zona] simple | tam=33 compresion=0 recorte=1: n= 150 valores_distintos= 104 | rho max -0.347 | p95 -0.229 | medio -0.279
+[CALD spearman muestras_mediana_zona] simple | tam=33 compresion=1 recorte=0: n= 150 valores_distintos= 112 | rho max -0.425 | p95 -0.145 | medio -0.171
+[CALD spearman muestras_mediana_zona] simple | tam=33 compresion=1 recorte=1: n= 150 valores_distintos= 110 | rho max -0.418 | p95 -0.301 | medio -0.285
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: por cuantiles de muestras_mediana_zona
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [0, 5) n= 196 | de_max mediana  11.61 min   1.79 max  56.98 | cumple 0.051
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [5, 266) n= 203 | de_max mediana  12.38 min   1.63 max  47.95 | cumple 0.025
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [266, 1.16e+03) n= 201 | de_max mediana   9.60 min   0.62 max  38.23 | cumple 0.050
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [1.16e+03, 2.65e+03) n= 200 | de_max mediana  10.01 min   0.45 max  41.74 | cumple 0.085
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [2.65e+03, 7.63e+03) n= 200 | de_max mediana   9.46 min   0.55 max  44.22 | cumple 0.080
+[CALD tramos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [7.63e+03, 5.47e+04] n= 200 | de_max mediana   7.60 min   1.54 max  33.12 | cumple 0.120
+[CALD auc muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: cumplen 82 de 1200 | AUC = 0.615 IC95=[0.535, 0.683] (0.5 = no predice; señales donde MENOS es mejor —variance_zona— dan AUC < 0.5 si predicen bien)
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: tramos de ancho fijo cerca de MUESTRAS_MINIMAS_CELDA (4)
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [0, 1) n= 172 | de_max mediana  11.61 min   1.79 max  56.98 | cumple 0.058
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [1, 4) n=  21 | de_max mediana  11.84 min   4.10 max  46.51 | cumple 0.000
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [4, 8) n=  15 | de_max mediana  11.76 min   3.47 max  18.26 | cumple 0.000
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [8, 16) n=  14 | de_max mediana  14.47 min   5.97 max  47.95 | cumple 0.000
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [16, 32) n=  18 | de_max mediana  11.14 min   2.96 max  37.28 | cumple 0.056
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [32, 64) n=  43 | de_max mediana  12.45 min   2.68 max  25.18 | cumple 0.023
+[CALD tramos_bajos muestras_mediana_zona] simple, fuera de plano, TODO JUNTO: [64, inf) n= 917 | de_max mediana   9.18 min   0.45 max  44.22 | cumple 0.076
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: tramos de ancho fijo cerca de MUESTRAS_MINIMAS_CELDA (4)
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [0, 1) n=  78 | de_max mediana   7.05 min   1.61 max  63.34 | cumple 0.115
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [1, 4) n=   5 | de_max mediana   5.85 min   1.69 max   6.89 | cumple 0.200
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [4, 8) n=   5 | de_max mediana   6.80 min   2.38 max  13.15 | cumple 0.400
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [8, 16) n=   6 | de_max mediana   4.88 min   0.76 max  16.08 | cumple 0.333
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [16, 32) n=   6 | de_max mediana   3.02 min   1.01 max   5.77 | cumple 0.500
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [32, 64) n=   8 | de_max mediana   5.16 min   1.48 max  25.05 | cumple 0.250
+[CALD tramos_bajos muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: [64, inf) n= 392 | de_max mediana   4.11 min   0.15 max  35.94 | cumple 0.413
+[CALD spearman variance_zona] simple, fuera de plano, TODO JUNTO: n=1200 valores_distintos=1200 | rho max +0.391 | p95 +0.358 | medio +0.397
+[CALD rho_ic variance_zona] simple, fuera de plano, TODO JUNTO: rho(señal, de_max) = +0.391 IC95=[+0.332, +0.445]
+[CALD spearman variance_zona] simple | tam=17 compresion=0 recorte=0: n= 150 valores_distintos= 150 | rho max +0.039 | p95 +0.421 | medio +0.536
+[CALD spearman variance_zona] simple | tam=17 compresion=0 recorte=1: n= 150 valores_distintos= 150 | rho max -0.058 | p95 +0.204 | medio +0.287
+[CALD spearman variance_zona] simple | tam=17 compresion=1 recorte=0: n= 150 valores_distintos= 150 | rho max -0.061 | p95 -0.426 | medio -0.544
+[CALD spearman variance_zona] simple | tam=17 compresion=1 recorte=1: n= 150 valores_distintos= 150 | rho max -0.254 | p95 -0.592 | medio -0.677
+[CALD spearman variance_zona] simple | tam=33 compresion=0 recorte=0: n= 150 valores_distintos= 150 | rho max +0.014 | p95 +0.303 | medio +0.288
+[CALD spearman variance_zona] simple | tam=33 compresion=0 recorte=1: n= 150 valores_distintos= 150 | rho max -0.138 | p95 +0.095 | medio +0.127
+[CALD spearman variance_zona] simple | tam=33 compresion=1 recorte=0: n= 150 valores_distintos= 150 | rho max -0.075 | p95 -0.204 | medio -0.318
+[CALD spearman variance_zona] simple | tam=33 compresion=1 recorte=1: n= 150 valores_distintos= 150 | rho max -0.076 | p95 -0.354 | medio -0.466
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: por cuantiles de variance_zona
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: [3.45e-10, 6.6e-08) n= 200 | de_max mediana   5.40 min   0.45 max  43.99 | cumple 0.150
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: [6.6e-08, 2.08e-07) n= 200 | de_max mediana   6.83 min   0.85 max  48.40 | cumple 0.165
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: [2.08e-07, 1.1e-06) n= 200 | de_max mediana  10.75 min   0.92 max  44.22 | cumple 0.050
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: [1.1e-06, 1.03e-05) n= 200 | de_max mediana  11.24 min   4.43 max  56.98 | cumple 0.000
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: [1.03e-05, 1.56e-05) n= 200 | de_max mediana  11.13 min   4.12 max  47.95 | cumple 0.000
+[CALD tramos variance_zona] simple, fuera de plano, TODO JUNTO: [1.56e-05, 2.84e-05] n= 200 | de_max mediana  11.55 min   1.82 max  37.49 | cumple 0.045
+[CALD auc variance_zona] simple, fuera de plano, TODO JUNTO: cumplen 82 de 1200 | AUC = 0.248 IC95=[0.171, 0.315] (0.5 = no predice; señales donde MENOS es mejor —variance_zona— dan AUC < 0.5 si predicen bien)
+[CALD spearman cobertura_destino] lote, fuera de plano, TODO JUNTO: n= 500 valores_distintos= 488 | rho max -0.335 | p95 -0.357 | medio -0.316
+[CALD spearman cobertura_destino] lote | compresion=0: n= 250 valores_distintos= 246 | rho max -0.558 | p95 -0.589 | medio -0.591
+[CALD spearman cobertura_destino] lote | compresion=1: n= 250 valores_distintos= 243 | rho max -0.365 | p95 -0.349 | medio -0.288
+[CALD spearman muestras_p10_zona] lote, fuera de plano, TODO JUNTO: n= 500 valores_distintos= 222 | rho max -0.260 | p95 -0.286 | medio -0.237
+[CALD spearman muestras_p10_zona] lote | compresion=0: n= 250 valores_distintos= 116 | rho max -0.429 | p95 -0.490 | medio -0.469
+[CALD spearman muestras_p10_zona] lote | compresion=1: n= 250 valores_distintos= 125 | rho max -0.317 | p95 -0.287 | medio -0.218
+[CALD spearman muestras_mediana_zona] lote, fuera de plano, TODO JUNTO: n= 500 valores_distintos= 389 | rho max -0.303 | p95 -0.245 | medio -0.200
+[CALD spearman muestras_mediana_zona] lote | compresion=0: n= 250 valores_distintos= 199 | rho max -0.412 | p95 -0.370 | medio -0.345
+[CALD spearman muestras_mediana_zona] lote | compresion=1: n= 250 valores_distintos= 200 | rho max -0.344 | p95 -0.155 | medio -0.080
+[CALD spearman variance_zona] lote, fuera de plano, TODO JUNTO: n= 500 valores_distintos= 500 | rho max +0.552 | p95 +0.527 | medio +0.556
+[CALD spearman variance_zona] lote | compresion=0: n= 250 valores_distintos= 250 | rho max +0.282 | p95 +0.372 | medio +0.361
+[CALD spearman variance_zona] lote | compresion=1: n= 250 valores_distintos= 250 | rho max -0.162 | p95 -0.389 | medio -0.465
+[CALD spearman planos_acumulados] lote, fuera de plano, TODO JUNTO: n= 500 valores_distintos=   5 | rho max -0.140 | p95 -0.103 | medio -0.084
+[CALD rho_ic planos_acumulados] lote, fuera de plano, TODO JUNTO: rho(señal, de_max) = -0.140 IC95=[-0.248, -0.019]
+[CALD tramos planos_acumulados] lote, fuera de plano, TODO JUNTO: por cuantiles de planos_acumulados
+[CALD tramos planos_acumulados] lote, fuera de plano, TODO JUNTO: [1, 1.8) n= 100 | de_max mediana   5.07 min   0.42 max  63.34 | cumple 0.270
+[CALD tramos planos_acumulados] lote, fuera de plano, TODO JUNTO: [1.8, 2.6) n= 100 | de_max mediana   4.85 min   0.18 max  35.94 | cumple 0.390
+[CALD tramos planos_acumulados] lote, fuera de plano, TODO JUNTO: [2.6, 3.8) n= 100 | de_max mediana   4.66 min   0.16 max  22.46 | cumple 0.280
+[CALD tramos planos_acumulados] lote, fuera de plano, TODO JUNTO: [3.8, 5.6) n= 100 | de_max mediana   4.04 min   0.32 max  24.40 | cumple 0.410
+[CALD tramos planos_acumulados] lote, fuera de plano, TODO JUNTO: [5.6, 8] n= 100 | de_max mediana   3.56 min   0.15 max  17.42 | cumple 0.460
+[CALD spearman planos_acumulados] lote | compresion=0: n= 250 valores_distintos=   5 | rho max -0.224 | p95 -0.108 | medio -0.126
+[CALD spearman planos_acumulados] lote | compresion=1: n= 250 valores_distintos=   5 | rho max -0.150 | p95 -0.194 | medio -0.143
+[CALD auc planos_acumulados] lote, fuera de plano, TODO JUNTO: cumplen 181 de 500 | AUC = 0.569 IC95=[0.512, 0.627] (0.5 = no predice; señales donde MENOS es mejor —variance_zona— dan AUC < 0.5 si predicen bien)
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: criterio ALTA: fracción que cumple entre los casos con nota >= t, IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.00 n=1700 cumple=0.155 IC95=[0.125, 0.194]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.20 n=1576 cumple=0.159 IC95=[0.127, 0.199]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.40 n=1489 cumple=0.164 IC95=[0.131, 0.207]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.60 n=1337 cumple=0.176 IC95=[0.142, 0.220]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.75 n=1168 cumple=0.192 IC95=[0.156, 0.238]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.80 n=1065 cumple=0.205 IC95=[0.166, 0.253]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.90 n= 771 cumple=0.240 IC95=[0.195, 0.293]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.95 n= 512 cumple=0.314 IC95=[0.248, 0.385]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=0.99 n= 186 cumple=0.419 IC95=[0.322, 0.509]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: t=1.00 n=  16 cumple=0.688 IC95=[0.400, 0.895]
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: RESULTADO: t con IC inferior >= 0.95: ninguno | lo mejor con n >= 20: 0.667 (nota >= 1.0000, n=24)
+[CALD umbral nota] todo, fuera de plano, SOLO cobertura_destino: AUC = 0.714 IC95=[0.673, 0.754]
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=0 recorte=0: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.400 en cobertura_destino>=0.9910 (n=15)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=0 recorte=1: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.533 en cobertura_destino>=0.9910 (n=15)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=1 recorte=0: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.200 en cobertura_destino>=0.9936 (n=15)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=17 compresion=1 recorte=1: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.235 en cobertura_destino>=0.9937 (n=17)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=0 recorte=0: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.600 en cobertura_destino>=0.9783 (n=15)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=0 recorte=1: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.824 en cobertura_destino>=0.9751 (n=17)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=1 recorte=0: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.067 en cobertura_destino>=0.9779 (n=15)
+[CALD umbral_clase cobertura_destino] simple, fuera de plano | tam=33 compresion=1 recorte=1: n=150 t_IC95>=0.95=ninguno | mejor con n>=15: cumple=0.067 en cobertura_destino>=0.9784 (n=15)
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: criterio ALTA: fracción que cumple entre los casos con nota >= t, IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.00 n=1700 cumple=0.155 IC95=[0.125, 0.194]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.20 n= 753 cumple=0.243 IC95=[0.197, 0.296]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.40 n= 704 cumple=0.253 IC95=[0.201, 0.312]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.60 n= 620 cumple=0.271 IC95=[0.215, 0.343]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.75 n= 542 cumple=0.292 IC95=[0.231, 0.362]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.80 n= 522 cumple=0.297 IC95=[0.234, 0.367]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.90 n= 459 cumple=0.312 IC95=[0.241, 0.391]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.95 n= 400 cumple=0.343 IC95=[0.274, 0.426]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=0.99 n= 179 cumple=0.430 IC95=[0.335, 0.530]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: t=1.00 n=  16 cumple=0.688 IC95=[0.400, 0.895]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: RESULTADO: t con IC inferior >= 0.95: ninguno | lo mejor con n >= 20: 0.652 (nota >= 1.0000, n=23)
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4: AUC = 0.702 IC95=[0.660, 0.743]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: criterio ALTA: fracción que cumple entre los casos con nota >= t, IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.00 n=1700 cumple=0.155 IC95=[0.125, 0.194]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.20 n= 696 cumple=0.256 IC95=[0.204, 0.315]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.40 n= 609 cumple=0.271 IC95=[0.215, 0.344]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.60 n= 489 cumple=0.305 IC95=[0.240, 0.380]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.75 n= 384 cumple=0.336 IC95=[0.265, 0.413]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.80 n= 343 cumple=0.344 IC95=[0.272, 0.430]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.90 n= 238 cumple=0.378 IC95=[0.300, 0.469]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.95 n= 196 cumple=0.408 IC95=[0.316, 0.506]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=0.99 n= 104 cumple=0.462 IC95=[0.344, 0.610]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: t=1.00 n=  10 cumple=0.800 IC95=[0.500, 1.000]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: RESULTADO: t con IC inferior >= 0.95: ninguno | lo mejor con n >= 20: 0.741 (nota >= 0.9997, n=27)
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=1000/8: AUC = 0.698 IC95=[0.656, 0.739]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): criterio ALTA: fracción que cumple entre los casos con nota >= t, IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.00 n=1700 cumple=0.155 IC95=[0.125, 0.194]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.20 n= 399 cumple=0.409 IC95=[0.333, 0.499]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.40 n= 347 cumple=0.458 IC95=[0.371, 0.564]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.60 n= 243 cumple=0.605 IC95=[0.504, 0.716]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.75 n= 121 cumple=0.851 IC95=[0.765, 0.928]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.80 n=  84 cumple=0.917 IC95=[0.842, 0.976]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.90 n=  37 cumple=0.973 IC95=[0.900, 1.000]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.95 n=  26 cumple=1.000 IC95=[1.000, 1.000]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=0.99 n=  11 cumple=1.000 IC95=[1.000, 1.000]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): t=1.00 n=   2 cumple=1.000 IC95=[1.000, 1.000]
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): RESULTADO: t con IC inferior >= 0.95: 0.95 | lo mejor con n >= 20: 1.000 (nota >= 0.9313, n=30)
+[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10+variance (control): AUC = 0.750 IC95=[0.716, 0.784]
+[CALD fin]

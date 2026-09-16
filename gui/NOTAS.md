@@ -825,3 +825,78 @@ Arreglo, en el montaje del test y no en la aserción: se pintan los `n` cortes e
 Hoy es b=1. Y un control negativo repinta las celdas medidas con el tono de tablero que les toca y
 comprueba que la aserción salta por la frase de lo medido. Sin cambio visible: no se regeneran
 capturas.
+
+---
+
+## Modo fácil (día 5, tarea 3): `gui/asistente_facil.py` + `gui/pantalla_facil.py`
+
+**Mismo motor, otra presentación.** `gui/asistente_facil.py` es lógica pura (sin Qt): cada
+paso llama a las mismas funciones de `core` que ya usa el modo avanzado
+(`core.colormgmt.detectar_espacios_timeline`/`agrupar_ambiguos`/`verificar_proyecto` para
+«ordenar la casa», `core.matching.emparejar` —vía `ClipDemo.match`, que ya lo calcula— para
+«igualar» y «equilibrar»). No hay un segundo camino de cálculo «simplificado»: lo que cambia
+es qué se enseña y en qué orden, nunca cómo se calcula.
+
+**Por qué el paso 5 (repasar) NO usa la confianza.** El día 4 midió que la nota de
+`core.reverse`/`core.matching` no predice el error real (`CALIBRACION-CONFIANZA.md`). Ponerla
+en el modo fácil —que es justo el público que menos puede juzgar por sí mismo si un número
+«alta» merece confianza— habría sido mentir con apariencia de objetividad. En su lugar,
+`ejecutar_repasar` usa dos señales que SÍ están medidas: `content_mismatch` (el día 4 confirmó
+que distingue bien «misma escena» de «escena distinta») y los grupos de `core.colormgmt` que
+el paso 1 no pudo resolver solo. Hay un test explícito de esto:
+`tests/test_gui_asistente_facil.py::test_repasar_no_usa_la_palabra_confianza_en_sus_motivos`.
+
+**El bug real que cazó la verificación visual (no un test):** la primera versión de
+`ejecutar_repasar` sumaba candidatos de las dos señales SIN deduplicar por `clip_id`. Con
+`estado_demo()` daba «8 clips que conviene que mires» cuando en realidad eran 7 (el clip del
+exterior aparecía dos veces: por desajuste de contenido Y por falta de metadata de cámara). No
+lo encontró ningún test —los tests puros no habían cubierto ese solape—, lo encontró mirar la
+captura renderizada de verdad y hacer la cuenta a mano. Arreglado agrupando por `clip_id` con
+los motivos concatenados; el test
+`tests/test_gui_asistente_facil.py::test_repasar_no_duplica_un_clip_con_dos_motivos` lo fija.
+
+**El otro bug que cazó la misma verificación:** `_clip_con_imagen()` cogía «el primer clip con
+imagen», que en `estado_demo()` es precisamente el clip de referencia. Mostrar la referencia
+emparejada contra sí misma en el paso «igualar» da un CDL casi identidad: el antes/después
+salía visualmente idéntico y no demostraba nada. Arreglado con
+`evitar_referencia=True` en los pasos que ajustan color.
+
+**El conmutador (`gui/ventana.py`, `CLAVE_MODO_FACIL`).** Vive en el carril, por encima de la
+navegación de las 4 pantallas del modo avanzado, que se oculta entera mientras el modo fácil
+está activo (no tiene sentido navegar «clips / comparar / aplicar / reverse» dentro del
+asistente). Se recuerda con `QSettings("SIDEBFLMS", "COLOR")`, por usuario del sistema — NO es
+un ajuste del proyecto ni se versiona.
+
+**Ojo con `QSettings` y macOS al escribir tests.** `cfprefsd` (el daemon de preferencias de
+macOS) cachea el valor en memoria incluso después de borrar el `.plist` a mano
+(`rm ~/Library/Preferences/com.sidebflms.COLOR.plist` no basta; hace falta
+`defaults delete com.sidebflms.COLOR`, que sí invalida el caché). Y `QSettings.setDefaultFormat(IniFormat)`
++ `setPath(...)` apuntando a un directorio temporal **tampoco aísla el test**: en este mismo
+día se comprobó que `QSettings("SIDEBFLMS", "COLOR").fileName()` seguía devolviendo la ruta del
+`.plist` nativo real a pesar de haber forzado `IniFormat`. La única forma que funcionó de
+verdad fue sustituir la clase entera por un stub en memoria vía `monkeypatch` (ver
+`tests/test_gui_pantalla_facil.py::_SettingsFalso`). Cualquier test futuro que toque
+`QSettings` en esta app debería partir de ese patrón, no del `IniFormat`.
+
+**Escritura en Resolve: deliberadamente fuera de esta pantalla.** `PantallaFacil` es pura
+previsualización — calcula y enseña, no escribe. «Deshacer» solo mueve el puntero de paso
+porque no hay nada escrito de verdad que deshacer. Escribir en Resolve con la red de
+seguridad de la versión `SIDEB COLOR` ya existe en el modo avanzado (`PantallaAplicar`), y
+esta pantalla no lo duplica. Queda pendiente, para quien retome esto, decidir si el modo
+fácil necesita su propio botón «Aplicar» al final del paso 5 (que llamaría a
+`core.resolve.aplicar_grado_seguro`, ya probado) o si basta con dejar que quien lo use pase al
+modo avanzado para el último paso.
+
+**Lo que falta, con conocimiento de causa:**
+- Sólo se ha probado con `estado_demo()`. Falta ejercitar el asistente contra
+  `estado_vacio()`, `estado_desconectado()` y `estado_muchos()` con capturas (los tests puros
+  de `asistente_facil` sí lo cubren; las capturas de `gui/capturas.py` sólo tienen el caso
+  nominal).
+- El paso 1 sólo enseña `grupos_pendientes[0]` cuando hay varios grupos ambiguos a la vez
+  (en `estado_demo()`, sin metadata de cámara en ningún clip, hay dos). No hay forma de
+  navegar entre preguntas dentro del mismo paso — habría que decidir si eso es un paso 1
+  con sub-navegación o una lista de preguntas.
+- «Equilibrar» (paso 3) no tiene, hoy, una operación propia en `core`: reutiliza el mismo CDL
+  de «igualar» y sólo cambia la frase para hablar de exposición/balance en vez de igualado
+  completo. Es honesto (no inventa un cálculo que no existe) pero es una simplificación real,
+  documentada aquí para que no se lea como una función separada que no es.

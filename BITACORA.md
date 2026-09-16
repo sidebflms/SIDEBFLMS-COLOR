@@ -883,3 +883,148 @@ pantalla no debería usarse para decidir nada**.
    clips sólo puede enseñar la media) y en cuántos planos se midió un grado. ¿Se añaden?
 6. **Qué hacemos con la confianza** mientras no se rediseña: ¿se oculta, o se deja con un
    aviso de que no predice?
+
+---
+
+# DÍA 5 — 16 de septiembre de 2026
+
+**El producto ha cambiado.** Hasta hoy esto se construía como herramienta de colorista.
+Es, en cambio, para alguien del equipo que sabe aplicar un LUT y poco más, con un modo
+fácil de cinco pasos (ordenar la casa → igualar → equilibrar → look → repasar) y el modo
+avanzado de siempre debajo, mismo motor. Ingeniería inversa aparcada por decisión de
+Mario: no se ha tocado `core/reverse` salvo para construir sobre ella sin romperla.
+
+## D5-0 · El probe ampliado, antes de que Mario lo ejecute
+
+Dos preguntas nuevas en `probe/api_probe.py`, siguiendo el mismo patrón que las seis de
+siempre (pregunta de solo lectura o de escritura, con permiso, informe JSON+texto):
+
+- **F0-7** — ¿`SetClipProperty(clip, "Input Color Space", valor)` funciona, y se puede
+  releer con `GetClipProperty`? También lista TODAS las claves que devuelve
+  `GetClipProperty()` sin argumentos, para saber qué hay de verdad (hoy `core.colormgmt`
+  usa cinco claves — `Camera Manufacturer`, `Camera Type`, `Gamma Notes`, `Camera Notes`,
+  `Input Color Space` — que son la mejor lectura de foros, SIN VERIFICAR).
+- **F0-8** — ¿`SetSetting` acepta `colorScienceMode` y los espacios de trabajo/salida del
+  proyecto, con lectura de vuelta para confirmar?
+
+De estas dos depende que la tarea 1 (gestión de color automática) pueda algún día escribir
+en Resolve, no solo diagnosticar. Mientras no haya respuesta, todo lo que sigue es
+diagnóstico puro: detecta y pregunta, no escribe.
+
+## D5-1 · `core.colormgmt`: gestión de color automática
+
+Dos piezas, puras (no tocan Resolve): `deteccion.py` (tabla de decisión explícita de las
+cuatro cámaras + Rec.709, con la fuente de cada mapeo citada) y `verificacion.py`
+(verificador de doble conversión). Extendido `ClipRef` con cinco campos de metadata de
+cámara, todos opcionales y `None` por defecto — no rompe ningún `ClipRef(...)` anterior.
+
+**La regla que se prueba una y otra vez:** lo que no se sabe con seguridad no se adivina.
+Un clip sin metadata reconocible, o con una curva que contradice su fabricante declarado,
+**no se resuelve solo** — cae en un `GrupoAmbiguo` con una pregunta en castellano llano
+(«Estos 42 clips parecen ser Sony S-Log3, ¿lo son?») y, si hay una pista parcial, una
+conjetura que **no se aplica sin confirmar**. Probado con `FakeResolve` simulando un
+timeline con las cuatro cámaras completas, dos clips incompletos, uno sin ningún dato y uno
+contradictorio: las cuatro completas salen seguras y correctas, las otras cuatro van a
+grupos pendientes (`tests/test_colormgmt_integracion.py`).
+
+El verificador de doble conversión avisa si el proyecto ya convierte automáticamente
+(`color_science` contiene «managed») Y ADEMÁS hay un LUT que parece de conversión de
+entrada puesto en el nodo de normalización — la heurística de «parece conversión» es de
+nombre de archivo, sin verificar contra Resolve real, documentado como tal.
+
+29 tests nuevos, todos en verde.
+
+## D5-2 · La confianza rediseñada: delegado a un agente independiente
+
+**No podía medirlo yo.** Escribí las features nuevas (`core/reverse/confianza_destino.py`:
+cobertura de las celdas que el plano de DESTINO realmente usa, no el cubo entero; muestras
+por celda en esa zona, sin asumir que «más es mejor» porque el día 4 encontró que no lo es;
+varianza del residuo en la zona; planos acumulados), pero decidir si predicen el error real
+es exactamente la clase de juicio que no puedo hacer sobre mi propio código. Se delegó a un
+agente limpio, en un worktree aparte, con instrucciones de medir con el mismo rigor que el
+agente de calibración del día 4 y de decir la verdad sea cual sea.
+
+**Resultado: predice, pero no lo bastante para colgar un número.** El agente midió las
+cuatro señales (`cobertura_destino`, `muestras_p10_zona`, `muestras_mediana_zona`,
+`variance_zona`) más `planos_acumulados` contra el ΔE2000 real, con el mismo criterio de
+umbral (95% de IC inferior) que el día 4. 2.040 filas sintéticas nuevas
+(`tests/calibracion_destino/`).
+
+La buena noticia es genuina: `cobertura_destino` y `muestras_p10_zona` SÍ correlacionan
+DENTRO de cada clase de material (AUC 0.73–0.97 en las 8 combinaciones de rejilla ×
+compresión × recorte, sin una sola inversión de signo — la nota actual tenía AUC 0.500
+exacto ahí mismo). Confirma también, con datos independientes, que «más muestras» no es
+monótono cerca del mínimo: 1-8 muestras predice *peor* que 0 (puro relleno suave), tal y
+como encontró el día 4.
+
+Pero ni así llega al 95%: el mejor corte, en la clase más favorable, deja 82.4% de
+aciertos (n=17). La única combinación que cruza el 95% mete `variance_zona`, que tiene su
+propia paradoja de Simpson (se invierte bajo compresión: una celda casi vacía tiene
+`variance=0`, que se lee como «limpia» en vez de «sin datos»). El agente la descartó por
+eso, documentado, no la usó para forzar el resultado.
+
+**Decisión: no se conecta nada a la GUI.** `core/umbrales.py`, `core/matching/confianza.py`
+y `core/contracts.py` sin tocar. `confianza_destino.py` se queda con las features crudas,
+sin fórmula de nota — reusar `CONFIDENCE_ALTA=0.75` con la candidata sin `variance_zona` daría
+un «alta» que acierta el 29% de las veces, peor que no decir nada. Es exactamente lo que pide
+el encargo: «si la nueva tampoco correlaciona [lo suficiente], dilo y déjala oculta».
+
+Informe completo: [`CALIBRACION-CONFIANZA-DESTINO.md`](CALIBRACION-CONFIANZA-DESTINO.md).
+Filas en `CIFRAS.md` §13. Suite completa relanzada por el agente: `EXIT=0`.
+
+## D5-3 · Los dos modos
+
+`gui/asistente_facil.py` (lógica pura) + `gui/pantalla_facil.py` (la pantalla): el asistente
+de cinco pasos, sobre el MISMO motor que el modo avanzado — no hay un segundo camino de
+cálculo «simplificado». Conmutador en el carril de `VentanaPrincipal`
+(`CLAVE_MODO_FACIL`), que se recuerda por usuario con `QSettings` y oculta la navegación de
+las 4 pantallas del modo avanzado mientras está activo.
+
+**El paso 5 (repasar) no usa la confianza sin calibrar**, tal y como exige el encargo: usa
+dos señales que SÍ están medidas (`content_mismatch`, que el día 4 confirmó que distingue
+bien escenas distintas, y los grupos ambiguos del paso 1). Ningún ΔE, CDL ni porcentaje de
+confianza en pantalla — hay un test que lo comprueba textualmente.
+
+**Dos bugs reales que sólo encontró mirar la captura renderizada, no los tests:**
+1. `ejecutar_repasar` sumaba candidatos de las dos señales sin deduplicar por `clip_id`:
+   con el estado de demostración decía «8 clips que conviene que mires» cuando eran 7 (uno
+   aparecía dos veces). Arreglado agrupando por clip con los motivos concatenados.
+2. El antes/después de «igualar» mostraba el clip de referencia emparejado consigo mismo
+   (CDL casi identidad): el cambio no se veía. Arreglado evitando la referencia al elegir
+   qué clip enseñar en los pasos que ajustan color.
+
+Capturas en `capturas/05-facil-*` a 1440, 1024 y 973 (la anchura mínima real, sin cambios:
+sigue en 973×727). Miradas una a una antes de darlas por buenas.
+
+**Lo que queda, dicho con conocimiento de causa** (detalle completo en `gui/NOTAS.md`):
+el paso 1 sólo enseña la primera pregunta cuando hay varias a la vez; «equilibrar» reutiliza
+el CDL de «igualar» en vez de tener un cálculo propio (no existe esa función en `core` y
+inventarla habría sido automatizar algo no medido); y esta pantalla no escribe en Resolve
+—es previsualización pura—, así que aplicar de verdad sigue pasando por el modo avanzado.
+
+## D5-4 · PowerGrades reales: infraestructura lista, material pendiente
+
+`tests/powergrades_reales/` en `.gitignore` (solo lectura, nunca se versiona). Como la
+carpeta no existe todavía, se montó lo que se puede sin material real:
+`core/io/drx.py` es un INSPECTOR, no un lector — parsea como XML si puede y cuenta qué
+etiquetas aparecen, sin asumir ningún esquema, porque «confirmar el formato real» sólo se
+puede hacer con un `.drx` de verdad delante y Blackmagic no lo publica. Los tests están
+partidos en dos: contra un XML fabricado a mano (mecánica del parser) y contra
+`tests/powergrades_reales/*.drx` (`pytest.mark.skipif` si la carpeta está vacía). El
+avisador de dependencias (busca rutas a LUTs/imágenes referenciadas y dice cuáles faltan
+en disco) y la siembra de la biblioteca de presets siguen bloqueados hasta que Mario deje
+material.
+
+## D5-5 · Sin resolver
+
+1. La confianza de destino correlaciona pero no llega al 95%: si el listón real que hace
+   falta es más bajo, `cobertura_destino` sola ya serviría de indicador — decisión de
+   producto pendiente, no técnica. Y `variance_zona` tiene un bug de diseño conocido
+   (celdas casi vacías con `variance=0` leídas como «limpias»): arreglable excluyendo
+   `counts < 2` de su media, sin tocar.
+2. El formato real del `.drx`: sigue siendo una suposición de foro hasta que haya material.
+3. El paso 1 del modo fácil con varias preguntas pendientes a la vez.
+4. Si el modo fácil necesita su propio botón «Aplicar» o basta con pasar al modo avanzado.
+5. Todo lo que ya estaba sin resolver de los días 3-4 y no se ha tocado hoy: la caja del
+   detector de ventana (0.43 frente a 0.80), el CDL extraído absorbiendo contraste del
+   LUT, el aviso de cobertura baja al revés, sigue sin ejecutarse nada contra Resolve real.

@@ -111,6 +111,38 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
             hechas.append(Captura(fichero.name, f"{desc} · {ancho}×{alto}"))
         ventana.close()
 
+    # --- modo fácil (día 5, tarea 3): las dos vistas piden las mismas tres
+    # anchuras que el modo avanzado, ver `docs/IDENTIDAD.md`. El paso 1
+    # (ordenar) enseña la pregunta pendiente, que es el caso que más texto
+    # exige a la anchura mínima.
+    ventana = _ventana(app, dd.estado_demo(), 0)
+    ventana.boton_modo_facil.setChecked(True)
+    _asentar(app, ventana)
+    for ancho in anchuras:
+        alto = ALTO_NOMINAL if ancho != minimo else alto_minimo
+        fichero = destino / f"05-facil-ordenar-{ancho}.png"
+        _disparar(app, ventana, fichero, ancho, alto)
+        hechas.append(Captura(fichero.name, f"modo fácil, paso 1 (ordenar) con pregunta pendiente · {ancho}×{alto}"))
+    ventana.close()
+
+    ventana = _ventana(app, dd.estado_demo(), 0)
+    ventana.boton_modo_facil.setChecked(True)
+    for _ in range(4):  # avanza hasta el paso 5 (repasar)
+        ventana.p_facil.siguiente()
+    _asentar(app, ventana)
+    fichero = destino / "05-facil-repasar-1024.png"
+    _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
+    hechas.append(Captura(fichero.name, "modo fácil, paso 5 (repasar): lista corta sin usar la confianza · 1024×900"))
+    ventana.close()
+
+    ventana = _ventana(app, dd.estado_vacio(), 0)
+    ventana.boton_modo_facil.setChecked(True)
+    _asentar(app, ventana)
+    fichero = destino / "05-facil-vacio-1024.png"
+    _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
+    hechas.append(Captura(fichero.name, "modo fácil sin clips: cada paso lo dice en vez de quedarse en blanco · 1024×900"))
+    ventana.close()
+
     # --- casos frontera -------------------------------------------------
     frontera: list[tuple[str, str, int, object, int, int]] = []
 
