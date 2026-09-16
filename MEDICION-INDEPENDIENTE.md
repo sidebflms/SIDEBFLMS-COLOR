@@ -54,7 +54,7 @@ por el material o por el montaje.
 | | Criterio | Publicado | Mío | Veredicto |
 |---|---|---|---|---|
 | **T1** ingeniería inversa | ΔE2000 medio < 1.0 · máx < 3.0 | 0.1415 · 1.7409 | **0.1687 · 2.8867** | **difiere** (criterio cumplido, cifra 1.19x y 1.66x peor) |
-| **T2** lo que no es un LUT | no decir 100% LUT, y señalar la zona | 70.0% reproducible, solape 99.4% | **90.8% reproducible, solape 0.0%** de la zona más fuerte | **difiere** (la mitad de "no es 100% LUT" **coincide**; la de "señalar la zona" **no se reproduce**) |
+| **T2** lo que no es un LUT | no decir 100% LUT, y señalar la zona | 70.0% reproducible, solape 99.4% | **90.8% reproducible; solape de la zona principal 0.4294** (día 4, `86da011`; el día 3 era 0.0000) | **difiere** (la mitad de "no es 100% LUT" **coincide**; la de "señalar la zona" **no se reproduce**) |
 | **T3** igualado de 4 cámaras | > 8.0 antes · < 2.0 después | 17.674 → 0.661 | **15.499 → 1.085** | **difiere** (criterio cumplido, el "después" es 1.64x peor) |
 | **T4** QC de LUT | caza los 3 malos, identidad limpia | 3/3, limpia en 17³/33³/65³ | **3/3, limpia en 17³/33³/65³** | **coincide** |
 
@@ -201,7 +201,168 @@ LUT (post-CDL) con numpy puro, **0 celdas dicen tener datos sin tenerlos**.
 
 ## 3. T2 — detección de lo que no es un LUT · **difiere**
 
-### Cifra
+### Estado HOY (día 4, 2026-09-16, contra `86da011`)
+
+```
+[MEDICION T2-aferrado] #0 'zona local' (89,301,251,104) mag=14.93420487819448 solape=0.4294
+[MEDICION T2-aferrado] #1 'zona local' (0,284,31,29) mag=12.297431460074693 solape=0.0000
+[MEDICION T2-aferrado-margen] margen_de_magnitud=0.214417  max_magnitud_coincide_con_la_primera=1
+[MEDICION T2-zona] residuo_dentro=0.368935  residuo_fuera=0.0778981  razon=4.73613  mejor_solape_de_cualquier_hotspot=0.429436  fraccion_top500_residuo_en_mi_ventana=0.936
+[MEDICION T2-zona-principal] solape=0.429436  magnitud=14.9342
+```
+
+Comando (primer plano, ~9 s):
+
+```bash
+cd "/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color"
+.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -p no:warnings -rxX -k "aferrados or cae_donde_esta_mi_ventana"
+```
+
+**La zona principal ya es la ventana, pero su caja solapa 0.4294 y el criterio
+pide 0.80. El límite sigue vivo.** Lo que ha cambiado respecto al día 3 es cuál
+sale primera, no la caja.
+
+### Día 4: el centinela saltó, y lo que hice con él
+
+El commit `86da011` (otro agente) cambió el orden de las zonas y la definición
+de `Hotspot.magnitude`. Mi centinela saltó con `el hotspot #0 era (0, 284, 31, 29)
+y ahora es (89,301,251,104)`, que es exactamente para lo que estaba.
+
+**Lo comprobé yo, sin creerme lo que decía el commit.** Extraje `71448ff` (el
+padre) y `86da011` con `git archive` y volqué **todos** los hotspots de mis ocho
+montajes distintos en los dos:
+
+| Montaje | ¿Mismas cajas? | ¿Mismo `lut_reproducible` e `is_pure_lut`? | Principal antes → después (solape) |
+|---|---|---|---|
+| principal (viñeta + ventana, luz lineal) | **sí**, orden invertido | **sí, bit a bit** (0.9083604985578424) | esquina (0.0000) → **ventana (0.4294)** |
+| sombra=True, viñeta sola | sí | sí | la misma (0.0000) |
+| sombra=True, ventana sola | sí, #1 y #2 intercambiados | sí | **esquina (0.0000) → esquina (0.0000)** |
+| sombra=False, viñeta sola | sí | sí | la misma (0.0000) |
+| sombra=False, ventana sola | sí, #0 y #1 intercambiados | sí | (117,368,101,37) 0.0000 → **ventana (57,244,226,120) 0.7585** |
+| sombra=False, las dos | sí (una sola zona) | sí | la misma (0.5070) |
+| codificada (convención del repo) | **NO: una zona cambia** (ver abajo) | sí (0.6844404189343802) | la misma, (98,257,229,105), 0.8053 |
+| contrapeso (sin nada espacial) | sí (cero zonas) | sí (0.9939705597809338, puro) | — |
+
+Y los entregables del propio repo sobre `86da011`: **T1 0.1415 / 1.7409, T2
+0.7002 / solape 0.9941**, idénticos.
+
+Las cuatro cifras que me pasó el coordinador **las confirmo exactas**: #0 la
+ventana `(89,301,251,104)` con magnitud `14.93420487819448` y solape `0.4294`; #1
+la esquina `(0,284,31,29)` con `12.297431460074693` y `0.0000`; margen `0.2144`.
+**Las cajas de verdad no se han movido.**
+
+**Una afirmación del commit que NO se sostiene tal cual.** `86da011` y
+`core/reverse/NOTAS.md` §6.7 dicen *"qué zonas salen y con qué caja no cambia en
+nada, sólo el orden: no puede aparecer un falso positivo nuevo"*. En el montaje
+codificado, que emite 8 hotspots (el tope `MAX_HOTSPOTS = 8`: 2 de forma + 6
+zonas locales), **una zona sale de la lista y entra otra**:
+
+| | Antes (`71448ff`) | Después (`86da011`) |
+|---|---|---|
+| sale | `(459,161,50,59)`, magnitud 12.2442 (ΔE de rectángulo) | — |
+| entra | — | `(347,108,60,56)`, magnitud 4.8250 (ΔE de píxeles) |
+
+Ninguna de las dos toca la ventana. La explicación que leo en el código es el
+recorte: `_recortar` corta la lista a `resto[:hueco]`, y antes cortaba tras
+ordenar por magnitud y ahora tras ordenar por masa. **Eso lo he leído, no lo he
+medido** (no puedo contar componentes antes del recorte sin llamar a
+`analizar_espacial`). Lo que sí he medido es el cambio de la lista emitida. La
+afirmación del commit puede valer para el conjunto de componentes; **para lo que
+ve la GUI, cuando hay más de 8, no vale**.
+
+**Mi decisión: el cambio es legítimo, y re-aferré el centinela al estado nuevo.**
+Por qué:
+
+1. Las cajas, `lut_reproducible` e `is_pure_lut` no se mueven en ninguno de mis
+   ocho montajes (salvo la zona cambiada en el recorte, que no es la principal),
+   y T1/T2 del repo son idénticos.
+2. La nueva `magnitude` (ΔE medio sobre los píxeles de la zona) es una lectura
+   más fiel del contrato ("residuo medio en la zona") que la media del
+   rectángulo.
+3. **No parece ajustado a mi test**: en *sombra=True, ventana sola* la esquina
+   sigue primera con solape 0.0000; si hubieran afinado para mi montaje, eso
+   también habría cambiado. Y dejaron mi `xfail` y mi centinela en rojo para que
+   lo decidiera yo.
+4. El reparo de arriba es una afirmación demasiado fuerte en la nota, no un fallo
+   del detector: no toca `lut_reproducible` ni la zona principal de ningún
+   montaje mío.
+
+**Lo que NO he verificado** y queda como cifra suya: las masas (3909 contra 142),
+el 55% de ocupación del rectángulo por la ventana, los picos (0.469 contra 0.217)
+y las cuatro formas de ajustar la caja que dice haber probado. Todo eso sale por
+`analizar_espacial` o por sondas de su sesión, fuera de la API que tengo
+permitida.
+
+### Día 4: lo que cambié en `tests/medicion/test_t1_t2.py`
+
+1. **Selección por "primera de la lista".** `_por_magnitud` desaparece; la
+   principal es `_principal(hotspots, "zona local")`, la primera `zona local` en
+   el orden de la tupla, que es lo que dice el contrato desde `86da011` y lo que
+   lista la GUI. Hoy, en mis ocho montajes, la primera `zona local` coincide con
+   la de mayor magnitud, así que el cambio no mueve ningún veredicto mío; cambia
+   qué se prueba.
+2. **Centinela re-aferrado**, renombrado a
+   `test_T2_las_dos_cajas_y_su_orden_estan_aferrados`. Afirma `lut_reproducible`
+   (`rel=1e-9`), 2 hotspots, las dos cajas **en el orden de la tupla**, sus
+   magnitudes (`rel=1e-6`) y que el margen de magnitud está entre 18% y 25%.
+   **Ese margen ya no es "el desempate"**: el orden va por masa, que no sale por
+   la API. Se vigila como centinela de la *definición* de `magnitude`.
+3. **Las cifras que cita el `reason` están ahora afirmadas en verde**: el caso
+   codificado (caja `(98,257,229,105)`, solape > 0.80, etiqueta `vineta`,
+   `lut_reproducible` 0.6844404189343802) en el test de atribución, y los dos
+   casos de *ventana sola* en la sonda. Una cifra de un `reason` que no está
+   afirmada en ningún sitio es un recuerdo, no una medida.
+4. **`reason` reescrito** con las cifras de hoy. El del día 3 decía que la
+   principal era la esquina con solape 0.0000: seguía en XFAIL, pero la
+   descripción ya no era cierta.
+
+**Una cifra que casi se cuela, dicha**: al redactar el `reason` escribí que la
+caja principal era "2.4 veces más grande" que la ventana. No lo había medido. Lo
+calculé antes de meterlo: 26104 px contra 20900, **1.25x**. Va 1.25x.
+
+**Y el determinismo, dicho con precisión**: el barrido de 18 ejecuciones y cuatro
+configuraciones de hilos se hizo el día 3 contra el código de entonces. Contra
+`86da011` no lo he repetido (máquina compartida a carga ~40). Lo único medido hoy
+es que dos ejecuciones separadas (el volcado sobre `git archive 86da011` y el
+centinela en la raíz del repo) dan las mismas dos magnitudes con los 17 dígitos.
+
+Para repetir el volcado antes/después (escribe sólo dentro de `tests/medicion/`
+y lo borra al acabar):
+
+```bash
+cd "/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color"
+for c in 71448ff 86da011; do
+  d="tests/medicion/.arbol_$c"; rm -rf "$d"; mkdir -p "$d"
+  git archive "$c" | tar -x -C "$d"
+  rm -rf "$d/tests/medicion"; mkdir -p "$d/tests/medicion"; cp tests/medicion/*.py "$d/tests/medicion/"
+  (cd "$d" && "../../../.venv/bin/python" -c '
+import warnings; warnings.filterwarnings("ignore")
+from core.reverse import invertir_grado
+from tests.medicion import escena as E
+def sol(hp, c):
+    x, y, w, h = c
+    return max(0, min(x+w, hp.x+hp.w)-max(x, hp.x)) * max(0, min(y+h, hp.y+hp.h)-max(y, hp.y)) / (hp.w*hp.h)
+tab = E.tabla_lut_conocida()
+casos = [("principal", True, {})] + [(f"sombra={s} {n}", s, kw) for s in (True, False)
+         for n, kw in (("vineta-sola", {"ganancia_ventana": 1.0}), ("ventana-sola", {"vineta": 0.0}), ("las-dos", {}))] \
+        + [("codificada", True, {"en_lineal": False})]
+for nombre, s, kw in casos:
+    o = E.escena_trabajo(sombra=s)
+    d = invertir_grado(o, E.coloreado_con_lo_espacial(o, tab, **kw)).diagnosis
+    print(f"== {nombre}: repro={d.lut_reproducible!r} pure={d.is_pure_lut}")
+    for i, hp in enumerate(d.hotspots):
+        print(f"   #{i} {hp.label!r} ({hp.x},{hp.y},{hp.w},{hp.h}) mag={hp.magnitude!r} solape={sol(hp, E.CAJA_VENTANA):.4f}")
+o = E.escena_trabajo(); d = invertir_grado(o, E.coloreado(o, tab)).diagnosis
+print(f"== contrapeso: repro={d.lut_reproducible!r} pure={d.is_pure_lut} n={len(d.hotspots)}")
+' 2>/dev/null) > "tests/medicion/.volcado_$c.txt"
+done
+diff tests/medicion/.volcado_71448ff.txt tests/medicion/.volcado_86da011.txt
+rm -rf tests/medicion/.arbol_* tests/medicion/.volcado_*.txt
+```
+
+---
+
+### Cifra del día 3 (hasta `71448ff`) — histórica, ya no es el estado actual
 
 ```
 [MEDICION T2-etiquetas] ['zona local']
@@ -256,7 +417,8 @@ Y el margen entre las dos cajas no es un empate de coma flotante: es del
 **Qué lo provocaba entonces.** No lo puedo demostrar, y lo digo así: la única
 variable que cambió entre su pasada y las mías es **el estado de `core/`**, que
 ha sido un blanco móvil toda la tarde. A las 21:5x vi `core/reverse/diagnostico.py`
-con 84 líneas modificadas sin comitear; a las 22:06 ya estaba idéntico a HEAD;
+con 84 líneas modificadas sin comitear; su última modificación fue a las 22:06 y
+cuando lo volví a mirar estaba idéntico a HEAD;
 a las 23:12 aterrizó como `1d4330e`. **Ese estado intermedio no se comiteó nunca
 y ya no existe**, así que no puedo correr mi arnés contra él. Lo más probable,
 con lo que se puede observar, es que su `XPASS` saliera de una versión en vuelo
@@ -265,7 +427,7 @@ del extractor de hotspots, no de ruido numérico.
 Un `XPASS` de ese `xfail` **no es cosmético**: significa que el módulo declaró
 principal otra caja. Por eso, aunque no consiga reproducirlo, lo he aferrado.
 
-### Cómo queda aferrado, sin aflojar el criterio
+### Cómo quedó aferrado el día 3 (superado el día 4: ver arriba)
 
 El criterio del `xfail` **no se toca**: sigue afirmando que **la zona que se
 declara principal** solapa >0.80 con la ventana real. No mira "alguna de las
@@ -339,7 +501,7 @@ verdad.
 | Mitad del criterio | Resultado |
 |---|---|
 | "no puede decir 100% LUT" | **COINCIDE**: `is_pure_lut=False`, `lut_reproducible=0.908 < 1.0`, deja `spatial_residual`, emite 2 hotspots |
-| "tiene que señalar la zona" | **NO SE REPRODUCE**: la zona local más fuerte es `(0,284,31,29)` y solapa **el 0%** con mi ventana |
+| "tiene que señalar la zona" | **NO SE REPRODUCE**: día 3, la zona principal era `(0,284,31,29)` con solape **0%**; día 4 (`86da011`), es `(89,301,251,104)` con solape **0.4294** |
 | el contrapeso (sin nada espacial, decir que SÍ es un LUT) | **COINCIDE**: `is_pure_lut=True`, `reproducible=0.9940` |
 
 Y la cifra de titular: **90.8% reproducible frente al 70.0% publicado**.
@@ -365,8 +527,8 @@ Comando:
 
 **Con la MISMA viñeta y la MISMA ventana, aplicadas sobre la imagen codificada
 en vez de en luz lineal (que es lo que hace el repo), sale 0.6844 contra el
-0.7002 publicado, aparece la etiqueta `vineta`, y la zona local más fuerte
-solapa 0.8053 con mi ventana: pasaría el criterio de >0.8.** O sea que **la
+0.7002 publicado, aparece la etiqueta `vineta`, y la zona local principal
+(la misma `(98,257,229,105)` el día 3 y el día 4) solapa 0.8053 con mi ventana: pasaría el criterio de >0.8.** O sea que **la
 cifra publicada del T2 se reproduce con material distinto en cuanto se usa su
 misma convención**. Lo que no se reproduce es con la mía.
 
@@ -380,9 +542,19 @@ suave donde el detector se descompone.**
 El detector **sí sabe dónde está la ventana**: el 93.6% de los 500 píxeles de
 mayor residuo caen dentro de mi caja, y el residuo medio dentro es 4.74 veces
 el de fuera. **Lo que falla no es el detector, es cómo recorta las cajas.** La
-zona que declara "más fuerte" es un cuadrito de 31x29 en la esquina inferior
-izquierda, que es donde mi escena tiene sombra profunda: con muy poca luz, el
-campo de logaritmo de ganancia es ruidoso y el pico se va ahí.
+zona que declaraba "más fuerte" el día 3 era un cuadrito de 31x29 en la
+esquina inferior izquierda, que es donde mi escena tiene sombra profunda.
+
+> **CORRECCIÓN (día 4).** Aquí escribí el día 3 que *"con muy poca luz, el campo
+> de logaritmo de ganancia es ruidoso y el pico se va ahí"*. **Eso no lo había
+> medido: era una explicación, no una cifra.** Según el autor de `86da011` es
+> falsa para este montaje: el pico de la ventana era mayor (0.469 contra 0.217) y
+> lo que ponía la esquina primero era que la lista se reordenaba por el ΔE medio
+> del rectángulo. Esos dos picos son cifra suya, no mía (salen por
+> `analizar_espacial`), pero lo que sí he medido es coherente con su explicación:
+> al cambiar sólo el orden y la definición de magnitud, sin mover ninguna caja,
+> la ventana pasa a primera. Queda el hallazgo (la caja principal era la
+> esquina) y cae mi causa.
 
 Lo he aislado con una sonda (`test_T2_de_donde_sale_cada_hotspot_vineta_ventana_y_sombra`):
 
@@ -398,17 +570,19 @@ Lo he aislado con una sonda (`test_T2_de_donde_sale_cada_hotspot_vineta_ventana_
 
 Dos cosas, y las dos son hallazgos:
 
-1. **Con sombra profunda en el cuadro, el hotspot más fuerte es la sombra, no
-   la ventana.** Material de rodaje real tiene esquinas a oscuras casi siempre.
-2. **Quitando la sombra tampoco se arregla**: el más fuerte pasa a ser
-   `(117,368,101,37)` con solape 0. O sea que la inestabilidad del recorte de
+1. **(Día 3) Con sombra profunda en el cuadro, el hotspot más fuerte es la sombra, no
+   la ventana.** Día 4: en *viñeta + ventana* ya no; en *ventana sola*, sí: sigue la esquina. Material de rodaje real tiene esquinas a oscuras casi siempre.
+2. **(Día 3) Quitando la sombra tampoco se arregla**: el más fuerte pasaba a ser
+   `(117,368,101,37)` con solape 0. Día 4: la principal es ya la ventana
+   `(57,244,226,120)`, solape 0.7585, todavía por debajo de 0.80. O sea que la inestabilidad del recorte de
    cajas no es sólo culpa de mi sombra.
 
 Y una tercera: **mi viñeta sola NUNCA se etiqueta como `vineta`** en luz lineal
 (emite dos `zona local`), aunque sí lo haga cuando se aplica sobre la imagen
-codificada. El arreglo del día 2 que dejó el etiquetado de viñetas funcionando
-está calibrado para viñetas aplicadas en el dominio codificado; con una viñeta
-óptica suave no dispara.
+codificada. Mi lectura es que el arreglo del día 2 está calibrado para viñetas aplicadas
+en el dominio codificado; **eso es una interpretación, no una medida**. Lo medido
+es sólo esto: con la viñeta en luz lineal no sale la etiqueta, en las dos
+variantes de mi escena, el día 3 y el día 4.
 
 **Esto NO lo arreglo y no propongo cómo.** Lo dejo medido.
 
@@ -614,7 +788,7 @@ El objeto de este informe es que ese montaje es más benévolo que el mío.
   mismo sobre mi montaje, da mis mismos 0.168689 · 2.88672. El máximo queda a
   0.11 del límite de 3.0.
 - **T2 · difiere** (queda como `xfail(strict=True)`, no arreglado). 90.8% contra
-  70.0%, y el solape de la zona más fuerte es 0.0% contra 99.4%. La mitad "no dice 100% LUT" coincide; la mitad "señala la
+  70.0%, y el solape de la zona principal es 0.4294 hoy (día 4, `86da011`; 0.0000 el día 3) contra 99.4%. La mitad "no dice 100% LUT" coincide; la mitad "señala la
   zona" no se reproduce con lo espacial aplicado en luz lineal. Con la misma
   viñeta y ventana aplicadas como las aplica el repo (sobre la imagen
   codificada) sale 0.6844 y solape 0.8053, o sea que **la cifra se reproduce con
@@ -641,9 +815,10 @@ El objeto de este informe es que ese montaje es más benévolo que el mío.
    costaría una línea y quitaría esa ambigüedad.
 3. **El detector espacial sabe dónde está la cosa pero no sabe dibujar la
    caja.** 93.6% de los píxeles de mayor residuo caen dentro de mi ventana y el
-   recorte declara como zona principal un cuadrito de 31x29 en una esquina
-   oscura. Si la GUI enseña la caja del hotspot más fuerte, hoy le enseñaría a
-   Mario el sitio equivocado en material con sombras profundas.
+   recorte declaraba (día 3) como zona principal un cuadrito de 31x29 en una
+   esquina oscura. **Día 4:** `86da011` pone ya la ventana primera, pero su caja
+   sigue solapando 0.4294: la GUI enseña hoy el sitio correcto con una caja que
+   no cuadra. Y en *ventana sola con sombra* la primera sigue siendo la esquina.
 4. **El etiquetado de viñeta está calibrado para viñetas del dominio
    codificado.** Una viñeta óptica aplicada en luz lineal no dispara la etiqueta
    `vineta` con ninguna de las dos variantes de mi escena. La viñeta física de
