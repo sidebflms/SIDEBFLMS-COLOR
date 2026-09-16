@@ -14,14 +14,29 @@ a 0.66**, y el peor par suelto se queda en 0.98. Con piel oscura sale igual o me
 Lo que sale es un **CDL**: diez números que puedes leer, entender y retocar a mano en el
 nodo 2. No es una caja negra.
 
-### Sacar el grado de un plano ya coloreado
+### Sacar el grado de un plano ya coloreado — y hasta dónde te lo puedes llevar
 Le das el original y el coloreado del mismo plano y te devuelve el grado en dos capas: un
-CDL y un LUT. Sobre un grado conocido lo recupera con **ΔE2000 medio de 0.14 y máximo de
-1.74** en la zona con datos.
+CDL y un LUT.
+
+**Lo que hay que saber antes de usarlo, medido el 16-09-2026:**
+
+- **En su propio plano funciona**, con matices: el ΔE2000 máximo queda por debajo de 3.0 en
+  los montajes normales (2.89 en el más exigente), pero **con una escena muy rica de color
+  no llega ni ahí** (4.00).
+- **Con un solo plano, NO te lo lleves a otros planos.** Medido: el máximo pasa de 3.0 en 12
+  de 12 casos, incluso en otra toma con la misma paleta.
+- **Acumulando varios planos del mismo trabajo, sí.** Con el **modo por lote** y **3 planos o
+  más**, el grado sirve en los demás planos de ese trabajo: peor máximo 1.67 con 3 planos,
+  0.76 con 40. Y si el colorista corrigió algún plano por separado, el modo **te dice cuál y
+  hacia dónde** en vez de mezclarlo a ciegas.
+- **No sirve con secundarias estrechas** (una corrección de un solo tono): con 40 planos le
+  sigue faltando 1.20. No es falta de datos: **un LUT no puede reproducir eso.**
+- **No sirve para planos de otro trabajo.**
+- **Los números del nodo 2 (el CDL) no son los que puso el colorista.** El ajuste se queda
+  con parte del contraste del LUT. Úsalos como punto de partida, no como lectura del grado.
 
 Y —esto es lo que no hace ninguna otra herramienta— te dice **qué parte del grado no cabe
 en un LUT**, y de qué clase es:
-
 | etiqueta | qué es | medido |
 |---|---|---|
 | **viñeta** | caída radial hacia los bordes | detectada con R² 0.88, y te da el centro estimado (a ~20 px del real) |
@@ -60,6 +75,13 @@ una entrega final**, como opción explícita y nunca por defecto — y lo dice c
 añade información**. Como 65 = 2·33 − 1, el LUT de 65 es el mismo hasta el redondeo del
 `float32` (desviación máxima 5.7e-08); lo único que cambia es que el fichero pasa de
 0.93 MB a 7.07 MB.
+
+### La confianza por clip: no la uses para decidir
+
+**Medido el 16-09-2026: la confianza alta / media / baja no predice el error.** En la
+ingeniería inversa vale «alta» casi siempre, también cuando el grado no sirve: el 96.5% de
+los «alta» pasan del límite de 3.0 de máximo. Hasta que se rediseñe, **fíate del ΔE máximo
+y de la cobertura del cubo, que sí están medidos**, y no de la palabra.
 
 ### No tocar tu grado
 Todo se escribe en la versión `SIDEB COLOR`. El tuyo se queda en la suya, intacto. **No
@@ -104,6 +126,12 @@ existe la llamada.
 - No toca material. No copia, no transcodifica, no renombra, no borra.
 - No sale a internet. Nunca.
 - No escribe fuera de las rutas que se le dan.
+
+**Porque todavía no se ha probado con material real:**
+
+- **Todo lo medido es sobre material sintético.** La primera prueba con un trabajo tuyo está
+  preparada (`pruebas/COMO-HACER-LA-PRIMERA-PRUEBA.md`) y **garantiza no escribir ni un
+  byte en tus discos de origen**, pero no se ha ejecutado.
 
 **Porque todavía no se ha probado contra Resolve de verdad:**
 
