@@ -26,9 +26,8 @@ resultado y seria un error mio, no del repo.
 
 from __future__ import annotations
 
-import numpy as np
-
 import colour
+import numpy as np
 from colour.difference import delta_E_CIE2000
 from colour.models import oetf_inverse_DaVinciIntermediate
 

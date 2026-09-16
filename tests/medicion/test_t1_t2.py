@@ -112,7 +112,9 @@ def test_T1_el_mapa_de_cobertura_no_marca_como_real_lo_que_se_invento():
     fuente = resultado.cdl.apply(original.astype(np.float64))
     px = np.clip(fuente.reshape(-1, 3), 0.0, 1.0) * (n - 1)
     i0 = np.clip(np.floor(px).astype(np.int64), 0, n - 2)
-    f = px - i0
+    # Aqui solo importa QUE celdas toca cada pixel, no con cuanto peso: la
+    # pregunta es si la cobertura marca como "tengo datos" alguna celda donde no
+    # cayo ni una muestra. Los pesos trilineales no hacen falta para eso.
     tocadas = np.zeros((n, n, n), dtype=bool)
     for kr in (0, 1):
         for kg in (0, 1):

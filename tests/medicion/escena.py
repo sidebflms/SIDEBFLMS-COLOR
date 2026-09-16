@@ -29,9 +29,8 @@ repo; si se separan poco, la eleccion no cambia ninguna cifra y queda dicho.
 
 from __future__ import annotations
 
-import numpy as np
-
 import colour
+import numpy as np
 from colour.models import (
     log_encoding_CanonLog3,
     log_encoding_DJIDLog,
