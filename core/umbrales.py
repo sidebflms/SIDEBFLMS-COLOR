@@ -61,6 +61,8 @@ from __future__ import annotations
 
 __all__ = [
     "AREA_MINIMA_HOTSPOT",
+    "LIMITE_T1_DELTA_E_MAXIMO",
+    "LIMITE_T3_DELTA_E_PEOR_PAR",
     "CONFIDENCE_ALTA",
     "CONFIDENCE_MEDIA",
     "DELTA_E_INDISTINGUIBLE",
@@ -504,3 +506,31 @@ UMBRAL_NEUTRA_TOTAL: float = 0.999
 #: `.cube` que se lleva— y lo miran dos módulos (`core.io` y `core.reverse`), así
 #: que su sitio es éste. `core/contracts.py` lo reexporta para no romper a nadie.
 LUT_SIZE_DEFAULT: int = 33
+
+
+# ---------------------------------------------------------------------------
+# Límites de los criterios de entrega (día 4)
+# ---------------------------------------------------------------------------
+#
+# Desde el día 4 el titular de T1 y T3 es la cifra que DECIDE -el máximo y el
+# peor par-, con su margen al límite al lado. La interfaz enseña ese margen, así
+# que los dos límites tienen que vivir aquí y no escritos a mano en `gui/`.
+#
+# OJO CON LO QUE SON: **no son medidas.** Son los criterios que fijó el encargo
+# del día 1 («ΔE2000 máximo < 3.0», «ΔE2000 entre cámaras < 2.0 después»). Nadie
+# ha medido que 3.0 o 2.0 sean el sitio donde un colorista empieza a notar algo:
+# son objetivos, y se escriben aquí como objetivos para que nadie los lea como
+# un umbral perceptual calibrado.
+
+#: **Unidad: ΔE2000.** Límite del ΔE2000 **máximo** de la ingeniería inversa
+#: (T1). Por encima, el criterio no se cumple.
+#:
+#: **Criterio del encargo del día 1, no medido.**
+LIMITE_T1_DELTA_E_MAXIMO: float = 3.0
+
+#: **Unidad: ΔE2000.** Límite del ΔE2000 del **peor par** de cámaras después de
+#: igualarlas (T3).
+#:
+#: **Criterio del encargo del día 1, no medido.** El encargo lo escribía sobre
+#: la media; desde el día 4 se aplica al peor par, que es la cifra que decide.
+LIMITE_T3_DELTA_E_PEOR_PAR: float = 2.0

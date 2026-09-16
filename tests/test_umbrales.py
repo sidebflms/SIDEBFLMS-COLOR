@@ -25,6 +25,9 @@ from core import umbrales
 #: Esto no es una copia del módulo (eso no afirmaría nada): es la lista de
 #: origen, tecleada desde el código anterior al barrido.
 VALORES_DE_ORIGEN: dict[str, object] = {
+    # Dia 4: los dos limites de los criterios de entrega, del encargo del dia 1.
+    "LIMITE_T1_DELTA_E_MAXIMO": 3.0,
+    "LIMITE_T3_DELTA_E_PEOR_PAR": 2.0,
     # core/contracts.py
     "CONFIDENCE_ALTA": 0.75,
     "CONFIDENCE_MEDIA": 0.45,
