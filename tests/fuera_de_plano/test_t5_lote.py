@@ -265,19 +265,33 @@ def _del_trabajo(look: str, info: str, n: int) -> list[dict]:
     return [f for f in filas if f["informacion"] == info and f["N"] == n and not f["ajeno"]]
 
 
+def _sin_filas(look: str, info: str, n: int, sel: list[dict]) -> str:
+    """Mensaje de la guarda: por que el filtro podria no traer los 12 planos de fuera.
+    Sin esta guarda, un filtro vacio haria pasar el criterio sin mirar ni un plano."""
+    return (
+        f"esperaba {L.N_FUERA} planos de fuera del trabajo para look={look!r} "
+        f"informacion={info!r} N={n} y hay {len(sel)}. Causas posibles: el look o la "
+        f"`informacion` han cambiado de nombre, N no esta en NS={NS}, L.N_FUERA ha cambiado, "
+        f"o `ajeno` ya no distingue los planos X del trabajo (nombres: "
+        f"{sorted(f['plano'] for f in sel)})."
+    )
+
+
 def test_t5l_secundarias_criterio_lote_suma_w2_desde_3_planos():
     """Look `secundarias`, lote con suma_w2: max < 3.0 en los 12 planos de fuera desde N=3."""
     for n in (3, 5, 10, 20, 40):
-        malos = {f["plano"]: round(f["todo_max"], 4) for f in _del_trabajo("secundarias", "suma_w2", n)
-                 if not f["todo_max"] < UMBRAL_MAX}
+        sel = _del_trabajo("secundarias", "suma_w2", n)
+        assert len(sel) == L.N_FUERA, _sin_filas("secundarias", "suma_w2", n, sel)
+        malos = {f["plano"]: round(f["todo_max"], 4) for f in sel if not f["todo_max"] < UMBRAL_MAX}
         assert not malos, (n, malos)
 
 
 def test_t5l_global_criterio_lote_suma_w2_desde_1_plano():
     """Look `global`, lote con suma_w2: max < 3.0 en los 12 planos de fuera desde N=1."""
     for n in NS:
-        malos = {f["plano"]: round(f["todo_max"], 4) for f in _del_trabajo("global", "suma_w2", n)
-                 if not f["todo_max"] < UMBRAL_MAX}
+        sel = _del_trabajo("global", "suma_w2", n)
+        assert len(sel) == L.N_FUERA, _sin_filas("global", "suma_w2", n, sel)
+        malos = {f["plano"]: round(f["todo_max"], 4) for f in sel if not f["todo_max"] < UMBRAL_MAX}
         assert not malos, (n, malos)
 
 
