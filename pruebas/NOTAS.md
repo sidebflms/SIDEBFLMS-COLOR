@@ -184,5 +184,11 @@ media la estimación peca por arriba, con planos más cortos, por abajo.
 - **El margen de una aparición es el del punto mediano**, no el peor (un punto dentro de
   un fundido encaja poco y no habla de ambigüedad) ni el mejor (una toma gemela es ambigua
   en todo el plano).
+- **Las cifras de referencia de `CIFRAS.md` se leen de su sitio, no por patrón.** El
+  máximo de T1 sólo de la tabla de titulares (reconocida por sus columnas); el medio de T1
+  y la cobertura, de sus subsecciones en la misma sección; T5, de la sección de T5 y sólo
+  de las filas «T5 máximo en B» y «T5 medio en B» (`cifras_ref.CONSULTAS`). Un lector por
+  patrón cogió «T1 A→A máximo en escena rica (A5)», de la sección 8, como titular de T1;
+  lo cazó el orquestador y ahora hay un test con filas trampa.
 - **Sólo se miden las de confianza alta.** Un grado sacado del plano equivocado tiene muy
   buena cara; es lo peor que puede pasar.

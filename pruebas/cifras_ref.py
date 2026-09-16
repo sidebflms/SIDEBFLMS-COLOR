@@ -7,17 +7,23 @@ Asi que se leen del archivo cada vez que se genera un informe.
 
 COMO SE LEE, Y POR QUE ASI
 --------------------------
-`CIFRAS.md` va a seguir cambiando (orden de filas, columnas nuevas, tablas
-nuevas). Por eso **no se lee por posicion de fila ni por el texto exacto de una
-celda**:
+`CIFRAS.md` va a seguir creciendo, y cualquier fila de cualquier seccion puede
+mencionar «T1» y «maximo» sin ser el titular de T1. Ya paso: la seccion 8 trajo
+«T1 A->A maximo en escena rica (A5)», y un lector por patron la cogia como si
+fuera el maximo de T1. Asi que **no se busca por patron en todo el archivo**:
 
-- Se recorren **todas** las tablas Markdown del archivo y cada fila se convierte
-  en un diccionario por **nombre de columna** (`Criterio`, `Cifra`, `Valor`,
-  `Cifra que decide`, `Límite`, `Montaje`, `Comando`, `Fecha`...).
-- Una cifra se busca por **palabras**: el criterio (`T1`, `T5`, `cobertura`) y lo
-  que se mide (`máximo`, `medio`). Sin tildes, sin mayusculas, sin negritas.
-- Si no aparece, se devuelve `None` y el informe escribe **«no disponible en
-  CIFRAS.md»**. Nunca se inventa un valor ni se falla.
+- **El titular de T1 se lee SOLO de la tabla de titulares**, que se reconoce por
+  sus columnas (`Criterio | Cifra que decide | Limite | Margen`), no por su
+  posicion ni por el titulo de la seccion.
+- **Cada una de las demas cifras se lee de SU seccion, a proposito y por nombre**
+  (ver `CONSULTAS`): el medio de T1 de la subseccion «Detras» y la cobertura de
+  «La cifra que faltaba», las dos de la misma seccion que la tabla de titulares;
+  T5 de la seccion cuyo titulo habla de T5, y solo las filas que empiezan por
+  «T5 maximo en B» y «T5 medio en B». Una fila de otra seccion no entra nunca.
+- Dentro de su tabla, cada fila se lee por **nombre de columna**, sin tildes, sin
+  mayusculas y sin negritas.
+- Si no aparece, el informe escribe **«no disponible en CIFRAS.md»**. Nunca se
+  inventa un valor ni se falla.
 """
 
 from __future__ import annotations
@@ -30,6 +36,9 @@ from pathlib import Path
 from .guarda import RAIZ_REPO
 
 __all__ = [
+    "COLUMNAS_TITULARES",
+    "CONSULTAS",
+    "Consulta",
     "NO_DISPONIBLE",
     "RUTA_CIFRAS",
     "Referencia",
@@ -41,6 +50,9 @@ __all__ = [
 RUTA_CIFRAS: Path = RAIZ_REPO / "CIFRAS.md"
 
 NO_DISPONIBLE = "no disponible en CIFRAS.md"
+
+#: Las columnas por las que se reconoce la tabla de titulares (normalizadas).
+COLUMNAS_TITULARES: tuple[str, ...] = ("criterio", "cifra que decide", "limite", "margen")
 
 _COLUMNAS_NOMBRE = ("criterio", "cifra")
 _COLUMNAS_VALOR = ("cifra que decide", "valor")
@@ -69,16 +81,24 @@ def _celdas(linea: str) -> list[str]:
 def leer_tablas(texto: str) -> list[dict[str, str]]:
     """Todas las filas de todas las tablas, como {columna normalizada: celda cruda}.
 
-    Cada fila lleva ademas `_seccion` con el ultimo encabezado `#` visto antes.
+    Cada fila lleva ademas `_seccion` (ultimo encabezado de nivel 1 o 2),
+    `_subseccion` (ultimo de nivel 3 o mas dentro de esa seccion) y `_titulares`
+    ("si" si su tabla tiene las columnas de la tabla de titulares).
     """
     filas: list[dict[str, str]] = []
     lineas = texto.splitlines()
     seccion = ""
+    subseccion = ""
     i = 0
     while i < len(lineas):
         linea = lineas[i]
-        if linea.lstrip().startswith("#"):
-            seccion = linea.strip("# ").strip()
+        cabecera_md = re.match(r"^(#{1,6})\s+(.*)$", linea.strip())
+        if cabecera_md:
+            nivel = len(cabecera_md.group(1))
+            if nivel <= 2:
+                seccion, subseccion = cabecera_md.group(2).strip(), ""
+            else:
+                subseccion = cabecera_md.group(2).strip()
         es_tabla = (
             linea.strip().startswith("|")
             and i + 1 < len(lineas)
@@ -88,11 +108,14 @@ def leer_tablas(texto: str) -> list[dict[str, str]]:
             i += 1
             continue
         cabecera = [_normal(c) for c in _celdas(linea)]
+        es_titulares = set(COLUMNAS_TITULARES) <= set(cabecera)
         i += 2
         while i < len(lineas) and lineas[i].strip().startswith("|"):
             celdas = _celdas(lineas[i])
             fila = {cabecera[k]: celdas[k] for k in range(min(len(cabecera), len(celdas)))}
             fila["_seccion"] = seccion
+            fila["_subseccion"] = subseccion
+            fila["_titulares"] = "si" if es_titulares else ""
             filas.append(fila)
             i += 1
     return filas
@@ -134,46 +157,81 @@ def _contiene_palabras(texto: str, palabras: tuple[str, ...]) -> bool:
     return all(re.search(rf"(?<![a-z0-9]){re.escape(_normal(p))}(?![a-z0-9])", t) for p in palabras)
 
 
-def buscar(
-    filas: list[dict[str, str]], criterio: tuple[str, ...], que: tuple[str, ...] = (),
-    excluir: tuple[str, ...] = (),
-) -> list[Referencia]:
-    """Filas cuyo nombre+valor contienen todas las palabras de `criterio` y `que`."""
+def _empieza_por(texto: str, prefijo: str) -> bool:
+    return re.match(rf"^{re.escape(_normal(prefijo))}(?![a-z0-9])", _normal(texto)) is not None
+
+
+@dataclass(frozen=True)
+class Consulta:
+    """Donde esta una cifra, dicho a proposito.
+
+    `donde`:
+      - "titulares": solo la tabla de titulares;
+      - "seccion_titulares": tablas de la MISMA seccion que la de titulares, cuya
+        subseccion contiene `subseccion`;
+      - "seccion": tablas de la seccion cuyo titulo contiene las palabras `seccion`.
+    La fila tiene que EMPEZAR por `fila` y contener las palabras `que` (en nombre o valor).
+    """
+
+    clave: str
+    donde: str
+    fila: str
+    que: tuple[str, ...] = ()
+    subseccion: tuple[str, ...] = ()
+    seccion: tuple[str, ...] = ()
+
+
+#: Lo que el informe pone al lado de cada cifra real. Si hace falta otra, se anade aqui.
+CONSULTAS: tuple[Consulta, ...] = (
+    Consulta("t1_max", "titulares", fila="t1", que=("maximo",)),
+    Consulta("t1_medio", "seccion_titulares", fila="t1", que=("medio",), subseccion=("detras",)),
+    Consulta("cobertura", "seccion_titulares", fila="cobertura",
+             subseccion=("cifra", "que", "faltaba")),
+    Consulta("t5_max", "seccion", fila="t5 maximo en b", seccion=("t5",)),
+    Consulta("t5_medio", "seccion", fila="t5 medio en b", seccion=("t5",)),
+)
+
+
+def _referencia(f: dict[str, str], nombre: str, valor: str) -> Referencia:
+    return Referencia(
+        etiqueta=_limpia(nombre),
+        valor=_limpia(valor),
+        numero=_numero(valor),
+        limite=_limpia(f["limite"]) if "limite" in f else None,
+        montaje=_limpia(f["montaje"]) if "montaje" in f else None,
+        comando=_limpia(f["comando"]) if "comando" in f else None,
+        fecha=_limpia(f["fecha"]) if "fecha" in f else None,
+    )
+
+
+def buscar(filas: list[dict[str, str]], consulta: Consulta) -> list[Referencia]:
+    """Las filas que responden a `consulta`, y solo de donde dice la consulta."""
+    secciones_titulares = {f["_seccion"] for f in filas if f.get("_titulares")}
     salida: list[Referencia] = []
     for f in filas:
+        if consulta.donde == "titulares":
+            if not f.get("_titulares"):
+                continue
+        elif consulta.donde == "seccion_titulares":
+            if f.get("_titulares") or f.get("_seccion") not in secciones_titulares:
+                continue
+            if not _contiene_palabras(f.get("_subseccion", ""), consulta.subseccion):
+                continue
+        elif consulta.donde == "seccion":
+            if not _contiene_palabras(f.get("_seccion", ""), consulta.seccion):
+                continue
+        else:  # pragma: no cover - error de programacion
+            raise ValueError(f"consulta con `donde` desconocido: {consulta.donde}")
         nombre = next((f[c] for c in _COLUMNAS_NOMBRE if c in f), None)
         valor = next((f[c] for c in _COLUMNAS_VALOR if c in f), None)
         if nombre is None or valor is None:
             continue
-        junto = f"{nombre} {valor}"
-        if not _contiene_palabras(nombre, criterio) and not _contiene_palabras(junto, criterio):
+        if not _empieza_por(nombre, consulta.fila):
             continue
-        if que and not _contiene_palabras(junto, que):
+        if consulta.que and not _contiene_palabras(f"{nombre} {valor}", consulta.que):
             continue
-        if excluir and any(_contiene_palabras(junto, (x,)) for x in excluir):
-            continue
-        salida.append(
-            Referencia(
-                etiqueta=_limpia(nombre),
-                valor=_limpia(valor),
-                numero=_numero(valor),
-                limite=_limpia(f["limite"]) if "limite" in f else None,
-                montaje=_limpia(f["montaje"]) if "montaje" in f else None,
-                comando=_limpia(f["comando"]) if "comando" in f else None,
-                fecha=_limpia(f["fecha"]) if "fecha" in f else None,
-            )
-        )
+        salida.append(_referencia(f, nombre, valor))
     return salida
-
-
-#: Lo que el informe pone al lado de cada cifra real: (clave, criterio, que, excluir).
-CONSULTAS: tuple[tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], ...] = (
-    ("t1_max", ("t1",), ("maximo",), ("identidad", "sin gradar")),
-    ("t1_medio", ("t1",), ("medio",), ("identidad", "sin gradar")),
-    ("cobertura", ("cobertura",), (), ()),
-    ("t5_max", ("t5",), ("maximo",), ()),
-    ("t5_medio", ("t5",), ("medio",), ()),
-)
 
 
 def referencias_para_informe(ruta: Path | None = None) -> dict[str, list[Referencia] | str]:
@@ -182,10 +240,10 @@ def referencias_para_informe(ruta: Path | None = None) -> dict[str, list[Referen
     try:
         texto = ruta.read_text(encoding="utf-8")
     except OSError:
-        return {clave: NO_DISPONIBLE for clave, *_ in CONSULTAS}
+        return {c.clave: NO_DISPONIBLE for c in CONSULTAS}
     filas = leer_tablas(texto)
     salida: dict[str, list[Referencia] | str] = {}
-    for clave, criterio, que, excluir in CONSULTAS:
-        encontradas = buscar(filas, criterio, que, excluir)
-        salida[clave] = encontradas if encontradas else NO_DISPONIBLE
+    for c in CONSULTAS:
+        encontradas = buscar(filas, c)
+        salida[c.clave] = encontradas if encontradas else NO_DISPONIBLE
     return salida

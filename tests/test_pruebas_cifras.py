@@ -1,14 +1,17 @@
 """El lector de `CIFRAS.md` y la estimacion de coste: nada copiado a mano, nada inventado.
 
-`CIFRAS.md` cambia (hoy mismo entran filas de T5), asi que estos tests **no fijan
-valores de ese archivo**: comprueban que lo que se lee esta escrito alli, y que
-con una tabla a la que le falta una fila el informe dice «no disponible en
+`CIFRAS.md` cambia (hoy entraron las filas de T5), asi que estos tests **no fijan
+valores de ese archivo**: comprueban que lo que se lee esta escrito alli; que el
+titular de T1 sale **solo** de la tabla de titulares aunque otra seccion tenga una
+fila «T1 ... maximo» (la trampa real fue «T1 A->A maximo en escena rica (A5)»); y
+que con una tabla a la que le falta una fila el informe dice «no disponible en
 CIFRAS.md» en vez de fallar o de inventar.
 """
 
 from __future__ import annotations
 
 import math
+import re
 
 import pytest
 
@@ -17,6 +20,8 @@ from pruebas.cifras_ref import NO_DISPONIBLE, buscar, leer_tablas, referencias_p
 
 TABLAS = """
 # CIFRAS de juguete
+
+## 1 · Las cifras de titular
 
 ### Los titulares
 | Criterio | Cifra que decide | Límite | **Margen** | Montaje | Comando | Fecha |
@@ -30,22 +35,69 @@ TABLAS = """
 | repo | 0.12 | T1 ΔE2000 medio, zona cubierta | 01-01 |
 | repo | 17.6 → 0.66 | T3 antes → después | 01-01 |
 
+### La cifra que faltaba en la tabla de titulares
 | Cifra | Valor | Montaje | Comando | Fecha |
 |---|---|---|---|---|
 | **Cobertura del cubo, un solo plano** | **165 de 35.937 = 0.46%** | repo, LUT 33³ | `c` | 01-01 |
+
+## 3 · Ingeniería inversa
+| Cifra | Valor | Montaje | Comando | Fecha |
+|---|---|---|---|---|
+| T1 máximo de una trampa en otra sección | 99.9 | trampa | `c` | 01-01 |
+| Cobertura de otra cosa | 50% | trampa | `c` | 01-01 |
+
+## 8 · T5 — el LUT de un plano en otro
+| Cifra | Valor | Montaje | Línea de la salida | Fecha |
+|---|---|---|---|---|
+| **T5 máximo en B, plano normal** | **3.5 – 5.9; 0 de 12 bajo 3.0** ✔ | A2 | `[T5 AB]` | 01-01 |
+| T5 medio en B, plano normal | 0.33 – 1.68 | ídem | ídem | 01-01 |
+| T5 corte de cobertura para máximo < 3.0 | no existe | ídem | ídem | 01-01 |
+| **T1 A→A máximo en escena rica (A5)** | **4.00095 / 3.85405 — NO cumple < 3.0** ✔ | A5 | `[T5 ref]` | 01-01 |
 """
 
 
-def test_lee_por_nombre_de_columna_aunque_cambie_el_orden():
+def _consulta(clave: str) -> cifras_ref.Consulta:
+    return next(c for c in cifras_ref.CONSULTAS if c.clave == clave)
+
+
+def test_cada_cifra_sale_solo_de_su_sitio():
     filas = leer_tablas(TABLAS)
-    t1 = buscar(filas, ("t1",), ("maximo",))
-    assert [r.numero for r in t1] == [2.5]
-    assert t1[0].limite == "< 3.0"
-    medio = buscar(filas, ("t1",), ("medio",))
+    t1 = buscar(filas, _consulta("t1_max"))
+    assert [(r.etiqueta, r.numero, r.limite) for r in t1] == [("T1 ingeniería inversa", 2.5, "< 3.0")]
+    medio = buscar(filas, _consulta("t1_medio"))
     assert [r.numero for r in medio] == [0.12]  # columnas en otro orden en esa tabla
-    cob = buscar(filas, ("cobertura",))
-    assert cob[0].numero == pytest.approx(0.46)
-    assert buscar(filas, ("t3",), ("antes",))[0].numero is None  # flecha: no elige
+    cob = buscar(filas, _consulta("cobertura"))
+    assert [r.numero for r in cob] == [pytest.approx(0.46)]
+    t5 = buscar(filas, _consulta("t5_max"))
+    assert [r.etiqueta for r in t5] == ["T5 máximo en B, plano normal"]
+    assert t5[0].numero is None  # un rango: no se elige un numero, se da el texto
+    assert [r.etiqueta for r in buscar(filas, _consulta("t5_medio"))] == [
+        "T5 medio en B, plano normal"
+    ]
+
+
+def test_las_filas_trampa_de_otras_secciones_no_entran():
+    """«T1 ... máximo» fuera de la tabla de titulares NO es el titular de T1."""
+    refs = {c.clave: buscar(leer_tablas(TABLAS), c) for c in cifras_ref.CONSULTAS}
+    todas = [r for rs in refs.values() for r in rs]
+    etiquetas = " ".join(r.etiqueta for r in todas)
+    assert "A5" not in etiquetas
+    assert "trampa" not in etiquetas
+    assert "otra cosa" not in etiquetas
+    assert "corte de cobertura" not in etiquetas
+    assert all(r.numero != 99.9 for r in todas)
+
+
+def test_sin_tabla_de_titulares_el_maximo_de_t1_no_se_busca_en_otra_parte(tmp_path):
+    """Quitando la tabla de titulares, la fila trampa de T1 sigue sin entrar: no disponible."""
+    sin_titulares = "\n".join(
+        linea for linea in TABLAS.splitlines()
+        if "Criterio" not in linea and "ingeniería inversa" not in linea and "igualado" not in linea
+    )
+    ruta = tmp_path / "CIFRAS.md"
+    ruta.write_text(sin_titulares, encoding="utf-8")
+    refs = referencias_para_informe(ruta)
+    assert refs["t1_max"] == NO_DISPONIBLE
 
 
 def test_una_fila_que_falta_sale_como_no_disponible(tmp_path, monkeypatch):
@@ -55,8 +107,8 @@ def test_una_fila_que_falta_sale_como_no_disponible(tmp_path, monkeypatch):
     refs = referencias_para_informe(ruta)
     assert refs["t1_max"] == NO_DISPONIBLE
     assert refs["t1_medio"] == NO_DISPONIBLE
-    assert refs["t5_max"] == NO_DISPONIBLE
     assert refs["cobertura"] != NO_DISPONIBLE
+    assert refs["t5_max"] != NO_DISPONIBLE
 
     # y llega tal cual al informe
     from pruebas.informe import componer
@@ -79,19 +131,23 @@ def test_sin_fichero_todo_no_disponible(tmp_path):
 
 
 def test_con_el_cifras_md_de_verdad_lo_leido_esta_escrito_alli():
-    """No se fija ningun valor: se comprueba que cada numero leido aparece en el archivo."""
+    """No se fija ningun valor: lo leido esta escrito alli, y el T1 sale de los titulares."""
     texto = cifras_ref.RUTA_CIFRAS.read_text(encoding="utf-8")
+    limpio = re.sub(r"\s+", " ", texto.replace("**", "").replace("`", ""))
+    filas = leer_tablas(texto)
+    titulares = {cifras_ref._limpia(f["criterio"]) for f in filas if f.get("_titulares")}
     refs = referencias_para_informe()
-    assert refs["t1_max"] != NO_DISPONIBLE, "CIFRAS.md ya no tiene el maximo de T1"
+    assert refs["t1_max"] != NO_DISPONIBLE, "CIFRAS.md ya no tiene el maximo de T1 en titulares"
+    for r in refs["t1_max"]:  # type: ignore[union-attr]
+        assert r.etiqueta in titulares, r
+        assert r.numero is not None and math.isfinite(r.numero), r
     for clave, valor in refs.items():
         if valor == NO_DISPONIBLE:
             continue
         for r in valor:
-            assert r.valor.split()[-1].strip("*") in texto.replace("**", ""), (clave, r)
+            assert r.etiqueta in limpio and r.valor in limpio, (clave, r)
             if r.numero is not None:
-                assert f"{r.numero:g}" in texto or str(r.numero) in texto, (clave, r)
-    for r in refs["t1_max"]:  # type: ignore[union-attr]
-        assert r.numero is not None and math.isfinite(r.numero)
+                assert f"{r.numero:g}" in texto, (clave, r)
 
 
 # ---------------------------------------------------------------------------
