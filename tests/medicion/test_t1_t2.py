@@ -374,7 +374,7 @@ _RAZON_XFAIL_T2 = (
 )
 
 
-@pytest.mark.xfail(strict=True, reason=_RAZON_XFAIL_T2)
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RAZON_XFAIL_T2)
 def test_T2_la_zona_senalada_cae_donde_esta_mi_ventana():
     """Mi caja contra la suya, y el residuo dentro contra el de fuera.
 

@@ -190,6 +190,9 @@ def test_en_gui_no_hay_un_limite_de_criterio_escrito_a_mano():
     insignia) no es un limite de nada.
     """
     malos: list[str] = []
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     for archivo in sorted(RAIZ_GUI.glob("*.py")):
         arbol = ast.parse(archivo.read_text(encoding="utf-8"))
         malos += _limites_escritos_a_mano(arbol, archivo.name)

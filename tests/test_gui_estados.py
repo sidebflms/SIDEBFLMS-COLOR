@@ -204,6 +204,7 @@ def test_una_averia_en_set_lut_no_tumba_el_lote_y_se_cuenta():
         texto = v.p_aplicar.texto_resultado.toPlainText()
         assert "no se encuentra el .cube" in texto
         # Todos los clips se han intentado: el fallo del primero no para el resto.
+        assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
         for clip in est.clips:
             assert clip.clip_id in texto
         assert f"{len(est.clips)}" in texto
@@ -220,6 +221,7 @@ def test_una_averia_de_una_sola_vez_se_cura_y_el_resto_se_escribe():
     assert len(fallidos) == 1
     assert "disco lleno" in fallidos[0].mensaje
     assert len(buenos) == len(est.clips) - 1
+    assert buenos, "no hay nada que comprobar: con un solo clip no queda ninguno que se escriba bien"
     for r in buenos:
         assert r.version == VERSION_NAME
 

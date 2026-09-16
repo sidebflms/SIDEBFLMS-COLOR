@@ -166,6 +166,10 @@ def test_el_sustituto_no_clasifica_las_zonas_calientes(monkeypatch):
     monkeypatch.setattr(rp, "_invertir_grado_core", None)
     original, coloreado = _par()
     inv = rp.invertir(original, coloreado, tam_lut=17)
+    assert inv.resultado.diagnosis.hotspots, (
+        "no hay nada que comprobar: el sustituto no ha devuelto ni una zona caliente, y el "
+        "bucle de abajo no miraria ninguna etiqueta"
+    )
     for h in inv.resultado.diagnosis.hotspots:
         assert h.label == rp.ETIQUETA_SIN_CLASIFICAR, (
             f"el sustituto ha clasificado una zona como {h.label!r} sin haberlo medido"
@@ -288,6 +292,7 @@ def test_la_gui_no_redefine_ningun_umbral_de_veredicto():
     y por eso lo que se busca es la comparacion contra un NUMERO suelto.
     """
     culpables: list[str] = []
+    assert list(_modulos_gui()), f"no hay nada que comprobar: {RAIZ_GUI} sin ningun .py"
     for archivo, arbol in _modulos_gui():
         for nodo in ast.walk(arbol):
             if not isinstance(nodo, ast.Compare):
@@ -315,6 +320,7 @@ def test_la_gui_no_construye_un_veredicto_positivo_de_lut_puro():
     criterio del nucleo en la GUI.
     """
     malos: list[str] = []
+    assert list(_modulos_gui()), f"no hay nada que comprobar: {RAIZ_GUI} sin ningun .py"
     for archivo, arbol in _modulos_gui():
         for nodo in ast.walk(arbol):
             if isinstance(nodo, ast.keyword) and nodo.arg == "is_pure_lut":
@@ -339,6 +345,7 @@ def test_la_gui_no_reimplementa_confidence_level():
     from core.contracts import CONFIDENCE_ALTA, CONFIDENCE_MEDIA
 
     malos: list[str] = []
+    assert list(_modulos_gui()), f"no hay nada que comprobar: {RAIZ_GUI} sin ningun .py"
     for archivo, arbol in _modulos_gui():
         for nodo in ast.walk(arbol):
             if isinstance(nodo, ast.Name) and nodo.id in ("CONFIDENCE_ALTA", "CONFIDENCE_MEDIA"):

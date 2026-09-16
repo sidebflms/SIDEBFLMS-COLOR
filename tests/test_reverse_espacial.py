@@ -753,6 +753,7 @@ def test_T2g_una_ventana_en_sombra_de_verdad_se_sigue_viendo(taller):
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "LIMITE CONOCIDO, MEDIDO EL 2026-09-16, NO ARREGLADO. La misma ventana en sombra "
         "(520,250,110,100), ganancia 1.5 en luz lineal, SIN vineta, sobre el taller con la "

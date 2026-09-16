@@ -85,6 +85,7 @@ def test_los_dos_delta_e_de_cada_fila_son_los_del_matchresult():
     v = ventana(est)
     try:
         modelo = v.p_clips.modelo
+        assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
         for fila, clip in enumerate(est.clips):
             assert modelo.data(modelo.index(fila, COL_ANTES)).strip() == (
                 f"{clip.match.delta_e_before:6.2f}".strip()
@@ -147,6 +148,7 @@ def test_la_insignia_que_se_pinta_es_la_confianza_de_ese_clip():
     try:
         tabla = v.p_clips.tabla
         delegado = tabla.itemDelegateForColumn(COL_CONFIANZA)
+        assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
         for fila, clip in enumerate(est.clips):
             conf = clip.match.confidence
             indice = v.p_clips.modelo.index(fila, COL_CONFIANZA)
@@ -180,10 +182,14 @@ def test_la_ficha_ensena_las_razones_tal_cual_vienen_del_nucleo():
     est = demo()
     v = ventana(est)
     try:
+        assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
         for fila, clip in enumerate(est.clips):
             v.p_clips.tabla.selectRow(fila)
             asentar(2)
             texto = v.p_clips.ficha.razones.text()
+            assert clip.match.confidence.reasons, (
+                f"no hay nada que comprobar: {clip.clip_id} no trae ni una razon de confianza"
+            )
             for razon in clip.match.confidence.reasons:
                 assert razon in texto, f"falta una razon del clip {clip.clip_id}: {razon!r}"
             assert v.p_clips.ficha._de_antes.text() == f"{clip.match.delta_e_before:.2f}"
@@ -355,6 +361,7 @@ def test_construir_plan_no_escribe_absolutamente_nada():
     versiones = {c.clip_id: list(est.puente.version_names(c.clip_id)) for c in est.clips}
     construir_plan(est, [c.clip_id for c in est.clips])
     assert est.puente._grados_escritos == antes
+    assert versiones, "no hay nada que comprobar: el estado de demostracion no trae clips"
     for clip_id, nombres in versiones.items():
         assert est.puente.version_names(clip_id) == nombres
 
@@ -463,6 +470,20 @@ def test_el_editor_de_cdl_no_deja_un_power_de_cero():
         v.close()
 
 
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "VACIO ENCONTRADO EL 2026-09-16 (revisor de vacios, dia 4). La mitad «una celda medida "
+        "no se pinta igual que una inventada» NUNCA ha comprobado nada: el montaje pinta solo "
+        "el corte b=0 (cortes=1) y en el estado de demostracion ese corte tiene 0 celdas "
+        "cubiertas. LUT 17^3: 52 cubiertas de 4.913; por corte b = 0,3,6,7,7,7,4,4,5,6,3,0,0,0,0,0,0. "
+        "La otra mitad (tablero de 2 tonos en las inventadas) si se comprueba. Se reproduce con: "
+        ".venv/bin/python -m pytest tests/test_gui_pantallas.py -k mapa_de_cobertura --runxfail. "
+        "Cerrarlo = montar un corte que tenga celdas cubiertas (p. ej. b=3 o b=4) sin aflojar lo "
+        "que se afirma; decide el dueño de la GUI."
+    ),
+)
 def test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado():
     """Relleno contra tablero de ajedrez, y la diferencia es de TEXTURA.
 
@@ -488,6 +509,7 @@ def test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado():
         assert libres, "no hay ni una celda inventada: el caso no prueba nada"
         tonos_libres = {img.pixel(x, y) for x, y in libres}
         assert len(tonos_libres) == 2, "el tablero de ajedrez no alterna dos tonos"
+        assert cubiertas, "no hay ni una celda medida en el corte: el caso no prueba nada"
         for x, y in cubiertas:
             assert img.pixel(x, y) not in tonos_libres, (
                 "una celda medida se pinta igual que una inventada"
@@ -569,5 +591,6 @@ def test_la_ventana_habla_siempre_con_el_resolve_falso():
 def test_el_estado_demo_no_apunta_a_ningun_fichero_real():
     """Cero material real: ni un `file_path`, ni una ruta de `/Volumes`."""
     est: EstadoDemo = demo()
+    assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
     for clip in est.clips:
         assert clip.ref.file_path is None

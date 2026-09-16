@@ -75,38 +75,12 @@ EXCEPCIONES: dict[tuple[str, str, str], str] = {
      "v.findChildren(QLabel)"): "guardado de hecho: el `'ΔE medio' in rotulos` de despues exige QLabels en la ventana",
 }
 
-#: **Vacíos REALES que no se han podido arreglar en su día.** No son excepciones:
-#: son hallazgos en ficheros que tenían dueño trabajando (día 4, 2026-09-16) y que
-#: el revisor de vacíos no podía tocar. Cada uno lleva quién lo tiene que cerrar.
-#: `test_los_pendientes_siguen_sin_arreglarse` falla en cuanto se arregla uno
-#: (entrada muerta), y `test_barrido_del_repo_sin_pendientes` es un `xfail(strict=True)` que
-#: deja el número a la vista en cada pasada.
-PENDIENTES: dict[tuple[str, str, str], str] = {
-    ("tests/test_gui_identidad.py", "test_ningun_setstylesheet_de_la_gui_pone_ff6a3d_de_fondo",
-     "sorted(RAIZ_GUI.glob('*.py'))"): "dueño GUI: si gui/ se mueve, `not culpables` pasa sin leer nada",
-    ("tests/test_gui_identidad.py", "test_no_hay_ningun_rojo_de_error_en_toda_la_gui",
-     "sorted(RAIZ_GUI.glob('*.py'))"): "dueño GUI: igual",
-    ("tests/test_gui_identidad.py", "test_todas_las_cifras_de_la_app_salen_en_monoespaciada",
-     "v.findChildren(Cifra)"): "dueño GUI: sin ninguna Cifra visible, `not malas` pasa",
-    ("tests/test_gui_identidad.py", "test_los_rotulos_van_en_mayusculas_y_con_el_tracking_de_la_identidad",
-     "v.findChildren(Rotulo)"): "dueño GUI: sin ningun Rotulo visible, el bucle no afirma nada",
-    ("tests/test_gui_pantallas.py", "test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado",
-     "cubiertas"): "dueño GUI: se guarda `libres` pero no `cubiertas`",
-    ("tests/test_gui_regla_de_oro.py", "test_ningun_modulo_de_la_gui_llama_a_una_escritura_cruda",
-     "sorted(RAIZ_GUI.glob('*.py'))"): "dueño GUI: si gui/ se mueve, pasa sin leer nada",
-    ("tests/test_gui_regla_de_oro.py", "test_la_gui_no_toca_la_via_de_escape_de_la_regla_de_oro",
-     "sorted(RAIZ_GUI.glob('*.py'))"): "dueño GUI: igual",
-    ("tests/test_gui_regla_de_oro.py", "test_la_gui_no_importa_el_puente_de_verdad",
-     "sorted(RAIZ_GUI.glob('*.py'))"): "dueño GUI: igual",
-    ("tests/test_gui_reverse.py", "test_la_gui_no_redefine_ningun_umbral_de_veredicto",
-     "_modulos_gui()"): "dueño GUI: `_modulos_gui()` vacío deja `not culpables` en verde",
-    ("tests/test_gui_reverse.py", "test_la_gui_no_construye_un_veredicto_positivo_de_lut_puro",
-     "_modulos_gui()"): "dueño GUI: igual",
-    ("tests/test_gui_reverse.py", "test_la_gui_no_reimplementa_confidence_level",
-     "_modulos_gui()"): "dueño GUI: igual",
-    ("tests/test_gui_titulares.py", "test_en_gui_no_hay_un_limite_de_criterio_escrito_a_mano",
-     "sorted(RAIZ_GUI.glob('*.py'))"): "dueño GUI (fichero nuevo del dia 4): si gui/ se mueve, `not malos` pasa sin leer nada",
-}
+#: **Vacíos REALES pendientes de guarda.** No son excepciones: son hallazgos que no se
+#: han podido cerrar en el día (fichero con dueño trabajando), cada uno con quién lo
+#: cierra. `test_los_pendientes_siguen_sin_arreglarse` falla si una entrada deja de
+#: salir, y `test_barrido_del_repo_sin_pendientes` falla mientras haya alguna.
+#: El día 4 se abrió con 12 (todos en `tests/test_gui_*.py`) y se cerraron ese mismo día.
+PENDIENTES: dict[tuple[str, str, str], str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -494,17 +468,5 @@ def test_la_lista_de_excepciones_sigue_siendo_corta():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "12 vacios reales encontrados el 2026-09-16 en tests/test_gui_identidad.py (4), "
-        "test_gui_regla_de_oro.py (3), test_gui_reverse.py (3), test_gui_pantallas.py (1) y "
-        "test_gui_titulares.py (1), "
-        "ficheros con dueño trabajando ese dia; "
-        "falta poner la guarda `assert coleccion` delante. Se reproduce con: "
-        ".venv/bin/python -m pytest tests/test_sin_vacio.py -s -k barrido_del_repo_sin_pendientes. "
-        "Se cierra vaciando PENDIENTES; entonces este xfail pasa a XPASS y hay que quitarlo."
-    ),
-)
 def test_barrido_del_repo_sin_pendientes():
     assert not PENDIENTES, f"{len(PENDIENTES)} vacios reales pendientes de guarda: {sorted(PENDIENTES)}"
