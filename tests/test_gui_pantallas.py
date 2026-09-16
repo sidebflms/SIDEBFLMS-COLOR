@@ -470,20 +470,57 @@ def test_el_editor_de_cdl_no_deja_un_power_de_cero():
         v.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "VACIO ENCONTRADO EL 2026-09-16 (revisor de vacios, dia 4). La mitad «una celda medida "
-        "no se pinta igual que una inventada» NUNCA ha comprobado nada: el montaje pinta solo "
-        "el corte b=0 (cortes=1) y en el estado de demostracion ese corte tiene 0 celdas "
-        "cubiertas. LUT 17^3: 52 cubiertas de 4.913; por corte b = 0,3,6,7,7,7,4,4,5,6,3,0,0,0,0,0,0. "
-        "La otra mitad (tablero de 2 tonos en las inventadas) si se comprueba. Se reproduce con: "
-        ".venv/bin/python -m pytest tests/test_gui_pantallas.py -k mapa_de_cobertura --runxfail. "
-        "Cerrarlo = montar un corte que tenga celdas cubiertas (p. ej. b=3 o b=4) sin aflojar lo "
-        "que se afirma; decide el dueño de la GUI."
-    ),
-)
+#: Hueco entre cortes que usa `montaje_cobertura` por defecto. Se pasa explicito
+#: en la llamada para que la cuenta de donde cae cada corte no dependa del valor
+#: por defecto.
+_HUECO_MONTAJE = 6
+
+
+def _montaje_de_un_corte_con_datos(cob):
+    """El montaje de TODOS los cortes en una fila, y el primer corte con datos.
+
+    **[dia 4] Por que asi.** Hasta hoy el test montaba `cortes=1`, que es el corte
+    b=0, y en el estado de demostracion ese corte no tiene ni una celda cubierta
+    (LUT 17³, 52 cubiertas; por corte de b: 0,3,6,7,7,7,4,4,5,6,3,0,0,0,0,0,0).
+    La mitad «una celda medida no se pinta igual que una inventada» no miraba
+    nada desde el dia 2. Lo encontro el revisor de vacios.
+
+    Ahora se eligen los datos, no un indice: se pintan los `n` cortes (con
+    `cortes=n`, `linspace(0, n-1, n)` es exactamente 0..n-1) en una sola fila, y
+    se recorta el del **primer b con celdas cubiertas**. Asi no depende de donde
+    caigan las celdas en la demo. Se pasa por `montaje_cobertura` de verdad, no
+    por una copia de su logica.
+
+    Devuelve (imagen del corte, mascara del corte en coordenadas de imagen, b).
+    """
+    n = cob.size
+    mask = cob.covered_mask()
+    por_corte = mask.sum(axis=(0, 1))
+    con_datos = [int(b) for b in range(n) if por_corte[b] > 0]
+    assert con_datos, "no hay ni un corte del cubo con celdas medidas: el caso no prueba nada"
+    b = con_datos[0]
+    img = montaje_cobertura(cob, cortes=n, columnas=n, hueco=_HUECO_MONTAJE)
+    assert img.width() == n * n + (n - 1) * _HUECO_MONTAJE and img.height() == n
+    trozo = img.copy(b * (n + _HUECO_MONTAJE), 0, n, n)
+    # El montaje pinta cada corte con el verde hacia arriba.
+    return trozo, mask[:, :, b].T[::-1], b
+
+
+def _comprobar_medido_contra_inventado(img, corte) -> None:
+    """Las dos afirmaciones del test, sobre un corte ya montado."""
+    n = corte.shape[0]
+    cubiertas = [(x, y) for y in range(n) for x in range(n) if corte[y, x]]
+    libres = [(x, y) for y in range(n) for x in range(n) if not corte[y, x]]
+    assert libres, "no hay ni una celda inventada: el caso no prueba nada"
+    tonos_libres = {img.pixel(x, y) for x, y in libres}
+    assert len(tonos_libres) == 2, "el tablero de ajedrez no alterna dos tonos"
+    assert cubiertas, "no hay ni una celda medida en el corte: el caso no prueba nada"
+    for x, y in cubiertas:
+        assert img.pixel(x, y) not in tonos_libres, (
+            "una celda medida se pinta igual que una inventada"
+        )
+
+
 def test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado():
     """Relleno contra tablero de ajedrez, y la diferencia es de TEXTURA.
 
@@ -497,23 +534,45 @@ def test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado():
         asentar(2)
         res = v.p_reverse.resultado()
         assert res is not None
-        cob = res.coverage
-        img = montaje_cobertura(cob, cortes=1, columnas=1)
-        assert img.width() == cob.size and img.height() == cob.size
-        mask = cob.covered_mask()
-        n = cob.size
-        # El montaje pinta el corte b=0 con el verde hacia arriba.
-        corte = mask[:, :, 0].T[::-1]
-        cubiertas = [(x, y) for y in range(n) for x in range(n) if corte[y, x]]
-        libres = [(x, y) for y in range(n) for x in range(n) if not corte[y, x]]
-        assert libres, "no hay ni una celda inventada: el caso no prueba nada"
-        tonos_libres = {img.pixel(x, y) for x, y in libres}
-        assert len(tonos_libres) == 2, "el tablero de ajedrez no alterna dos tonos"
-        assert cubiertas, "no hay ni una celda medida en el corte: el caso no prueba nada"
-        for x, y in cubiertas:
-            assert img.pixel(x, y) not in tonos_libres, (
-                "una celda medida se pinta igual que una inventada"
-            )
+        img, corte, b = _montaje_de_un_corte_con_datos(res.coverage)
+        assert corte.sum() > 0, f"el corte b={b} elegido no tiene celdas medidas"
+        _comprobar_medido_contra_inventado(img, corte)
+    finally:
+        v.close()
+
+
+def test_el_control_del_mapa_falla_si_lo_medido_se_pinta_como_lo_inventado():
+    """Control negativo: un test que no se puede hacer fallar no vale nada.
+
+    Se toma el mismo corte montado y se repintan sus celdas MEDIDAS con el tono
+    de tablero que les tocaria por posicion, que es exactamente lo que saldria
+    si el montaje pintara lo medido igual que lo inventado. La comprobacion
+    tiene que saltar, y por la frase de lo medido, no por otra.
+    """
+    v = ventana(demo())
+    try:
+        v.ir_a(3)
+        asentar(2)
+        res = v.p_reverse.resultado()
+        assert res is not None
+        img, corte, _ = _montaje_de_un_corte_con_datos(res.coverage)
+        n = corte.shape[0]
+        # El tablero del montaje alterna por la paridad de (fila + columna).
+        tono = {}
+        for y in range(n):
+            for x in range(n):
+                if not corte[y, x]:
+                    tono.setdefault((x + y) % 2, img.pixel(x, y))
+        assert len(tono) == 2
+        roto = img.copy()
+        for y in range(n):
+            for x in range(n):
+                if corte[y, x]:
+                    roto.setPixel(x, y, tono[(x + y) % 2])
+        with pytest.raises(AssertionError, match="una celda medida se pinta igual"):
+            _comprobar_medido_contra_inventado(roto, corte)
+        # Y la imagen buena, con la misma comprobacion, pasa.
+        _comprobar_medido_contra_inventado(img, corte)
     finally:
         v.close()
 

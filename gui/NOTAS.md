@@ -809,3 +809,19 @@ el residuo quedaría debajo del pliegue. No lo he hecho sin preguntar.
 * **No hay forma de saber sobre cuántos planos se ha medido un `ReverseResult`.**
   La línea de alcance dice «este plano» porque el panel invierte un solo par; si
   el modo por lotes llega a la pantalla, esa frase tendrá que salir de un campo.
+
+### [día 4, después] El test del mapa de cobertura no miraba lo medido
+
+Lo encontró el revisor de tests vacíos. `test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado`
+montaba `cortes=1`, o sea el corte b=0, y en la demo ese corte tiene **cero** celdas
+cubiertas (17³, 52 cubiertas; por corte de b: 0,3,6,7,7,7,4,4,5,6,3,0,0,0,0,0,0). La mitad
+«una celda medida no se pinta igual que una inventada» no comprobaba nada desde el día 2.
+
+**No era un bug de la pantalla:** mirado a mano, el corte b=1 pinta sus 3 celdas medidas en
+naranja (`#642918`, `#9e4125`, `#aa4628`) y las inventadas en tablero (`#0d0b08` / `#131110`).
+
+Arreglo, en el montaje del test y no en la aserción: se pintan los `n` cortes en una fila con
+`montaje_cobertura` y se recorta **el primer b con celdas cubiertas**, afirmando antes que existe.
+Hoy es b=1. Y un control negativo repinta las celdas medidas con el tono de tablero que les toca y
+comprueba que la aserción salta por la frase de lo medido. Sin cambio visible: no se regeneran
+capturas.
