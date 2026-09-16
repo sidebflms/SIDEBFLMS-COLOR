@@ -428,6 +428,12 @@ class ReverseDiagnosis:
     lut_reproducible: float  # 0..1
     is_pure_lut: bool
     spatial_residual: Array | None  # (h, w) float32 normalizado, o None
+    #: ORDENADOS por importancia, y EL PRIMERO ES EL PRINCIPAL. Desde el dia 4
+    #: el orden es por masa del residuo (area x intensidad sobre el campo de
+    #: log-ganancia), no por magnitud. Por eso NO elijas la zona principal con
+    #: `max(h.magnitude)`: una esquina pequena e intensa puede tener mas
+    #: `magnitude` que la ventana grande que de verdad hay que rehacer, y era
+    #: exactamente el fallo que se arreglo. La interfaz lista en este orden.
     hotspots: tuple[Hotspot, ...] = ()
     notes: tuple[str, ...] = ()
 

@@ -82,6 +82,7 @@ def test_recupero_un_cdl_conocido_sobre_una_carta(nombre, carta):
 def test_recupero_el_cdl_con_los_seis_tonos_de_piel(pieles_trabajo):
     """Si el ajuste solo funciona con pieles claras, aqui se ve."""
     verdad = CDLS["todo a la vez"]
+    assert pieles_trabajo, "no hay nada que comprobar: el fixture `pieles_trabajo` ha salido vacio"
     for i, piel in enumerate(pieles_trabajo):
         px = piel.reshape(-1, 3).astype(np.float64)
         estimado = ajustar_cdl(px, verdad.apply(px))

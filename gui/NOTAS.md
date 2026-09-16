@@ -97,6 +97,13 @@ nada. Salía así en la primera tanda de capturas.
 
 ## 3. La anchura mínima real
 
+**[día 4] 973 × 727.** El ancho no se ha movido; el alto sube 76 px. El motivo y
+lo que se hizo para que no fuera más está en el §15. Y una corrección de método:
+el alto se mide ahora **a la anchura mínima y en las cuatro pantallas**, no en la
+ventana de 1440. Medido como antes saldría 713, que es un mínimo que la pantalla
+de ingeniería inversa no cumple a 973 px (ahí la leyenda del mapa parte en dos
+líneas).
+
 **[día 3] Hoy son 973 × 651 px.** No es un número elegido: es lo que contesta
 `VentanaPrincipal.minimumSizeHint()` después de un `ensurePolished()` sobre
 todos los hijos, que es lo que hace `anchura_minima()`. Sin el `ensurePolished`
@@ -690,3 +697,131 @@ rótulo de cabecera o toca `RELLENO_CABECERA_PX`, salta antes que una captura.
   Hoy no se ve; subirlo sube la anchura mínima de la ventana y hoy no tocaba.
 * **[día 3] Nadie ha visto la interfaz a más de 1440 px** (sigue del día 2), y
   ahora además con la escala tipográfica de verdad.
+
+---
+
+## 15. [día 4] La cifra que decide, delante
+
+**El encargo.** Hasta el día 3 el panel de ingeniería inversa ponía grande «cabe
+en un .cube» y pequeñas las tres cifras de ΔE, con el máximo (rotulado «ΔE
+peor») la última y en color secundario. Pero el criterio T1 lo suspende el
+**máximo**, y medido desde fuera se queda a 0.11 del límite; la media es la cifra
+holgada. Y la cobertura del cubo, que dice cuánto del LUT está medido y cuánto
+inventado, era una cifra de 13 px en la esquina del mapa. Ver `CIFRAS.md` §1.
+
+### Cómo quedó el panel
+
+La columna derecha tiene ahora tres paneles, **y el diagnóstico va arriba**
+(antes lo primero que se veía a la derecha era el mapa):
+
+1. **Diagnóstico.** Fila 1: rótulo «ΔE2000 máximo» y, pegada a él, la marca
+   `MarcaLimite` («NO CUMPLE · MARGEN -15.29»). Fila 2: el máximo a 26 px con
+   «/ 3.0» al lado, y a la derecha, a 12 px, la media y el p95. Debajo, dos
+   bloques gemelos a 26 px: «cabe en un .cube» y «cubo medido» (con «98.94%
+   inventado» debajo), construidos por la misma función (`_bloque_titular`) para
+   que no puedan salir a tamaños distintos. Y una línea: «Medido sobre este
+   plano: en otro plano no está garantizado.»
+2. **Mapa de cobertura**, con el recuento de celdas en la cabecera (pequeño).
+3. **Qué NO es un LUT / residuo espacial**, en su propio panel.
+
+### El límite: importado, y dicho como lo que es
+
+`LIMITE_T1_DELTA_E_MAXIMO` se importa de `core.umbrales`. Lo único que hace la
+GUI con él es restar (`límite - máximo`) y comparar con `<`, que es como está
+escrito el criterio del encargo. **Hay un test que cambia el límite en el espacio
+de nombres de la pantalla y comprueba que el rótulo y el margen lo siguen**, y
+otro que busca por AST un `3.0` o un `2.0` restado o comparado en `gui/`.
+
+El límite **no es una medida perceptual** (docstring de `core/umbrales.py`), y la
+pantalla lo dice en el tooltip de la marca y del «/ 3.0», y en una línea del
+texto de diagnóstico: «es el objetivo que fijó el encargo, no una medida de dónde
+empieza a notarse la diferencia».
+
+Máximo exactamente igual al límite → «no cumple» (el encargo dice «< 3.0»).
+Máximo no finito → «sin medir», sin margen.
+
+### No cumplir no es rojo
+
+`MarcaLimite` usa la gramática de la confianza: **relleno sólido brand-600**
+cuando cumple, **contorno discontinuo brand-400 sin relleno** cuando no, y un
+iconito que repite la forma (cuadrado lleno / cuadrado punteado). El texto dice
+«no cumple» con todas las letras. La cifra grande no cambia de color. Hay test
+que busca píxeles de rojo de alarma en la marca pintada, con control de que el
+detector sí ve el naranja.
+
+### Donde sólo hay media, se dice «medio»
+
+`MatchResult.delta_e_before` / `delta_e_after` son **medias**, y el contrato no
+trae el máximo por clip. **No se calcula en la GUI.** Se rotula lo que hay:
+
+* tabla de clips: cabeceras en tres líneas, «ΔE / MEDIO / ANTES». En una línea
+  «ΔE MEDIO» mide 49 px y ensancharía las dos columnas 8 px en total, o sea la
+  ventana; en tres, la palabra más ancha sigue siendo «DESPUÉS»;
+* ficha del clip: un rótulo común «ΔE medio» encima de «antes» y «después».
+  «ΔE medio antes» + «ΔE medio después» seguidos piden 252 px y la ficha tiene
+  246;
+* antes/después: «ΔE medio antes» y «ΔE medio después».
+
+Un test recorre todas las etiquetas de las cuatro pantallas y falla si alguna
+nombra un ΔE sin decir si es medio, máximo o p95.
+
+### El bug que salió en la primera captura: `TextoAjustado`
+
+Primera captura a 973 px: el «18.29» salía a 19 px de alto de los 31 que
+necesita, y el «1.06%» a 15, pisado por su barra. **Nada cortado a lo ancho, pero
+aplastado a lo alto.** La causa, medida: un `QLabel` con `wordWrap` declara su
+alto mínimo como si el texto cupiera en una línea (el mínimo de un layout no usa
+`heightForWidth`). A 973 px la línea de alcance y la leyenda ocupan dos, la
+columna creía que le sobraban ~15 px por etiqueta y se los quitaba al único panel
+que no estira.
+
+`gui.widgets.TextoAjustado` devuelve como alto mínimo el de `heightForWidth()` al
+ancho actual y avisa al layout cuando cambia. Se usa en la línea de alcance y en
+la leyenda del mapa. Test: a la anchura mínima ninguna cifra del diagnóstico
+tiene menos alto que su mínimo; y un control que enseña que un `QLabel` normal sí
+declara de menos.
+
+### Lo que pagó el alto (651 → 727)
+
+Sin tocar nada más, el panel nuevo subía el mínimo a 775 (y a 756 medido de
+verdad, con `TextoAjustado`). Lo que se recortó:
+
+| Qué | Antes | Ahora |
+|---|---|---|
+| alto mínimo del mapa de cobertura | 170 | 120 |
+| alto mínimo del mapa de residuo | 110 | 90 |
+| leyenda del mapa | 3 líneas | 2 a 973 px, 1 a 1440 |
+| marca de límite | fila propia bajo la cifra | en la fila del rótulo |
+| media y p95 | fila propia | a la derecha de la cifra |
+| línea de alcance | 2 líneas a 973 | 1 (323 px de 361) |
+
+**Lo que no se ha hecho y se podría:** meter la columna derecha en un
+`QScrollArea` (como la izquierda) bajaría el alto mínimo mucho, pero a 973 × 727
+el residuo quedaría debajo del pliegue. No lo he hecho sin preguntar.
+
+### Qué campos faltan en el contrato
+
+* **`MatchResult` no trae el ΔE máximo (ni p95) por clip.** Sin él, la tabla y la
+  ficha enseñan la cifra holgada.
+* **No hay margen ni «cumple» calculado por el núcleo.** La GUI resta y compara
+  contra el límite importado; si algún día el criterio deja de ser un `<` simple,
+  hay que moverlo al núcleo.
+* **No hay forma de saber sobre cuántos planos se ha medido un `ReverseResult`.**
+  La línea de alcance dice «este plano» porque el panel invierte un solo par; si
+  el modo por lotes llega a la pantalla, esa frase tendrá que salir de un campo.
+
+### [día 4, después] El test del mapa de cobertura no miraba lo medido
+
+Lo encontró el revisor de tests vacíos. `test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado`
+montaba `cortes=1`, o sea el corte b=0, y en la demo ese corte tiene **cero** celdas
+cubiertas (17³, 52 cubiertas; por corte de b: 0,3,6,7,7,7,4,4,5,6,3,0,0,0,0,0,0). La mitad
+«una celda medida no se pinta igual que una inventada» no comprobaba nada desde el día 2.
+
+**No era un bug de la pantalla:** mirado a mano, el corte b=1 pinta sus 3 celdas medidas en
+naranja (`#642918`, `#9e4125`, `#aa4628`) y las inventadas en tablero (`#0d0b08` / `#131110`).
+
+Arreglo, en el montaje del test y no en la aserción: se pintan los `n` cortes en una fila con
+`montaje_cobertura` y se recorta **el primer b con celdas cubiertas**, afirmando antes que existe.
+Hoy es b=1. Y un control negativo repinta las celdas medidas con el tono de tablero que les toca y
+comprueba que la aserción salta por la frase de lo medido. Sin cambio visible: no se regeneran
+capturas.

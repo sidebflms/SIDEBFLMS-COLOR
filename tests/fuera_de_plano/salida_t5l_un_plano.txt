@@ -1,0 +1,54 @@
+
+[T5L] ===== estrechas: UN plano, A->A y A->fuera, 11 planos =====
+[T5L un plano estrechas | suma_w | L00 interior calido] AA_cub_max=3.31593  AA_todo_max=3.31593  repo_de_max_cubierto=3.31593  fuera_peor_max=10.429  fuera_mejor_max=3.57925  fuera_mediana_max=6.01815
+[T5L un plano estrechas | suma_w | L01 exterior dia] AA_cub_max=2.71206  AA_todo_max=2.71206  repo_de_max_cubierto=2.71206  fuera_peor_max=16.2873  fuera_mejor_max=4.66322  fuera_mediana_max=8.15542
+[T5L un plano estrechas | suma_w | L02 noche fria] AA_cub_max=4.95903  AA_todo_max=4.95903  repo_de_max_cubierto=4.95903  fuera_peor_max=10.8974  fuera_mejor_max=4.7192  fuera_mediana_max=6.42083
+[T5L un plano estrechas | suma_w | L03 retrato] AA_cub_max=2.92038  AA_todo_max=2.92038  repo_de_max_cubierto=2.92038  fuera_peor_max=10.9735  fuera_mejor_max=3.36801  fuera_mediana_max=6.48907
+[T5L un plano estrechas | suma_w | L04 interior calido] AA_cub_max=2.22515  AA_todo_max=2.22515  repo_de_max_cubierto=2.22515  fuera_peor_max=13.6821  fuera_mejor_max=3.14425  fuera_mediana_max=5.79938
+[T5L un plano estrechas | suma_w | L05 exterior dia] AA_cub_max=2.76874  AA_todo_max=2.76874  repo_de_max_cubierto=2.76874  fuera_peor_max=11.9539  fuera_mejor_max=4.17453  fuera_mediana_max=6.78582
+[T5L un plano estrechas | suma_w | L06 noche fria] AA_cub_max=2.67894  AA_todo_max=2.67894  repo_de_max_cubierto=2.67894  fuera_peor_max=12.7271  fuera_mejor_max=2.70432  fuera_mediana_max=5.10163
+[T5L un plano estrechas | suma_w | L07 retrato] AA_cub_max=1.8825  AA_todo_max=1.8825  repo_de_max_cubierto=1.8825  fuera_peor_max=10.3392  fuera_mejor_max=3.27471  fuera_mediana_max=5.11127
+[T5L un plano estrechas | suma_w | L08 interior calido] AA_cub_max=3.75805  AA_todo_max=3.75805  repo_de_max_cubierto=3.75805  fuera_peor_max=10.2115  fuera_mejor_max=3.84984  fuera_mediana_max=5.65558
+[T5L un plano estrechas | suma_w | L09 exterior dia] AA_cub_max=4.27529  AA_todo_max=4.27529  repo_de_max_cubierto=4.27529  fuera_peor_max=11.0833  fuera_mejor_max=4.91086  fuera_mediana_max=5.96968
+[T5L un plano estrechas | suma_w | L10 noche fria] AA_cub_max=2.21184  AA_todo_max=2.21184  repo_de_max_cubierto=2.21184  fuera_peor_max=10.8267  fuera_mejor_max=3.55589  fuera_mediana_max=5.8602
+[T5L un plano resumen estrechas | suma_w] AA_mediana_cub_max=2.76874  AA_peor_cub_max=4.95903  AA_planos_mayor_3=4  repo_mediana=2.76874  repo_peor=4.95903  repo_planos_mayor_3=4  fuera_pares=132  fuera_pares_max_bajo_3=1  fuera_mediana_de_peores=10.9735
+[T5L un plano estrechas | suma_w2 | L00 interior calido] AA_cub_max=2.4946  AA_todo_max=2.4946  repo_de_max_cubierto=2.4946  fuera_peor_max=9.99397  fuera_mejor_max=2.99454  fuera_mediana_max=3.36299
+[T5L un plano estrechas | suma_w2 | L01 exterior dia] AA_cub_max=2.49426  AA_todo_max=2.49426  repo_de_max_cubierto=2.49426  fuera_peor_max=6.78659  fuera_mejor_max=3.78088  fuera_mediana_max=5.05337
+[T5L un plano estrechas | suma_w2 | L02 noche fria] AA_cub_max=1.73619  AA_todo_max=1.73619  repo_de_max_cubierto=1.73619  fuera_peor_max=10.9672  fuera_mejor_max=1.41191  fuera_mediana_max=3.0535
+[T5L un plano estrechas | suma_w2 | L03 retrato] AA_cub_max=1.83206  AA_todo_max=1.83206  repo_de_max_cubierto=1.83206  fuera_peor_max=10.2926  fuera_mejor_max=2.28273  fuera_mediana_max=4.04572
+[T5L un plano estrechas | suma_w2 | L04 interior calido] AA_cub_max=1.68523  AA_todo_max=1.68523  repo_de_max_cubierto=1.68523  fuera_peor_max=10.1044  fuera_mejor_max=2.21687  fuera_mediana_max=2.83274
+[T5L un plano estrechas | suma_w2 | L05 exterior dia] AA_cub_max=2.75269  AA_todo_max=2.75269  repo_de_max_cubierto=2.75269  fuera_peor_max=8.13008  fuera_mejor_max=3.42969  fuera_mediana_max=5.32063
+[T5L un plano estrechas | suma_w2 | L06 noche fria] AA_cub_max=3.18039  AA_todo_max=3.18039  repo_de_max_cubierto=3.18039  fuera_peor_max=12.5466  fuera_mejor_max=1.62243  fuera_mediana_max=4.70681
+[T5L un plano estrechas | suma_w2 | L07 retrato] AA_cub_max=1.55934  AA_todo_max=1.55934  repo_de_max_cubierto=1.55934  fuera_peor_max=10.2079  fuera_mejor_max=1.24885  fuera_mediana_max=3.07488
+[T5L un plano estrechas | suma_w2 | L08 interior calido] AA_cub_max=2.12453  AA_todo_max=2.12453  repo_de_max_cubierto=2.12453  fuera_peor_max=10.3597  fuera_mejor_max=2.24625  fuera_mediana_max=5.54638
+[T5L un plano estrechas | suma_w2 | L09 exterior dia] AA_cub_max=1.48636  AA_todo_max=1.48636  repo_de_max_cubierto=1.48636  fuera_peor_max=8.30119  fuera_mejor_max=2.37541  fuera_mediana_max=3.93097
+[T5L un plano estrechas | suma_w2 | L10 noche fria] AA_cub_max=0.945976  AA_todo_max=0.945976  repo_de_max_cubierto=0.945976  fuera_peor_max=10.6638  fuera_mejor_max=1.29328  fuera_mediana_max=3.0175
+[T5L un plano resumen estrechas | suma_w2] AA_mediana_cub_max=1.83206  AA_peor_cub_max=3.18039  AA_planos_mayor_3=1  repo_mediana=1.83206  repo_peor=3.18039  repo_planos_mayor_3=1  fuera_pares=132  fuera_pares_max_bajo_3=43  fuera_mediana_de_peores=10.2079
+.
+[T5L] ===== global: UN plano, A->A y A->fuera, 11 planos =====
+[T5L un plano global | suma_w | L00 interior calido] AA_cub_max=2.81889  AA_todo_max=2.81889  repo_de_max_cubierto=2.81889  fuera_peor_max=10.7065  fuera_mejor_max=3.47933  fuera_mediana_max=6.59123
+[T5L un plano global | suma_w | L01 exterior dia] AA_cub_max=2.87662  AA_todo_max=2.87662  repo_de_max_cubierto=2.87662  fuera_peor_max=9.03491  fuera_mejor_max=2.12607  fuera_mediana_max=3.22291
+[T5L un plano global | suma_w | L02 noche fria] AA_cub_max=4.71783  AA_todo_max=4.71783  repo_de_max_cubierto=4.71783  fuera_peor_max=7.48639  fuera_mejor_max=3.59104  fuera_mediana_max=4.45873
+[T5L un plano global | suma_w | L03 retrato] AA_cub_max=2.81394  AA_todo_max=2.81394  repo_de_max_cubierto=2.81394  fuera_peor_max=8.66689  fuera_mejor_max=4.2646  fuera_mediana_max=5.62315
+[T5L un plano global | suma_w | L04 interior calido] AA_cub_max=2.59682  AA_todo_max=2.59682  repo_de_max_cubierto=2.59682  fuera_peor_max=15.8227  fuera_mejor_max=3.56811  fuera_mediana_max=5.46497
+[T5L un plano global | suma_w | L05 exterior dia] AA_cub_max=2.65651  AA_todo_max=2.65651  repo_de_max_cubierto=2.65651  fuera_peor_max=9.01505  fuera_mejor_max=4.39159  fuera_mediana_max=7.0427
+[T5L un plano global | suma_w | L06 noche fria] AA_cub_max=2.55233  AA_todo_max=2.55233  repo_de_max_cubierto=2.55233  fuera_peor_max=10.3906  fuera_mejor_max=1.90547  fuera_mediana_max=3.29193
+[T5L un plano global | suma_w | L07 retrato] AA_cub_max=1.46803  AA_todo_max=1.46803  repo_de_max_cubierto=1.46803  fuera_peor_max=6.81184  fuera_mejor_max=2.2364  fuera_mediana_max=3.70359
+[T5L un plano global | suma_w | L08 interior calido] AA_cub_max=3.87461  AA_todo_max=3.87461  repo_de_max_cubierto=3.87461  fuera_peor_max=9.91397  fuera_mejor_max=3.39078  fuera_mediana_max=5.36951
+[T5L un plano global | suma_w | L09 exterior dia] AA_cub_max=4.5099  AA_todo_max=4.5099  repo_de_max_cubierto=4.5099  fuera_peor_max=10.5505  fuera_mejor_max=4.2874  fuera_mediana_max=5.58624
+[T5L un plano global | suma_w | L10 noche fria] AA_cub_max=2.24997  AA_todo_max=2.24997  repo_de_max_cubierto=2.24997  fuera_peor_max=9.45488  fuera_mejor_max=3.86386  fuera_mediana_max=5.51569
+[T5L un plano resumen global | suma_w] AA_mediana_cub_max=2.81394  AA_peor_cub_max=4.71783  AA_planos_mayor_3=3  repo_mediana=2.81394  repo_peor=4.71783  repo_planos_mayor_3=3  fuera_pares=132  fuera_pares_max_bajo_3=13  fuera_mediana_de_peores=9.45488
+[T5L un plano global | suma_w2 | L00 interior calido] AA_cub_max=1.36324  AA_todo_max=1.36324  repo_de_max_cubierto=1.36324  fuera_peor_max=2.77044  fuera_mejor_max=1.46779  fuera_mediana_max=2.03903
+[T5L un plano global | suma_w2 | L01 exterior dia] AA_cub_max=1.40121  AA_todo_max=1.40121  repo_de_max_cubierto=1.40121  fuera_peor_max=5.35429  fuera_mejor_max=1.21786  fuera_mediana_max=2.76579
+[T5L un plano global | suma_w2 | L02 noche fria] AA_cub_max=0.872862  AA_todo_max=0.872862  repo_de_max_cubierto=0.872862  fuera_peor_max=1.68365  fuera_mejor_max=1.14798  fuera_mediana_max=1.31595
+[T5L un plano global | suma_w2 | L03 retrato] AA_cub_max=1.66549  AA_todo_max=1.66549  repo_de_max_cubierto=1.66549  fuera_peor_max=4.04997  fuera_mejor_max=1.92681  fuera_mediana_max=2.61999
+[T5L un plano global | suma_w2 | L04 interior calido] AA_cub_max=1.19694  AA_todo_max=1.19694  repo_de_max_cubierto=1.19694  fuera_peor_max=3.00667  fuera_mejor_max=1.08492  fuera_mediana_max=2.07009
+[T5L un plano global | suma_w2 | L05 exterior dia] AA_cub_max=1.67057  AA_todo_max=1.67057  repo_de_max_cubierto=1.67057  fuera_peor_max=5.33557  fuera_mejor_max=1.6033  fuera_mediana_max=2.46853
+[T5L un plano global | suma_w2 | L06 noche fria] AA_cub_max=1.73851  AA_todo_max=1.73851  repo_de_max_cubierto=1.73851  fuera_peor_max=2.50543  fuera_mejor_max=0.937173  fuera_mediana_max=1.36293
+[T5L un plano global | suma_w2 | L07 retrato] AA_cub_max=0.918241  AA_todo_max=0.918241  repo_de_max_cubierto=0.918241  fuera_peor_max=1.94709  fuera_mejor_max=1.04704  fuera_mediana_max=1.47402
+[T5L un plano global | suma_w2 | L08 interior calido] AA_cub_max=2.44834  AA_todo_max=2.44834  repo_de_max_cubierto=2.44834  fuera_peor_max=5.54892  fuera_mejor_max=2.12184  fuera_mediana_max=3.19618
+[T5L un plano global | suma_w2 | L09 exterior dia] AA_cub_max=1.45504  AA_todo_max=1.45504  repo_de_max_cubierto=1.45504  fuera_peor_max=5.57983  fuera_mejor_max=1.46956  fuera_mediana_max=2.67266
+[T5L un plano global | suma_w2 | L10 noche fria] AA_cub_max=0.861414  AA_todo_max=0.861414  repo_de_max_cubierto=0.861414  fuera_peor_max=1.85163  fuera_mejor_max=1.21463  fuera_mediana_max=1.6383
+[T5L un plano resumen global | suma_w2] AA_mediana_cub_max=1.40121  AA_peor_cub_max=2.44834  AA_planos_mayor_3=0  repo_mediana=1.40121  repo_peor=2.44834  repo_planos_mayor_3=0  fuera_pares=132  fuera_pares_max_bajo_3=109  fuera_mediana_de_peores=3.00667
+.
+2 passed, 11 deselected in 143.85s (0:02:23)

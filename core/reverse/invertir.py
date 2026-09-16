@@ -50,6 +50,8 @@ numeros exactos estan en NOTAS.md.
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 
 from core.color import delta_e2000
@@ -71,14 +73,16 @@ from core.matching import (
     solape_de_distribuciones,
 )
 from core.reverse.acumulacion import (
+    Estadisticos,
     acumular_correspondencias,
+    estadisticos_de_correspondencias,
     fraccion_fuera_de_dominio,
-    pesos_trilineales,
 )
 from core.reverse.alineado import alinear
 from core.reverse.diagnostico import diagnosticar
 from core.reverse.relleno import (
     LAMBDA_SUAVIDAD,
+    LAMBDA_SUAVIDAD_W2,
     base_afin,
     celdas_con_dato,
     extender_suave,
@@ -97,6 +101,7 @@ __all__ = [
     "ITERACIONES_REFINADO",
     "MAX_PIXELES_CDL",
     "MUESTRAS_MINIMAS_CDL",
+    "InformacionDeNodo",
     "invertir_grado",
 ]
 
@@ -104,6 +109,9 @@ __all__ = [
 # y `MUESTRAS_MINIMAS_CELDA` deciden lo que Mario lee en pantalla, asi que viven
 # en `core.umbrales`. Se reexporta `MUESTRAS_MINIMAS_CDL` con su nombre de
 # siempre porque lo importa `core.reverse` y los tests.
+
+#: Con que se mide cuanta informacion tiene un nodo en el ajuste del LUT.
+InformacionDeNodo = Literal["suma_w", "suma_w2"]
 
 #: El ajuste del CDL es no lineal y no mejora nada por encima de este numero de
 #: pixeles. El LUT si usa TODOS los pixeles: ahi cada muestra cuenta.
@@ -119,15 +127,6 @@ ITERACIONES_REFINADO: int = 60
 #: Barridos de suavizado en caliente dentro del bucle (el relleno completo, que
 #: es mas caro, solo se paga al principio y al final).
 _BARRIDOS_EN_BUCLE: int = 10
-
-
-def _interpolar(tabla_plana: np.ndarray, idx: np.ndarray, w: np.ndarray) -> np.ndarray:
-    """Trilineal reutilizando los pesos ya calculados. Identico a `LUT3D.apply`
-    dentro del dominio, pero sin recalcular indices en cada vuelta."""
-    fuera = np.zeros((idx.shape[1], 3), dtype=np.float64)
-    for k in range(8):
-        fuera += w[k][:, None] * tabla_plana[idx[k]]
-    return fuera
 
 
 def _submuestra(px: np.ndarray, tope: int) -> np.ndarray:
@@ -146,6 +145,7 @@ def invertir_grado(
     tam_lut: int = LUT_SIZE_DEFAULT,
     space: ColorSpaceName = WORKING_SPACE,
     min_muestras: int = MUESTRAS_MINIMAS_CELDA,
+    informacion: InformacionDeNodo = "suma_w",
 ) -> ReverseResult:
     """Recupera el grado que lleva `original` a `coloreado`.
 
@@ -161,6 +161,11 @@ def invertir_grado(
     * `delta_e_mean` / `_p95` / `_max`, sobre TODOS los pixeles validos.
       Los mismos numeros restringidos a la zona con cobertura estan en
       `confidence.metrics` como `de_*_cubierto`.
+
+    `informacion` decide como se mide cuanto sabe cada nodo en el ajuste del
+    LUT. El defecto, `"suma_w"`, es el de siempre y el del contrato T1.
+    `"suma_w2"` es el del modo por lote; con un plano mejora T1 pero empeora lo
+    tipico con un look de secundarias estrechas (`core/reverse/NOTAS.md` §12).
     """
     n = int(tam_lut)
     notas: list[str] = []
@@ -212,9 +217,8 @@ def invertir_grado(
     # ------------------------------------------------------------------
     # Capa 2: el LUT residual, por minimos cuadrados sobre la rejilla.
     # ------------------------------------------------------------------
-    acumulado, cobertura = acumular_correspondencias(
-        fuente, dst, n, min_muestras=min_muestras
-    )
+    estadisticos = estadisticos_de_correspondencias(fuente, dst, n, con_gram=True)
+    cobertura = estadisticos.cobertura(min_muestras)
     medidas = celdas_con_dato(cobertura)
     entradas = rejilla_de_entradas(n)
 
@@ -244,7 +248,7 @@ def invertir_grado(
             "sin normalizar, normalizalo antes o dame el par ya en el espacio de trabajo."
         )
     else:
-        lut = _ajustar_lut(acumulado, medidas, entradas, fuente, dst, n)
+        lut = _ajustar_lut(estadisticos, medidas, entradas, informacion=informacion)
 
     # La varianza definitiva se mide contra el LUT ya ajustado: asi es la
     # varianza del RESIDUO de verdad y no arrastra el suelo de la rejilla.
@@ -337,14 +341,24 @@ def invertir_grado(
 
 
 def _ajustar_lut(
-    acumulado: np.ndarray,
+    estadisticos: Estadisticos,
     medidas: np.ndarray,
     entradas: np.ndarray,
-    fuente: np.ndarray,
-    dst: np.ndarray,
-    n: int,
+    *,
+    iteraciones: int = ITERACIONES_REFINADO,
+    inicial: LUT3D | None = None,
+    informacion: InformacionDeNodo = "suma_w",
 ) -> LUT3D:
-    """Minimos cuadrados sobre la rejilla + extension suave. Ver el docstring."""
+    """Minimos cuadrados sobre la rejilla + extension suave. Ver el docstring.
+
+    Desde el dia 4 trabaja sobre los ESTADISTICOS (`A^T y`, `A^T A`, `D`) y no
+    sobre los pixeles: la correccion de Jacobi `D^-1 A^T (y - A t)` es
+    `D^-1 (A^T y - A^T A t)`, la misma cuenta reordenada. Asi el mismo codigo
+    ajusta un plano o cuarenta sumados. Medido: T1 identico a 4 decimales
+    (0.1415 / 1.7409) antes y despues; ver `core/reverse/NOTAS.md` §12.
+    """
+    n = estadisticos.n
+    acumulado = estadisticos.acumulado()
     pesos = acumulado[..., 3]
     valores = np.zeros((n, n, n, 3), dtype=np.float64)
     np.divide(
@@ -356,27 +370,37 @@ def _ajustar_lut(
     base = base_afin(entradas, valores, medidas, pesos)
     residuo = np.zeros_like(valores)
     residuo[medidas] = valores[medidas] - base[medidas]
-    extendido = extender_suave(residuo, medidas)
+    if inicial is None:
+        extendido = extender_suave(residuo, medidas)
+    else:
+        # Arranque en caliente desde un LUT ya ajustado con datos parecidos (lo
+        # usa la comprobacion de coherencia del lote, que ajusta N veces el
+        # lote sin un plano). El de un solo plano nunca pasa por aqui.
+        extendido = np.asarray(inicial.table, dtype=np.float64) - base
+        residuo = np.where(medidas[..., None], extendido, 0.0)
     tabla = np.clip(base + extendido, 0.0, 1.0)
 
-    idx, w = pesos_trilineales(fuente, n)
-    celdas = n**3
+    aty = estadisticos.suma_wy
+    diagonal = np.maximum(pesos.reshape(-1), 1e-12)[:, None]
     # Mezcla de la regularizacion: una celda con muchisimos pixeles manda ella;
     # una con dos pixeles sueltos se deja llevar por sus vecinas. Es minimos
     # cuadrados regularizados, no un maquillaje: sin esto, las celdas del borde
     # del gamut (dos o tres pixeles del pelo) se ajustan al ruido y el LUT sale
     # con escalones que `qc_lut` caza con razon.
-    alfa = (pesos / (pesos + LAMBDA_SUAVIDAD))[..., None]
-    for _ in range(ITERACIONES_REFINADO):
-        pred = _interpolar(tabla.reshape(celdas, 3), idx, w)
-        err = dst - pred
-        correccion = np.zeros((celdas, 3), dtype=np.float64)
-        for k in range(8):
-            for c in range(3):
-                correccion[:, c] += np.bincount(
-                    idx[k], weights=w[k] * err[:, c], minlength=celdas
-                )
-        correccion /= np.maximum(pesos.reshape(-1), 1e-12)[:, None]
+    #
+    # `informacion` decide con que se mide cuanto sabe cada nodo (ver
+    # `LAMBDA_SUAVIDAD_W2` en `relleno.py`): "suma_w" es lo de siempre y lo que
+    # usa `invertir_grado`; "suma_w2" es la diagonal de `A^T A` y es el defecto
+    # del modo por lote.
+    if informacion == "suma_w":
+        alfa = (pesos / (pesos + LAMBDA_SUAVIDAD))[..., None]
+    elif informacion == "suma_w2":
+        diag_gram = estadisticos.diagonal_gram().reshape(n, n, n)
+        alfa = (diag_gram / (diag_gram + LAMBDA_SUAVIDAD_W2))[..., None]
+    else:
+        raise ValueError(f"informacion tiene que ser 'suma_w' o 'suma_w2', llego {informacion!r}")
+    for _ in range(int(iteraciones)):
+        correccion = (aty - estadisticos.aplicar_gram(tabla)) / diagonal
         paso = correccion.reshape(n, n, n, 3)
         candidato = residuo + paso
         suave = media_de_vecinos(extendido)

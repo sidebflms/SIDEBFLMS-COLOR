@@ -124,6 +124,7 @@ def test_las_metricas_crudas_viajan_con_el_resultado():
     assert c.metrics["n_muestras"] == 60000
     assert c.metrics["distancia_contenido"] == pytest.approx(0.42)
     assert c.metrics["nota"] == pytest.approx(c.score)
+    assert UMBRALES, "no hay nada que comprobar: `UMBRALES` esta vacio"
     for clave in UMBRALES:
         assert f"subnota_{clave}" in c.metrics
 
@@ -150,6 +151,9 @@ def test_una_clave_mal_escrita_lanza():
 
 
 def test_las_claves_documentadas_son_las_que_acepta():
+    assert METRICAS_ACEPTADAS, (
+        "no hay nada que comprobar: `METRICAS_ACEPTADAS` esta vacio y el bucle no llamaria ni una vez"
+    )
     for clave in METRICAS_ACEPTADAS:
         puntuar_confianza(**{clave: 1.0})
 

@@ -25,6 +25,13 @@ from core import umbrales
 #: Esto no es una copia del módulo (eso no afirmaría nada): es la lista de
 #: origen, tecleada desde el código anterior al barrido.
 VALORES_DE_ORIGEN: dict[str, object] = {
+    # Dia 4: los dos limites de los criterios de entrega, del encargo del dia 1.
+    "LIMITE_T1_DELTA_E_MAXIMO": 3.0,
+    "LIMITE_T3_DELTA_E_PEOR_PAR": 2.0,
+    # Dia 4: modo por lote (core.reverse.lote). Valores fijados al crearlos.
+    "UMBRAL_DISCREPANCIA_LOTE": 1.0,
+    "PIXELES_COMPARTIDOS_MINIMOS_LOTE": 200,
+    "PENA_LOTE_INCOHERENTE": 0.35,
     # core/contracts.py
     "CONFIDENCE_ALTA": 0.75,
     "CONFIDENCE_MEDIA": 0.45,
@@ -102,6 +109,10 @@ def test_las_rampas_de_confianza_no_se_movieron():
 
 def test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo():
     """Para que no se pueda añadir un umbral a `core.umbrales` sin anotarlo aquí."""
+    assert umbrales.__all__, (
+        "no hay nada que comprobar: `core.umbrales.__all__` esta vacio y la resta de abajo "
+        "saldria vacia sin mirar nada"
+    )
     faltan = set(umbrales.__all__) - set(VALORES_DE_ORIGEN) - {"RAMPAS_DE_CONFIANZA"}
     assert not faltan, f"umbrales sin valor de origen anotado: {sorted(faltan)}"
 

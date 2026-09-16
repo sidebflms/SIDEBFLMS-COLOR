@@ -96,6 +96,7 @@ def test_no_existe_get_cdl_en_ningun_sitio(fake):
     assert not hasattr(fake, "get_cdl")
     assert "get_cdl" not in dir(ResolveBridge)
     publicos = [m for m in dir(fake) if not m.startswith("_")]
+    assert publicos, "no hay nada que comprobar: el falso no tiene ni un nombre publico"
     assert not any("cdl" in m and m.startswith("get") for m in publicos)
 
 
@@ -207,6 +208,7 @@ def test_activar_y_desactivar_un_nodo(listo):
 
 def test_los_nodos_no_traen_etiqueta_porque_la_api_no_deja_ponerla(fake):
     """`GetNodeLabel` existe, pero `SetNodeLabel` no. La app no puede etiquetar."""
+    assert fake.list_nodes("clip001"), "no hay nada que comprobar: clip001 sin nodos y el `all` pasaria solo"
     assert all(n.label == "" for n in fake.list_nodes("clip001"))
     con_etiquetas = FakeResolve(n_clips=1, etiquetas=("Normalizacion", "Balance", "Look"))
     assert [n.label for n in con_etiquetas.list_nodes("clip001")] == [

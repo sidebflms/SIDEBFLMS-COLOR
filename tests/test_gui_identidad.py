@@ -111,6 +111,9 @@ def test_ningun_setstylesheet_de_la_gui_pone_ff6a3d_de_fondo():
     no cuente como uso.
     """
     culpables: list[str] = []
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     for archivo in sorted(RAIZ_GUI.glob("*.py")):
         arbol = ast.parse(archivo.read_text(encoding="utf-8"), filename=str(archivo))
         for nodo in ast.walk(arbol):
@@ -241,6 +244,9 @@ def test_no_hay_ningun_rojo_de_error_en_toda_la_gui():
     que se comprueba es que no aparezca **ningun otro**.
     """
     culpables: list[str] = []
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     for archivo in sorted(RAIZ_GUI.glob("*.py")):
         for n, linea in enumerate(archivo.read_text(encoding="utf-8").splitlines(), 1):
             for hexa in _HEX.findall(linea):
@@ -293,14 +299,17 @@ def test_todas_las_cifras_de_la_app_salen_en_monoespaciada():
     v = ventana(demo())
     try:
         malas: list[str] = []
+        vistas = 0
         for i in range(4):
             v.ir_a(i)
             asentar(2)
             for lab in v.findChildren(Cifra):
+                vistas += lab.isVisible()
                 if lab.isVisible() and not es_monoespaciada(lab.font()):
                     malas.append(
                         f"pantalla {i} · Cifra#{lab.objectName() or '-'}: {lab.text()[:30]!r}"
                     )
+        assert vistas, "no hay nada que comprobar: ni una Cifra visible en las cuatro pantallas"
         assert not malas, "cifras que NO salen en monoespaciada:\n" + "\n".join(malas)
     finally:
         v.close()
@@ -325,6 +334,9 @@ def test_los_bloques_de_numeros_que_no_son_widget_cifra_tambien_son_monoespaciad
         asentar(2)
         assert es_monoespaciada(v.p_reverse.datos_lut.font()), (
             "los datos del LUT del panel de ingenieria inversa no van en monoespaciada"
+        )
+        assert v.p_reverse.editor._campos, (
+            "no hay nada que comprobar: el editor de CDL no tiene campos"
         )
         for nombre, campo in v.p_reverse.editor._campos.items():
             assert es_monoespaciada(campo.font()), (
@@ -443,6 +455,9 @@ def test_los_rotulos_van_en_mayusculas_y_con_el_tracking_de_la_identidad():
 
     v = ventana(demo())
     try:
+        assert [r for r in v.findChildren(Rotulo) if r.isVisible()], (
+            "no hay nada que comprobar: ni un Rotulo visible en la ventana"
+        )
         for r in v.findChildren(Rotulo):
             if not r.isVisible():
                 continue

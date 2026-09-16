@@ -1,0 +1,420 @@
+[CAL guardia] filas reverse=2400 matching=720 | huellas en los CSV=['b44ecbd5f521'] | huella actual=b44ecbd5f521 | umbrales vigentes ALTA=0.75 MEDIA=0.45
+[CAL guardia] máximo en su plano sin compresión, colour frente a core.color: 200 filas, diferencia máx 5.16e-05 (medio: 6.67e-07)
+[CAL material reverse] grado suave: ΔE2000 medio entre original y coloreado min 0.95 mediana 2.95 máx 8.52
+[CAL material reverse] grado fuerte: ΔE2000 medio entre original y coloreado min 2.57 mediana 7.69 máx 19.36
+[CAL material reverse] plano otra_toma: disparidad (intersección de histogramas 17³) min 0.138 mediana 0.411 máx 0.970 | píxeles en celda cubierta (33³) mediana 0.964
+[CAL material reverse] plano tono_15: disparidad (intersección de histogramas 17³) min 0.203 mediana 0.535 máx 0.940 | píxeles en celda cubierta (33³) mediana 0.963
+[CAL material reverse] plano tono_60_exp: disparidad (intersección de histogramas 17³) min 0.007 mediana 0.298 máx 0.804 | píxeles en celda cubierta (33³) mediana 0.732
+[CAL material reverse] plano tono_150_sat: disparidad (intersección de histogramas 17³) min 0.014 mediana 0.222 máx 0.631 | píxeles en celda cubierta (33³) mediana 0.395
+[CAL material reverse] plano otra_paleta: disparidad (intersección de histogramas 17³) min 0.009 mediana 0.132 máx 0.544 | píxeles en celda cubierta (33³) mediana 0.817
+[CAL material reverse] cobertura del cubo 33³ por extracción: min 0.0004 mediana 0.0031 máx 0.0184 | píxeles con L*>100 en la verdad: mediana 0.0000 máx 0.1277
+[CAL material matching] identica: disparidad mediana 1.000 | ΔE medio sin tocar mediana 11.55 -> igualado 1.25 | «alta» 65 de 120, de esas cumplen medio<2: 47
+[CAL material matching] otra_toma: disparidad mediana 0.556 | ΔE medio sin tocar mediana 11.55 -> igualado 8.02 | «alta» 12 de 120, de esas cumplen medio<2: 0
+[CAL material matching] tono_15: disparidad mediana 0.463 | ΔE medio sin tocar mediana 11.55 -> igualado 9.13 | «alta» 6 de 120, de esas cumplen medio<2: 0
+[CAL material matching] tono_60_exp: disparidad mediana 0.325 | ΔE medio sin tocar mediana 11.55 -> igualado 15.54 | «alta» 9 de 120, de esas cumplen medio<2: 0
+[CAL material matching] tono_150_sat: disparidad mediana 0.223 | ΔE medio sin tocar mediana 11.55 -> igualado 17.83 | «alta» 1 de 120, de esas cumplen medio<2: 0
+[CAL material matching] otra_paleta: disparidad mediana 0.147 | ΔE medio sin tocar mediana 11.55 -> igualado 22.33 | «alta» 14 de 120, de esas cumplen medio<2: 0
+[CAL distribucion reverse 17^3] n=200 extracciones | percentiles 0/5/10/25/50/75/90/95/100 = 0.218 0.299 0.307 0.897 0.976 1.000 1.000 1.000 1.000
+[CAL distribucion reverse 17^3] score==1.0: 0.405 | >=0.99: 0.465 | en (0.45, 0.75): 0.000 | niveles alta/media/baja = 171/0/29
+[CAL distribucion reverse 17^3] histograma 20 bins 0..1: 0 0 0 0 1 12 16 0 0 0 0 0 0 0 0 0 5 19 38 109
+[CAL componentes reverse 17^3] n_muestras <1: 0.000 | solape <1: 0.120 | condicion <1: 0.000 | residuo_de <1: 0.595 | fraccion_no_finita <1: 0.000 | desajuste: 0.145
+[CAL distribucion reverse 33^3] n=200 extracciones | percentiles 0/5/10/25/50/75/90/95/100 = 0.278 0.313 0.327 0.915 0.996 1.000 1.000 1.000 1.000
+[CAL distribucion reverse 33^3] score==1.0: 0.500 | >=0.99: 0.505 | en (0.45, 0.75): 0.000 | niveles alta/media/baja = 171/0/29
+[CAL distribucion reverse 33^3] histograma 20 bins 0..1: 0 0 0 0 0 6 23 0 0 0 0 0 0 0 0 0 0 17 34 120
+[CAL componentes reverse 33^3] n_muestras <1: 0.000 | solape <1: 0.075 | condicion <1: 0.000 | residuo_de <1: 0.500 | fraccion_no_finita <1: 0.000 | desajuste: 0.145
+[CAL distribucion matching] n=720 pares | percentiles 0/5/10/25/50/75/90/95/100 = 0.000 0.000 0.000 0.000 0.249 0.340 0.924 0.970 0.972
+[CAL distribucion matching] score==1.0: 0.000 | >=0.99: 0.000 | en (0.45, 0.75): 0.065 | niveles alta/media/baja = 107/47/566
+[CAL distribucion matching] histograma 20 bins 0..1: 202 22 33 51 53 88 98 11 8 3 9 3 10 7 15 5 15 6 24 57
+[CAL componentes matching] n_muestras <1: 1.000 | solape <1: 0.651 | condicion <1: 0.008 | residuo_de <1: 0.664 | extrapolacion <1: 0.704 | ganancia <1: 0.057 | fraccion_no_finita <1: 0.000 | desajuste: 0.629
+[CAL desajuste reverse 17^3] compresion=0 recorte=0: desajuste en 0.000 de 50 extracciones
+[CAL desajuste reverse 17^3] compresion=0 recorte=1: desajuste en 0.000 de 50 extracciones
+[CAL desajuste reverse 17^3] compresion=1 recorte=0: desajuste en 0.320 de 50 extracciones
+[CAL desajuste reverse 17^3] compresion=1 recorte=1: desajuste en 0.260 de 50 extracciones
+[CAL desajuste reverse 33^3] compresion=0 recorte=0: desajuste en 0.000 de 50 extracciones
+[CAL desajuste reverse 33^3] compresion=0 recorte=1: desajuste en 0.000 de 50 extracciones
+[CAL desajuste reverse 33^3] compresion=1 recorte=0: desajuste en 0.320 de 50 extracciones
+[CAL desajuste reverse 33^3] compresion=1 recorte=1: desajuste en 0.260 de 50 extracciones
+[CAL desajuste matching] compresion=0 recorte=0: desajuste en 0.561 de 180 pares
+[CAL desajuste matching] compresion=0 recorte=1: desajuste en 0.394 de 180 pares
+[CAL desajuste matching] compresion=1 recorte=0: desajuste en 0.800 de 180 pares
+[CAL desajuste matching] compresion=1 recorte=1: desajuste en 0.761 de 180 pares
+[CAL spearman reverse 17^3 fuera | todo] n=1000 score_distintos= 120 | rho max -0.290 | p95 -0.324 | medio -0.403
+[CAL spearman reverse 17^3 fuera | riqueza=media] n= 200 score_distintos=  21 | rho max -0.301 | p95 -0.245 | medio -0.278
+[CAL spearman reverse 17^3 fuera | riqueza=muy_pobre] n= 200 score_distintos=  34 | rho max -0.197 | p95 -0.201 | medio -0.172
+[CAL spearman reverse 17^3 fuera | riqueza=muy_rica] n= 200 score_distintos=  21 | rho max -0.181 | p95 -0.260 | medio -0.577
+[CAL spearman reverse 17^3 fuera | riqueza=pobre] n= 200 score_distintos=  27 | rho max -0.300 | p95 -0.147 | medio -0.174
+[CAL spearman reverse 17^3 fuera | riqueza=rica] n= 200 score_distintos=  21 | rho max -0.365 | p95 -0.336 | medio -0.447
+[CAL spearman reverse 17^3 fuera | compresion=0.0] n= 500 score_distintos=  20 | rho max -0.078 | p95 -0.249 | medio -0.324
+[CAL spearman reverse 17^3 fuera | compresion=1.0] n= 500 score_distintos= 100 | rho max -0.153 | p95 -0.404 | medio -0.426
+[CAL spearman reverse 17^3 fuera | recorte=0.0] n= 500 score_distintos=  61 | rho max -0.315 | p95 -0.309 | medio -0.388
+[CAL spearman reverse 17^3 fuera | recorte=1.0] n= 500 score_distintos=  60 | rho max -0.267 | p95 -0.342 | medio -0.419
+[CAL spearman reverse 17^3 fuera | fuerza=fuerte] n= 500 score_distintos=  56 | rho max -0.246 | p95 -0.303 | medio -0.383
+[CAL spearman reverse 17^3 fuera | fuerza=suave] n= 500 score_distintos=  65 | rho max -0.346 | p95 -0.349 | medio -0.426
+[CAL spearman reverse 17^3 fuera | plano=otra_toma] n= 200 score_distintos= 120 | rho max -0.355 | p95 -0.539 | medio -0.687
+[CAL spearman reverse 17^3 fuera | plano=tono_15] n= 200 score_distintos= 120 | rho max -0.290 | p95 -0.375 | medio -0.524
+[CAL spearman reverse 17^3 fuera | plano=tono_60_exp] n= 200 score_distintos= 120 | rho max -0.224 | p95 -0.281 | medio -0.338
+[CAL spearman reverse 17^3 fuera | plano=tono_150_sat] n= 200 score_distintos= 120 | rho max -0.313 | p95 -0.333 | medio -0.364
+[CAL spearman reverse 17^3 fuera | plano=otra_paleta] n= 200 score_distintos= 120 | rho max -0.419 | p95 -0.368 | medio -0.422
+[CAL spearman reverse 17^3 fuera | sin desajuste] n= 855 score_distintos=  91 | rho max -0.258 | p95 -0.206 | medio -0.297
+[CAL spearman reverse 17^3 fuera | score >= ALTA] n= 855 score_distintos=  91 | rho max -0.258 | p95 -0.206 | medio -0.297
+[CAL spearman reverse 17^3 propio | todo] n= 200 score_distintos= 120 | rho max -0.570 | p95 -0.816 | medio -0.900
+[CAL spearman reverse 17^3 propio | riqueza=media] n=  40 score_distintos=  21 | rho max -0.426 | p95 -0.830 | medio -0.823
+[CAL spearman reverse 17^3 propio | riqueza=muy_pobre] n=  40 score_distintos=  34 | rho max -0.562 | p95 -0.769 | medio -0.849
+[CAL spearman reverse 17^3 propio | riqueza=muy_rica] n=  40 score_distintos=  21 | rho max -0.568 | p95 -0.762 | medio -0.862
+[CAL spearman reverse 17^3 propio | riqueza=pobre] n=  40 score_distintos=  27 | rho max -0.570 | p95 -0.810 | medio -0.829
+[CAL spearman reverse 17^3 propio | riqueza=rica] n=  40 score_distintos=  21 | rho max -0.709 | p95 -0.878 | medio -0.907
+[CAL spearman reverse 17^3 propio | compresion=0.0] n= 100 score_distintos=  20 | rho max -0.140 | p95 -0.660 | medio -0.685
+[CAL spearman reverse 17^3 propio | compresion=1.0] n= 100 score_distintos= 100 | rho max +0.097 | p95 -0.495 | medio -0.536
+[CAL spearman reverse 17^3 propio | recorte=0.0] n= 100 score_distintos=  61 | rho max -0.681 | p95 -0.810 | medio -0.905
+[CAL spearman reverse 17^3 propio | recorte=1.0] n= 100 score_distintos=  60 | rho max -0.428 | p95 -0.821 | medio -0.897
+[CAL spearman reverse 17^3 propio | fuerza=fuerte] n= 100 score_distintos=  56 | rho max -0.537 | p95 -0.845 | medio -0.898
+[CAL spearman reverse 17^3 propio | fuerza=suave] n= 100 score_distintos=  65 | rho max -0.596 | p95 -0.796 | medio -0.904
+[CAL spearman reverse 17^3 propio | sin desajuste] n= 171 score_distintos=  91 | rho max -0.575 | p95 -0.769 | medio -0.894
+[CAL spearman reverse 17^3 propio | score >= ALTA] n= 171 score_distintos=  91 | rho max -0.575 | p95 -0.769 | medio -0.894
+[CAL spearman reverse 33^3 fuera | todo] n=1000 score_distintos= 101 | rho max -0.551 | p95 -0.559 | medio -0.582
+[CAL spearman reverse 33^3 fuera | riqueza=media] n= 200 score_distintos=  21 | rho max -0.592 | p95 -0.518 | medio -0.536
+[CAL spearman reverse 33^3 fuera | riqueza=muy_pobre] n= 200 score_distintos=  21 | rho max -0.533 | p95 -0.516 | medio -0.467
+[CAL spearman reverse 33^3 fuera | riqueza=muy_rica] n= 200 score_distintos=  21 | rho max -0.510 | p95 -0.601 | medio -0.747
+[CAL spearman reverse 33^3 fuera | riqueza=pobre] n= 200 score_distintos=  21 | rho max -0.620 | p95 -0.483 | medio -0.450
+[CAL spearman reverse 33^3 fuera | riqueza=rica] n= 200 score_distintos=  21 | rho max -0.652 | p95 -0.625 | medio -0.695
+[CAL spearman reverse 33^3 fuera | compresion=0.0] n= 500 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL spearman reverse 33^3 fuera | compresion=1.0] n= 500 score_distintos= 100 | rho max +0.088 | p95 -0.165 | medio -0.235
+[CAL spearman reverse 33^3 fuera | recorte=0.0] n= 500 score_distintos=  51 | rho max -0.590 | p95 -0.572 | medio -0.576
+[CAL spearman reverse 33^3 fuera | recorte=1.0] n= 500 score_distintos=  51 | rho max -0.511 | p95 -0.549 | medio -0.587
+[CAL spearman reverse 33^3 fuera | fuerza=fuerte] n= 500 score_distintos=  51 | rho max -0.499 | p95 -0.510 | medio -0.561
+[CAL spearman reverse 33^3 fuera | fuerza=suave] n= 500 score_distintos=  51 | rho max -0.596 | p95 -0.608 | medio -0.606
+[CAL spearman reverse 33^3 fuera | plano=otra_toma] n= 200 score_distintos= 101 | rho max -0.595 | p95 -0.729 | medio -0.786
+[CAL spearman reverse 33^3 fuera | plano=tono_15] n= 200 score_distintos= 101 | rho max -0.594 | p95 -0.731 | medio -0.796
+[CAL spearman reverse 33^3 fuera | plano=tono_60_exp] n= 200 score_distintos= 101 | rho max -0.521 | p95 -0.512 | medio -0.535
+[CAL spearman reverse 33^3 fuera | plano=tono_150_sat] n= 200 score_distintos= 101 | rho max -0.575 | p95 -0.547 | medio -0.565
+[CAL spearman reverse 33^3 fuera | plano=otra_paleta] n= 200 score_distintos= 101 | rho max -0.555 | p95 -0.533 | medio -0.557
+[CAL spearman reverse 33^3 fuera | sin desajuste] n= 855 score_distintos=  72 | rho max -0.597 | p95 -0.522 | medio -0.529
+[CAL spearman reverse 33^3 fuera | score >= ALTA] n= 855 score_distintos=  72 | rho max -0.597 | p95 -0.522 | medio -0.529
+[CAL spearman reverse 33^3 propio | todo] n= 200 score_distintos= 101 | rho max -0.733 | p95 -0.827 | medio -0.852
+[CAL spearman reverse 33^3 propio | riqueza=media] n=  40 score_distintos=  21 | rho max -0.749 | p95 -0.824 | medio -0.835
+[CAL spearman reverse 33^3 propio | riqueza=muy_pobre] n=  40 score_distintos=  21 | rho max -0.785 | p95 -0.816 | medio -0.789
+[CAL spearman reverse 33^3 propio | riqueza=muy_rica] n=  40 score_distintos=  21 | rho max -0.846 | p95 -0.792 | medio -0.859
+[CAL spearman reverse 33^3 propio | riqueza=pobre] n=  40 score_distintos=  21 | rho max -0.814 | p95 -0.811 | medio -0.775
+[CAL spearman reverse 33^3 propio | riqueza=rica] n=  40 score_distintos=  21 | rho max -0.806 | p95 -0.872 | medio -0.912
+[CAL spearman reverse 33^3 propio | compresion=0.0] n= 100 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL spearman reverse 33^3 propio | compresion=1.0] n= 100 score_distintos= 100 | rho max +0.337 | p95 -0.189 | medio -0.373
+[CAL spearman reverse 33^3 propio | recorte=0.0] n= 100 score_distintos=  51 | rho max -0.730 | p95 -0.816 | medio -0.852
+[CAL spearman reverse 33^3 propio | recorte=1.0] n= 100 score_distintos=  51 | rho max -0.721 | p95 -0.837 | medio -0.849
+[CAL spearman reverse 33^3 propio | fuerza=fuerte] n= 100 score_distintos=  51 | rho max -0.716 | p95 -0.830 | medio -0.858
+[CAL spearman reverse 33^3 propio | fuerza=suave] n= 100 score_distintos=  51 | rho max -0.745 | p95 -0.826 | medio -0.855
+[CAL spearman reverse 33^3 propio | sin desajuste] n= 171 score_distintos=  72 | rho max -0.795 | p95 -0.829 | medio -0.841
+[CAL spearman reverse 33^3 propio | score >= ALTA] n= 171 score_distintos=  72 | rho max -0.795 | p95 -0.829 | medio -0.841
+[CAL spearman matching | todo] n= 720 score_distintos= 481 | rho max -0.096 | p95 -0.239 | medio -0.269
+[CAL spearman matching | riqueza=media] n= 144 score_distintos= 105 | rho max -0.382 | p95 -0.557 | medio -0.521
+[CAL spearman matching | riqueza=muy_pobre] n= 144 score_distintos=  59 | rho max -0.246 | p95 -0.191 | medio -0.170
+[CAL spearman matching | riqueza=muy_rica] n= 144 score_distintos= 122 | rho max -0.115 | p95 -0.153 | medio -0.123
+[CAL spearman matching | riqueza=pobre] n= 144 score_distintos=  82 | rho max -0.256 | p95 -0.409 | medio -0.425
+[CAL spearman matching | riqueza=rica] n= 144 score_distintos= 124 | rho max -0.431 | p95 -0.576 | medio -0.524
+[CAL spearman matching | compresion=0.0] n= 360 score_distintos= 222 | rho max -0.154 | p95 -0.262 | medio -0.278
+[CAL spearman matching | compresion=1.0] n= 360 score_distintos= 262 | rho max -0.022 | p95 -0.207 | medio -0.253
+[CAL spearman matching | recorte=0.0] n= 360 score_distintos= 261 | rho max -0.171 | p95 -0.243 | medio -0.255
+[CAL spearman matching | recorte=1.0] n= 360 score_distintos= 231 | rho max -0.203 | p95 -0.240 | medio -0.296
+[CAL spearman matching | fuerza=fuerte] n= 240 score_distintos= 163 | rho max -0.200 | p95 -0.273 | medio -0.272
+[CAL spearman matching | fuerza=ninguno] n= 240 score_distintos= 171 | rho max -0.225 | p95 -0.350 | medio -0.413
+[CAL spearman matching | fuerza=suave] n= 240 score_distintos= 153 | rho max +0.132 | p95 -0.093 | medio -0.121
+[CAL spearman matching | disparidad_tipo=identica] n= 120 score_distintos=  85 | rho max +0.394 | p95 +0.266 | medio +0.151
+[CAL spearman matching | disparidad_tipo=otra_paleta] n= 120 score_distintos=  83 | rho max +0.088 | p95 -0.084 | medio -0.225
+[CAL spearman matching | disparidad_tipo=otra_toma] n= 120 score_distintos=  94 | rho max +0.209 | p95 +0.039 | medio -0.008
+[CAL spearman matching | disparidad_tipo=tono_15] n= 120 score_distintos=  80 | rho max -0.047 | p95 -0.130 | medio -0.097
+[CAL spearman matching | disparidad_tipo=tono_150_sat] n= 120 score_distintos=  67 | rho max +0.104 | p95 -0.011 | medio -0.089
+[CAL spearman matching | disparidad_tipo=tono_60_exp] n= 120 score_distintos=  85 | rho max +0.098 | p95 -0.126 | medio -0.087
+[CAL spearman matching | sin desajuste] n= 267 score_distintos= 158 | rho max +0.021 | p95 -0.197 | medio -0.244
+[CAL spearman matching | score >= ALTA] n= 107 score_distintos=  77 | rho max -0.032 | p95 -0.157 | medio -0.145
+[CAL spearman_sdr reverse 17^3 fuera | todo] n=1000 score_distintos= 120 | rho max -0.253 | p95 -0.325 | medio -0.403
+[CAL spearman_sdr reverse 17^3 fuera | riqueza=media] n= 200 score_distintos=  21 | rho max -0.230 | p95 -0.240 | medio -0.275
+[CAL spearman_sdr reverse 17^3 fuera | riqueza=muy_pobre] n= 200 score_distintos=  34 | rho max -0.193 | p95 -0.200 | medio -0.172
+[CAL spearman_sdr reverse 17^3 fuera | riqueza=muy_rica] n= 200 score_distintos=  21 | rho max -0.129 | p95 -0.269 | medio -0.588
+[CAL spearman_sdr reverse 17^3 fuera | riqueza=pobre] n= 200 score_distintos=  27 | rho max -0.228 | p95 -0.144 | medio -0.172
+[CAL spearman_sdr reverse 17^3 fuera | riqueza=rica] n= 200 score_distintos=  21 | rho max -0.278 | p95 -0.327 | medio -0.445
+[CAL spearman_sdr reverse 17^3 fuera | compresion=0.0] n= 500 score_distintos=  20 | rho max -0.100 | p95 -0.253 | medio -0.325
+[CAL spearman_sdr reverse 17^3 fuera | compresion=1.0] n= 500 score_distintos= 100 | rho max -0.201 | p95 -0.412 | medio -0.429
+[CAL spearman_sdr reverse 17^3 fuera | recorte=0.0] n= 500 score_distintos=  61 | rho max -0.235 | p95 -0.309 | medio -0.387
+[CAL spearman_sdr reverse 17^3 fuera | recorte=1.0] n= 500 score_distintos=  60 | rho max -0.273 | p95 -0.344 | medio -0.421
+[CAL spearman_sdr reverse 17^3 fuera | fuerza=fuerte] n= 500 score_distintos=  56 | rho max -0.212 | p95 -0.306 | medio -0.385
+[CAL spearman_sdr reverse 17^3 fuera | fuerza=suave] n= 500 score_distintos=  65 | rho max -0.306 | p95 -0.347 | medio -0.424
+[CAL spearman_sdr reverse 17^3 fuera | plano=otra_toma] n= 200 score_distintos= 120 | rho max -0.328 | p95 -0.535 | medio -0.686
+[CAL spearman_sdr reverse 17^3 fuera | plano=tono_15] n= 200 score_distintos= 120 | rho max -0.245 | p95 -0.369 | medio -0.521
+[CAL spearman_sdr reverse 17^3 fuera | plano=tono_60_exp] n= 200 score_distintos= 120 | rho max -0.172 | p95 -0.294 | medio -0.340
+[CAL spearman_sdr reverse 17^3 fuera | plano=tono_150_sat] n= 200 score_distintos= 120 | rho max -0.257 | p95 -0.331 | medio -0.362
+[CAL spearman_sdr reverse 17^3 fuera | plano=otra_paleta] n= 200 score_distintos= 120 | rho max -0.383 | p95 -0.365 | medio -0.420
+[CAL spearman_sdr reverse 17^3 fuera | sin desajuste] n= 855 score_distintos=  91 | rho max -0.178 | p95 -0.204 | medio -0.296
+[CAL spearman_sdr reverse 17^3 fuera | score >= ALTA] n= 855 score_distintos=  91 | rho max -0.178 | p95 -0.204 | medio -0.296
+[CAL spearman_sdr reverse 17^3 propio | todo] n= 200 score_distintos= 120 | rho max -0.523 | p95 -0.807 | medio -0.899
+[CAL spearman_sdr reverse 17^3 propio | riqueza=media] n=  40 score_distintos=  21 | rho max -0.303 | p95 -0.829 | medio -0.819
+[CAL spearman_sdr reverse 17^3 propio | riqueza=muy_pobre] n=  40 score_distintos=  34 | rho max -0.562 | p95 -0.769 | medio -0.849
+[CAL spearman_sdr reverse 17^3 propio | riqueza=muy_rica] n=  40 score_distintos=  21 | rho max -0.325 | p95 -0.757 | medio -0.858
+[CAL spearman_sdr reverse 17^3 propio | riqueza=pobre] n=  40 score_distintos=  27 | rho max -0.514 | p95 -0.810 | medio -0.826
+[CAL spearman_sdr reverse 17^3 propio | riqueza=rica] n=  40 score_distintos=  21 | rho max -0.629 | p95 -0.864 | medio -0.904
+[CAL spearman_sdr reverse 17^3 propio | compresion=0.0] n= 100 score_distintos=  20 | rho max -0.161 | p95 -0.660 | medio -0.685
+[CAL spearman_sdr reverse 17^3 propio | compresion=1.0] n= 100 score_distintos= 100 | rho max -0.038 | p95 -0.496 | medio -0.536
+[CAL spearman_sdr reverse 17^3 propio | recorte=0.0] n= 100 score_distintos=  61 | rho max -0.603 | p95 -0.796 | medio -0.901
+[CAL spearman_sdr reverse 17^3 propio | recorte=1.0] n= 100 score_distintos=  60 | rho max -0.443 | p95 -0.817 | medio -0.897
+[CAL spearman_sdr reverse 17^3 propio | fuerza=fuerte] n= 100 score_distintos=  56 | rho max -0.500 | p95 -0.836 | medio -0.898
+[CAL spearman_sdr reverse 17^3 propio | fuerza=suave] n= 100 score_distintos=  65 | rho max -0.532 | p95 -0.787 | medio -0.901
+[CAL spearman_sdr reverse 17^3 propio | sin desajuste] n= 171 score_distintos=  91 | rho max -0.462 | p95 -0.754 | medio -0.891
+[CAL spearman_sdr reverse 17^3 propio | score >= ALTA] n= 171 score_distintos=  91 | rho max -0.462 | p95 -0.754 | medio -0.891
+[CAL spearman_sdr reverse 33^3 fuera | todo] n=1000 score_distintos= 101 | rho max -0.556 | p95 -0.561 | medio -0.582
+[CAL spearman_sdr reverse 33^3 fuera | riqueza=media] n= 200 score_distintos=  21 | rho max -0.609 | p95 -0.513 | medio -0.534
+[CAL spearman_sdr reverse 33^3 fuera | riqueza=muy_pobre] n= 200 score_distintos=  21 | rho max -0.558 | p95 -0.516 | medio -0.466
+[CAL spearman_sdr reverse 33^3 fuera | riqueza=muy_rica] n= 200 score_distintos=  21 | rho max -0.483 | p95 -0.616 | medio -0.750
+[CAL spearman_sdr reverse 33^3 fuera | riqueza=pobre] n= 200 score_distintos=  21 | rho max -0.597 | p95 -0.481 | medio -0.446
+[CAL spearman_sdr reverse 33^3 fuera | riqueza=rica] n= 200 score_distintos=  21 | rho max -0.646 | p95 -0.621 | medio -0.693
+[CAL spearman_sdr reverse 33^3 fuera | compresion=0.0] n= 500 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL spearman_sdr reverse 33^3 fuera | compresion=1.0] n= 500 score_distintos= 100 | rho max +0.101 | p95 -0.171 | medio -0.237
+[CAL spearman_sdr reverse 33^3 fuera | recorte=0.0] n= 500 score_distintos=  51 | rho max -0.592 | p95 -0.575 | medio -0.575
+[CAL spearman_sdr reverse 33^3 fuera | recorte=1.0] n= 500 score_distintos=  51 | rho max -0.521 | p95 -0.549 | medio -0.588
+[CAL spearman_sdr reverse 33^3 fuera | fuerza=fuerte] n= 500 score_distintos=  51 | rho max -0.516 | p95 -0.516 | medio -0.562
+[CAL spearman_sdr reverse 33^3 fuera | fuerza=suave] n= 500 score_distintos=  51 | rho max -0.592 | p95 -0.607 | medio -0.605
+[CAL spearman_sdr reverse 33^3 fuera | plano=otra_toma] n= 200 score_distintos= 101 | rho max -0.611 | p95 -0.727 | medio -0.786
+[CAL spearman_sdr reverse 33^3 fuera | plano=tono_15] n= 200 score_distintos= 101 | rho max -0.611 | p95 -0.730 | medio -0.796
+[CAL spearman_sdr reverse 33^3 fuera | plano=tono_60_exp] n= 200 score_distintos= 101 | rho max -0.507 | p95 -0.528 | medio -0.534
+[CAL spearman_sdr reverse 33^3 fuera | plano=tono_150_sat] n= 200 score_distintos= 101 | rho max -0.570 | p95 -0.546 | medio -0.563
+[CAL spearman_sdr reverse 33^3 fuera | plano=otra_paleta] n= 200 score_distintos= 101 | rho max -0.574 | p95 -0.532 | medio -0.556
+[CAL spearman_sdr reverse 33^3 fuera | sin desajuste] n= 855 score_distintos=  72 | rho max -0.590 | p95 -0.522 | medio -0.528
+[CAL spearman_sdr reverse 33^3 fuera | score >= ALTA] n= 855 score_distintos=  72 | rho max -0.590 | p95 -0.522 | medio -0.528
+[CAL spearman_sdr reverse 33^3 propio | todo] n= 200 score_distintos= 101 | rho max -0.735 | p95 -0.829 | medio -0.854
+[CAL spearman_sdr reverse 33^3 propio | riqueza=media] n=  40 score_distintos=  21 | rho max -0.724 | p95 -0.821 | medio -0.839
+[CAL spearman_sdr reverse 33^3 propio | riqueza=muy_pobre] n=  40 score_distintos=  21 | rho max -0.785 | p95 -0.816 | medio -0.789
+[CAL spearman_sdr reverse 33^3 propio | riqueza=muy_rica] n=  40 score_distintos=  21 | rho max -0.787 | p95 -0.769 | medio -0.849
+[CAL spearman_sdr reverse 33^3 propio | riqueza=pobre] n=  40 score_distintos=  21 | rho max -0.829 | p95 -0.811 | medio -0.775
+[CAL spearman_sdr reverse 33^3 propio | riqueza=rica] n=  40 score_distintos=  21 | rho max -0.776 | p95 -0.870 | medio -0.914
+[CAL spearman_sdr reverse 33^3 propio | compresion=0.0] n= 100 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL spearman_sdr reverse 33^3 propio | compresion=1.0] n= 100 score_distintos= 100 | rho max +0.327 | p95 -0.205 | medio -0.393
+[CAL spearman_sdr reverse 33^3 propio | recorte=0.0] n= 100 score_distintos=  51 | rho max -0.741 | p95 -0.819 | medio -0.856
+[CAL spearman_sdr reverse 33^3 propio | recorte=1.0] n= 100 score_distintos=  51 | rho max -0.726 | p95 -0.838 | medio -0.850
+[CAL spearman_sdr reverse 33^3 propio | fuerza=fuerte] n= 100 score_distintos=  51 | rho max -0.714 | p95 -0.832 | medio -0.863
+[CAL spearman_sdr reverse 33^3 propio | fuerza=suave] n= 100 score_distintos=  51 | rho max -0.752 | p95 -0.828 | medio -0.855
+[CAL spearman_sdr reverse 33^3 propio | sin desajuste] n= 171 score_distintos=  72 | rho max -0.779 | p95 -0.827 | medio -0.842
+[CAL spearman_sdr reverse 33^3 propio | score >= ALTA] n= 171 score_distintos=  72 | rho max -0.779 | p95 -0.827 | medio -0.842
+[CAL spearman_sdr matching | todo] n= 720 score_distintos= 481 | rho max -0.195 | p95 -0.240 | medio -0.271
+[CAL spearman_sdr matching | riqueza=media] n= 144 score_distintos= 105 | rho max -0.502 | p95 -0.558 | medio -0.521
+[CAL spearman_sdr matching | riqueza=muy_pobre] n= 144 score_distintos=  59 | rho max -0.246 | p95 -0.191 | medio -0.170
+[CAL spearman_sdr matching | riqueza=muy_rica] n= 144 score_distintos= 122 | rho max -0.177 | p95 -0.147 | medio -0.125
+[CAL spearman_sdr matching | riqueza=pobre] n= 144 score_distintos=  82 | rho max -0.365 | p95 -0.410 | medio -0.427
+[CAL spearman_sdr matching | riqueza=rica] n= 144 score_distintos= 124 | rho max -0.546 | p95 -0.573 | medio -0.524
+[CAL spearman_sdr matching | compresion=0.0] n= 360 score_distintos= 222 | rho max -0.237 | p95 -0.262 | medio -0.279
+[CAL spearman_sdr matching | compresion=1.0] n= 360 score_distintos= 262 | rho max -0.137 | p95 -0.209 | medio -0.256
+[CAL spearman_sdr matching | recorte=0.0] n= 360 score_distintos= 261 | rho max -0.239 | p95 -0.241 | medio -0.255
+[CAL spearman_sdr matching | recorte=1.0] n= 360 score_distintos= 231 | rho max -0.206 | p95 -0.241 | medio -0.296
+[CAL spearman_sdr matching | fuerza=fuerte] n= 240 score_distintos= 163 | rho max -0.265 | p95 -0.273 | medio -0.272
+[CAL spearman_sdr matching | fuerza=ninguno] n= 240 score_distintos= 171 | rho max -0.335 | p95 -0.351 | medio -0.415
+[CAL spearman_sdr matching | fuerza=suave] n= 240 score_distintos= 153 | rho max +0.007 | p95 -0.096 | medio -0.124
+[CAL spearman_sdr matching | disparidad_tipo=identica] n= 120 score_distintos=  85 | rho max +0.322 | p95 +0.259 | medio +0.138
+[CAL spearman_sdr matching | disparidad_tipo=otra_paleta] n= 120 score_distintos=  83 | rho max -0.086 | p95 -0.090 | medio -0.227
+[CAL spearman_sdr matching | disparidad_tipo=otra_toma] n= 120 score_distintos=  94 | rho max +0.158 | p95 +0.040 | medio -0.010
+[CAL spearman_sdr matching | disparidad_tipo=tono_15] n= 120 score_distintos=  80 | rho max -0.115 | p95 -0.138 | medio -0.108
+[CAL spearman_sdr matching | disparidad_tipo=tono_150_sat] n= 120 score_distintos=  67 | rho max +0.020 | p95 -0.017 | medio -0.091
+[CAL spearman_sdr matching | disparidad_tipo=tono_60_exp] n= 120 score_distintos=  85 | rho max -0.036 | p95 -0.128 | medio -0.093
+[CAL spearman_sdr matching | sin desajuste] n= 267 score_distintos= 158 | rho max -0.113 | p95 -0.199 | medio -0.247
+[CAL spearman_sdr matching | score >= ALTA] n= 107 score_distintos=  77 | rho max -0.111 | p95 -0.158 | medio -0.148
+[CAL spearman reverse 17^3 fuera | compresion=0 recorte=0] n= 250 score_distintos=  11 | rho max -0.105 | p95 -0.282 | medio -0.343
+[CAL auc reverse 17^3 fuera | compresion=0 recorte=0] criterio de_max < 3.0: cumplen 11 de 250 | AUC del score = 0.605 IC95=[0.552, 0.665] (0.5 = no predice)
+[CAL constante reverse 17^3 fuera | compresion=0 recorte=0] score==1.0 en 200 de 250 (score min 0.978) | con score 1.0, máx: min 0.44 mediana 9.02 máx 26.53 | cumple máx<3: 0.055
+[CAL spearman reverse 17^3 fuera | compresion=0 recorte=1] n= 250 score_distintos=  10 | rho max -0.046 | p95 -0.214 | medio -0.303
+[CAL auc reverse 17^3 fuera | compresion=0 recorte=1] criterio de_max < 3.0: cumplen 15 de 250 | AUC del score = 0.596 IC95=[0.543, 0.656] (0.5 = no predice)
+[CAL constante reverse 17^3 fuera | compresion=0 recorte=1] score==1.0 en 205 de 250 (score min 0.980) | con score 1.0, máx: min 0.39 mediana 8.94 máx 27.26 | cumple máx<3: 0.073
+[CAL spearman reverse 17^3 fuera | compresion=1 recorte=0] n= 250 score_distintos=  50 | rho max -0.081 | p95 -0.360 | medio -0.401
+[CAL auc reverse 17^3 fuera | compresion=1 recorte=0] criterio de_max < 3.0: cumplen 4 de 250 | AUC del score = 0.668 IC95=[0.500, 0.861] (0.5 = no predice)
+[CAL constante reverse 17^3 fuera | compresion=1 recorte=0] score==1.0 en 0 de 250 (score min 0.256) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 17^3 fuera | compresion=1 recorte=1] n= 250 score_distintos=  50 | rho max -0.234 | p95 -0.451 | medio -0.455
+[CAL auc reverse 17^3 fuera | compresion=1 recorte=1] criterio de_max < 3.0: cumplen 6 de 250 | AUC del score = 0.657 IC95=[0.516, 0.814] (0.5 = no predice)
+[CAL constante reverse 17^3 fuera | compresion=1 recorte=1] score==1.0 en 0 de 250 (score min 0.218) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 17^3 propio | compresion=0 recorte=0] n=  50 score_distintos=  11 | rho max -0.260 | p95 -0.671 | medio -0.699
+[CAL auc reverse 17^3 propio | compresion=0 recorte=0] criterio de_max < 3.0: cumplen 4 de 50 | AUC del score = 0.609 IC95=[0.552, 0.667] (0.5 = no predice)
+[CAL constante reverse 17^3 propio | compresion=0 recorte=0] score==1.0 en 40 de 50 (score min 0.978) | con score 1.0, máx: min 2.27 mediana 5.23 máx 10.59 | cumple máx<3: 0.100
+[CAL spearman reverse 17^3 propio | compresion=0 recorte=1] n=  50 score_distintos=  10 | rho max -0.032 | p95 -0.647 | medio -0.670
+[CAL auc reverse 17^3 propio | compresion=0 recorte=1] criterio de_max < 3.0: cumplen 2 de 50 | AUC del score = 0.594 IC95=[0.542, 0.647] (0.5 = no predice)
+[CAL constante reverse 17^3 propio | compresion=0 recorte=1] score==1.0 en 41 de 50 (score min 0.980) | con score 1.0, máx: min 2.35 mediana 6.01 máx 10.62 | cumple máx<3: 0.049
+[CAL spearman reverse 17^3 propio | compresion=1 recorte=0] n=  50 score_distintos=  50 | rho max +0.226 | p95 -0.436 | medio -0.564
+[CAL auc reverse 17^3 propio | compresion=1 recorte=0] criterio de_max < 3.0: cumplen 0 de 50 | AUC del score = nan IC95=[nan, nan] (0.5 = no predice)
+[CAL constante reverse 17^3 propio | compresion=1 recorte=0] score==1.0 en 0 de 50 (score min 0.256) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 17^3 propio | compresion=1 recorte=1] n=  50 score_distintos=  50 | rho max -0.023 | p95 -0.557 | medio -0.520
+[CAL auc reverse 17^3 propio | compresion=1 recorte=1] criterio de_max < 3.0: cumplen 0 de 50 | AUC del score = nan IC95=[nan, nan] (0.5 = no predice)
+[CAL constante reverse 17^3 propio | compresion=1 recorte=1] score==1.0 en 0 de 50 (score min 0.218) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 33^3 fuera | compresion=0 recorte=0] n= 250 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL auc reverse 33^3 fuera | compresion=0 recorte=0] criterio de_max < 3.0: cumplen 40 de 250 | AUC del score = 0.500 IC95=[0.500, 0.500] (0.5 = no predice)
+[CAL constante reverse 33^3 fuera | compresion=0 recorte=0] score==1.0 en 250 de 250 (score min 1.000) | con score 1.0, máx: min 0.50 mediana 4.87 máx 39.26 | cumple máx<3: 0.160
+[CAL spearman reverse 33^3 fuera | compresion=0 recorte=1] n= 250 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL auc reverse 33^3 fuera | compresion=0 recorte=1] criterio de_max < 3.0: cumplen 45 de 250 | AUC del score = 0.500 IC95=[0.500, 0.500] (0.5 = no predice)
+[CAL constante reverse 33^3 fuera | compresion=0 recorte=1] score==1.0 en 250 de 250 (score min 1.000) | con score 1.0, máx: min 0.52 mediana 5.47 máx 22.62 | cumple máx<3: 0.180
+[CAL spearman reverse 33^3 fuera | compresion=1 recorte=0] n= 250 score_distintos=  50 | rho max +0.114 | p95 -0.091 | medio -0.163
+[CAL auc reverse 33^3 fuera | compresion=1 recorte=0] criterio de_max < 3.0: cumplen 1 de 250 | AUC del score = 0.851 IC95=[0.744, 0.935] (0.5 = no predice)
+[CAL constante reverse 33^3 fuera | compresion=1 recorte=0] score==1.0 en 0 de 250 (score min 0.284) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 33^3 fuera | compresion=1 recorte=1] n= 250 score_distintos=  50 | rho max +0.035 | p95 -0.239 | medio -0.308
+[CAL auc reverse 33^3 fuera | compresion=1 recorte=1] criterio de_max < 3.0: cumplen 2 de 250 | AUC del score = 0.692 IC95=[0.470, 0.892] (0.5 = no predice)
+[CAL constante reverse 33^3 fuera | compresion=1 recorte=1] score==1.0 en 0 de 250 (score min 0.278) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 33^3 propio | compresion=0 recorte=0] n=  50 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL auc reverse 33^3 propio | compresion=0 recorte=0] criterio de_max < 3.0: cumplen 36 de 50 | AUC del score = 0.500 IC95=[0.500, 0.500] (0.5 = no predice)
+[CAL constante reverse 33^3 propio | compresion=0 recorte=0] score==1.0 en 50 de 50 (score min 1.000) | con score 1.0, máx: min 1.12 mediana 2.55 máx 5.70 | cumple máx<3: 0.720
+[CAL spearman reverse 33^3 propio | compresion=0 recorte=1] n=  50 score_distintos=   1 | rho max   nan | p95   nan | medio   nan
+[CAL auc reverse 33^3 propio | compresion=0 recorte=1] criterio de_max < 3.0: cumplen 22 de 50 | AUC del score = 0.500 IC95=[0.500, 0.500] (0.5 = no predice)
+[CAL constante reverse 33^3 propio | compresion=0 recorte=1] score==1.0 en 50 de 50 (score min 1.000) | con score 1.0, máx: min 1.34 mediana 3.11 máx 6.45 | cumple máx<3: 0.440
+[CAL spearman reverse 33^3 propio | compresion=1 recorte=0] n=  50 score_distintos=  50 | rho max +0.430 | p95 -0.106 | medio -0.378
+[CAL auc reverse 33^3 propio | compresion=1 recorte=0] criterio de_max < 3.0: cumplen 0 de 50 | AUC del score = nan IC95=[nan, nan] (0.5 = no predice)
+[CAL constante reverse 33^3 propio | compresion=1 recorte=0] score==1.0 en 0 de 50 (score min 0.284) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman reverse 33^3 propio | compresion=1 recorte=1] n=  50 score_distintos=  50 | rho max +0.337 | p95 -0.263 | medio -0.349
+[CAL auc reverse 33^3 propio | compresion=1 recorte=1] criterio de_max < 3.0: cumplen 0 de 50 | AUC del score = nan IC95=[nan, nan] (0.5 = no predice)
+[CAL constante reverse 33^3 propio | compresion=1 recorte=1] score==1.0 en 0 de 50 (score min 0.278) | con score 1.0, máx: min nan mediana nan máx nan | cumple máx<3: nan
+[CAL spearman matching | compresion=0 recorte=0] n= 180 score_distintos= 126 | rho max -0.262 | p95 -0.286 | medio -0.277
+[CAL auc matching | compresion=0 recorte=0] criterio de_medio < 2.0: cumplen 29 de 180 | AUC del score = 0.730 IC95=[0.602, 0.853] (0.5 = no predice)
+[CAL spearman matching | compresion=0 recorte=1] n= 180 score_distintos= 107 | rho max -0.217 | p95 -0.247 | medio -0.290
+[CAL auc matching | compresion=0 recorte=1] criterio de_medio < 2.0: cumplen 27 de 180 | AUC del score = 0.688 IC95=[0.580, 0.803] (0.5 = no predice)
+[CAL spearman matching | compresion=1 recorte=0] n= 180 score_distintos= 138 | rho max -0.062 | p95 -0.188 | medio -0.221
+[CAL auc matching | compresion=1 recorte=0] criterio de_medio < 2.0: cumplen 21 de 180 | AUC del score = 0.683 IC95=[0.540, 0.833] (0.5 = no predice)
+[CAL spearman matching | compresion=1 recorte=1] n= 180 score_distintos= 126 | rho max -0.184 | p95 -0.231 | medio -0.298
+[CAL auc matching | compresion=1 recorte=1] criterio de_medio < 2.0: cumplen 23 de 180 | AUC del score = 0.696 IC95=[0.569, 0.827] (0.5 = no predice)
+[CAL desajuste matching] disparidad=identica: desajuste en 0.167 de 120 | cumple medio<2 0.758 | score mediana 0.831
+[CAL desajuste matching] disparidad=otra_toma: desajuste en 0.575 de 120 | cumple medio<2 0.067 | score mediana 0.250
+[CAL desajuste matching] disparidad=tono_15: desajuste en 0.742 de 120 | cumple medio<2 0.008 | score mediana 0.210
+[CAL desajuste matching] disparidad=tono_60_exp: desajuste en 0.758 de 120 | cumple medio<2 0.000 | score mediana 0.221
+[CAL desajuste matching] disparidad=tono_150_sat: desajuste en 0.750 de 120 | cumple medio<2 0.000 | score mediana 0.109
+[CAL desajuste matching] disparidad=otra_paleta: desajuste en 0.783 de 120 | cumple medio<2 0.000 | score mediana 0.300
+[CAL spearman reverse 17^3 por extracción (mediana de los 5 planos)] n= 200 score_distintos= 120 | rho max -0.382 | p95 -0.450 | medio -0.455
+[CAL rho_ic reverse 17^3 por extracción] rho(score, de_max) = -0.382 IC95=[-0.490, -0.274]
+[CAL rho_ic reverse 17^3 fuera] rho(score, de_max) = -0.290 IC95=[-0.340, -0.239]
+[CAL rho_ic reverse 17^3 fuera sin desajuste] rho(score, de_max) = -0.258 IC95=[-0.319, -0.189]
+[CAL spearman reverse 33^3 por extracción (mediana de los 5 planos)] n= 200 score_distintos= 101 | rho max -0.667 | p95 -0.756 | medio -0.761
+[CAL rho_ic reverse 33^3 por extracción] rho(score, de_max) = -0.667 IC95=[-0.723, -0.613]
+[CAL rho_ic reverse 33^3 fuera] rho(score, de_max) = -0.551 IC95=[-0.603, -0.501]
+[CAL rho_ic reverse 33^3 fuera sin desajuste] rho(score, de_max) = -0.597 IC95=[-0.642, -0.550]
+[CAL rho_ic matching] rho(score, de_medio) = -0.269 IC95=[-0.394, -0.134]
+[CAL rho_ic matching sin desajuste] rho(score, de_medio) = -0.244 IC95=[-0.398, -0.105]
+[CAL tramos reverse 17^3 fuera] criterio: de_max < 3.0
+[CAL tramos reverse 17^3 fuera] [0.00, 0.20) n=   0
+[CAL tramos reverse 17^3 fuera] [0.20, 0.45) n= 145 escenas= 17 | máx mediana  12.11 | p95 mediana  7.19 | medio mediana  4.35 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 17^3 fuera] [0.45, 0.75) n=   0
+[CAL tramos reverse 17^3 fuera] [0.75, 0.90) n= 120 escenas= 17 | máx mediana  12.68 | p95 mediana  5.37 | medio mediana  2.74 | cumple 0.017 (2) | máx<3 0.017
+[CAL tramos reverse 17^3 fuera] [0.90, 0.99) n= 270 escenas= 30 | máx mediana  10.72 | p95 mediana  4.44 | medio mediana  2.23 | cumple 0.030 (8) | máx<3 0.030
+[CAL tramos reverse 17^3 fuera] [0.99, 1.00] n= 465 escenas= 47 | máx mediana   9.05 | p95 mediana  3.87 | medio mediana  1.66 | cumple 0.056 (26) | máx<3 0.056
+[CAL auc reverse 17^3 fuera] criterio de_max < 3.0: cumplen 36 de 1000 | AUC del score = 0.673 IC95=[0.615, 0.747] (0.5 = no predice)
+[CAL auc reverse 17^3 fuera (p95)] criterio de_p95 < 3.0: cumplen 215 de 1000 | AUC del score = 0.692 IC95=[0.643, 0.744] (0.5 = no predice)
+[CAL auc reverse 17^3 fuera (sdr)] criterio de_max_sdr < 3.0: cumplen 36 de 1000 | AUC del score = 0.673 IC95=[0.615, 0.747] (0.5 = no predice)
+[CAL umbral reverse 17^3 fuera] criterio ALTA: fracción que cumple (de_max < 3.0) entre los casos con score >= t, con IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CAL umbral reverse 17^3 fuera] t=0.00 n=1000 cumple=0.036 IC95=[0.020, 0.053]
+[CAL umbral reverse 17^3 fuera] t=0.20 n=1000 cumple=0.036 IC95=[0.020, 0.053]
+[CAL umbral reverse 17^3 fuera] t=0.45 n= 855 cumple=0.042 IC95=[0.024, 0.060]
+[CAL umbral reverse 17^3 fuera] t=0.60 n= 855 cumple=0.042 IC95=[0.024, 0.060]
+[CAL umbral reverse 17^3 fuera] t=0.75 n= 855 cumple=0.042 IC95=[0.024, 0.060]
+[CAL umbral reverse 17^3 fuera] t=0.80 n= 855 cumple=0.042 IC95=[0.024, 0.060]
+[CAL umbral reverse 17^3 fuera] t=0.90 n= 735 cumple=0.046 IC95=[0.027, 0.066]
+[CAL umbral reverse 17^3 fuera] t=0.95 n= 545 cumple=0.048 IC95=[0.029, 0.069]
+[CAL umbral reverse 17^3 fuera] t=0.99 n= 465 cumple=0.056 IC95=[0.036, 0.080]
+[CAL umbral reverse 17^3 fuera] t=1.00 n= 405 cumple=0.064 IC95=[0.040, 0.090]
+[CAL umbral reverse 17^3 fuera] RESULTADO: t con IC inferior >= 0.95 en la rejilla: ninguno | t con estimación puntual >= 0.95 y n >= 20 en todos los scores distintos: ninguno | lo mejor con n >= 20: 0.064 (score >= 1.0000, n=405)
+[CAL tramos reverse 17^3 propio] criterio: de_max < 3.0
+[CAL tramos reverse 17^3 propio] [0.00, 0.20) n=   0
+[CAL tramos reverse 17^3 propio] [0.20, 0.45) n=  29 escenas= 17 | máx mediana   9.03 | p95 mediana  3.17 | medio mediana  1.89 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 17^3 propio] [0.45, 0.75) n=   0
+[CAL tramos reverse 17^3 propio] [0.75, 0.90) n=  24 escenas= 17 | máx mediana   9.79 | p95 mediana  2.68 | medio mediana  1.44 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 17^3 propio] [0.90, 0.99) n=  54 escenas= 30 | máx mediana   9.17 | p95 mediana  2.52 | medio mediana  1.30 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 17^3 propio] [0.99, 1.00] n=  93 escenas= 47 | máx mediana   5.65 | p95 mediana  1.08 | medio mediana  0.42 | cumple 0.065 (6) | máx<3 0.065
+[CAL auc reverse 17^3 propio] criterio de_max < 3.0: cumplen 6 de 200 | AUC del score = 0.807 IC95=[0.780, 0.834] (0.5 = no predice)
+[CAL auc reverse 17^3 propio (p95)] criterio de_p95 < 3.0: cumplen 163 de 200 | AUC del score = 0.880 IC95=[0.814, 0.935] (0.5 = no predice)
+[CAL auc reverse 17^3 propio (sdr)] criterio de_max_sdr < 3.0: cumplen 6 de 200 | AUC del score = 0.807 IC95=[0.780, 0.834] (0.5 = no predice)
+[CAL umbral reverse 17^3 propio] criterio ALTA: fracción que cumple (de_max < 3.0) entre los casos con score >= t, con IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CAL umbral reverse 17^3 propio] t=0.00 n= 200 cumple=0.030 IC95=[0.005, 0.060]
+[CAL umbral reverse 17^3 propio] t=0.20 n= 200 cumple=0.030 IC95=[0.005, 0.060]
+[CAL umbral reverse 17^3 propio] t=0.45 n= 171 cumple=0.035 IC95=[0.006, 0.071]
+[CAL umbral reverse 17^3 propio] t=0.60 n= 171 cumple=0.035 IC95=[0.006, 0.071]
+[CAL umbral reverse 17^3 propio] t=0.75 n= 171 cumple=0.035 IC95=[0.006, 0.071]
+[CAL umbral reverse 17^3 propio] t=0.80 n= 171 cumple=0.035 IC95=[0.006, 0.071]
+[CAL umbral reverse 17^3 propio] t=0.90 n= 147 cumple=0.041 IC95=[0.006, 0.084]
+[CAL umbral reverse 17^3 propio] t=0.95 n= 109 cumple=0.055 IC95=[0.009, 0.114]
+[CAL umbral reverse 17^3 propio] t=0.99 n=  93 cumple=0.065 IC95=[0.011, 0.130]
+[CAL umbral reverse 17^3 propio] t=1.00 n=  81 cumple=0.074 IC95=[0.012, 0.148]
+[CAL umbral reverse 17^3 propio] RESULTADO: t con IC inferior >= 0.95 en la rejilla: ninguno | t con estimación puntual >= 0.95 y n >= 20 en todos los scores distintos: ninguno | lo mejor con n >= 20: 0.074 (score >= 1.0000, n=81)
+[CAL tramos reverse 33^3 fuera] criterio: de_max < 3.0
+[CAL tramos reverse 33^3 fuera] [0.00, 0.20) n=   0
+[CAL tramos reverse 33^3 fuera] [0.20, 0.45) n= 145 escenas= 17 | máx mediana  10.24 | p95 mediana  5.63 | medio mediana  3.17 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 33^3 fuera] [0.45, 0.75) n=   0
+[CAL tramos reverse 33^3 fuera] [0.75, 0.90) n=  85 escenas= 12 | máx mediana  11.65 | p95 mediana  4.88 | medio mediana  2.32 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 33^3 fuera] [0.90, 0.99) n= 265 escenas= 29 | máx mediana  12.97 | p95 mediana  4.49 | medio mediana  2.13 | cumple 0.011 (3) | máx<3 0.011
+[CAL tramos reverse 33^3 fuera] [0.99, 1.00] n= 505 escenas= 50 | máx mediana   5.17 | p95 mediana  2.14 | medio mediana  0.93 | cumple 0.168 (85) | máx<3 0.168
+[CAL auc reverse 33^3 fuera] criterio de_max < 3.0: cumplen 88 de 1000 | AUC del score = 0.760 IC95=[0.738, 0.776] (0.5 = no predice)
+[CAL auc reverse 33^3 fuera (p95)] criterio de_p95 < 3.0: cumplen 384 de 1000 | AUC del score = 0.807 IC95=[0.770, 0.843] (0.5 = no predice)
+[CAL auc reverse 33^3 fuera (sdr)] criterio de_max_sdr < 3.0: cumplen 92 de 1000 | AUC del score = 0.762 IC95=[0.741, 0.777] (0.5 = no predice)
+[CAL umbral reverse 33^3 fuera] criterio ALTA: fracción que cumple (de_max < 3.0) entre los casos con score >= t, con IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CAL umbral reverse 33^3 fuera] t=0.00 n=1000 cumple=0.088 IC95=[0.072, 0.107]
+[CAL umbral reverse 33^3 fuera] t=0.20 n=1000 cumple=0.088 IC95=[0.072, 0.107]
+[CAL umbral reverse 33^3 fuera] t=0.45 n= 855 cumple=0.103 IC95=[0.084, 0.125]
+[CAL umbral reverse 33^3 fuera] t=0.60 n= 855 cumple=0.103 IC95=[0.084, 0.125]
+[CAL umbral reverse 33^3 fuera] t=0.75 n= 855 cumple=0.103 IC95=[0.084, 0.125]
+[CAL umbral reverse 33^3 fuera] t=0.80 n= 855 cumple=0.103 IC95=[0.084, 0.125]
+[CAL umbral reverse 33^3 fuera] t=0.90 n= 770 cumple=0.114 IC95=[0.093, 0.141]
+[CAL umbral reverse 33^3 fuera] t=0.95 n= 600 cumple=0.145 IC95=[0.115, 0.181]
+[CAL umbral reverse 33^3 fuera] t=0.99 n= 505 cumple=0.168 IC95=[0.137, 0.204]
+[CAL umbral reverse 33^3 fuera] t=1.00 n= 500 cumple=0.170 IC95=[0.138, 0.206]
+[CAL umbral reverse 33^3 fuera] RESULTADO: t con IC inferior >= 0.95 en la rejilla: ninguno | t con estimación puntual >= 0.95 y n >= 20 en todos los scores distintos: ninguno | lo mejor con n >= 20: 0.170 (score >= 1.0000, n=500)
+[CAL tramos reverse 33^3 propio] criterio: de_max < 3.0
+[CAL tramos reverse 33^3 propio] [0.00, 0.20) n=   0
+[CAL tramos reverse 33^3 propio] [0.20, 0.45) n=  29 escenas= 17 | máx mediana   7.34 | p95 mediana  2.80 | medio mediana  1.61 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 33^3 propio] [0.45, 0.75) n=   0
+[CAL tramos reverse 33^3 propio] [0.75, 0.90) n=  17 escenas= 12 | máx mediana   8.85 | p95 mediana  2.87 | medio mediana  1.55 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 33^3 propio] [0.90, 0.99) n=  53 escenas= 29 | máx mediana  10.26 | p95 mediana  2.54 | medio mediana  1.41 | cumple 0.000 (0) | máx<3 0.000
+[CAL tramos reverse 33^3 propio] [0.99, 1.00] n= 101 escenas= 50 | máx mediana   2.74 | p95 mediana  0.45 | medio mediana  0.16 | cumple 0.574 (58) | máx<3 0.574
+[CAL auc reverse 33^3 propio] criterio de_max < 3.0: cumplen 58 de 200 | AUC del score = 0.852 IC95=[0.825, 0.882] (0.5 = no predice)
+[CAL auc reverse 33^3 propio (p95)] criterio de_p95 < 3.0: cumplen 171 de 200 | AUC del score = 0.833 IC95=[0.758, 0.901] (0.5 = no predice)
+[CAL auc reverse 33^3 propio (sdr)] criterio de_max_sdr < 3.0: cumplen 59 de 200 | AUC del score = 0.855 IC95=[0.827, 0.885] (0.5 = no predice)
+[CAL umbral reverse 33^3 propio] criterio ALTA: fracción que cumple (de_max < 3.0) entre los casos con score >= t, con IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CAL umbral reverse 33^3 propio] t=0.00 n= 200 cumple=0.290 IC95=[0.230, 0.345]
+[CAL umbral reverse 33^3 propio] t=0.20 n= 200 cumple=0.290 IC95=[0.230, 0.345]
+[CAL umbral reverse 33^3 propio] t=0.45 n= 171 cumple=0.339 IC95=[0.268, 0.414]
+[CAL umbral reverse 33^3 propio] t=0.60 n= 171 cumple=0.339 IC95=[0.268, 0.414]
+[CAL umbral reverse 33^3 propio] t=0.75 n= 171 cumple=0.339 IC95=[0.268, 0.414]
+[CAL umbral reverse 33^3 propio] t=0.80 n= 171 cumple=0.339 IC95=[0.268, 0.414]
+[CAL umbral reverse 33^3 propio] t=0.90 n= 154 cumple=0.377 IC95=[0.290, 0.467]
+[CAL umbral reverse 33^3 propio] t=0.95 n= 120 cumple=0.483 IC95=[0.380, 0.593]
+[CAL umbral reverse 33^3 propio] t=0.99 n= 101 cumple=0.574 IC95=[0.460, 0.683]
+[CAL umbral reverse 33^3 propio] t=1.00 n= 100 cumple=0.580 IC95=[0.460, 0.690]
+[CAL umbral reverse 33^3 propio] RESULTADO: t con IC inferior >= 0.95 en la rejilla: ninguno | t con estimación puntual >= 0.95 y n >= 20 en todos los scores distintos: ninguno | lo mejor con n >= 20: 0.580 (score >= 1.0000, n=100)
+[CAL tramos matching] criterio: de_medio < 2.0
+[CAL tramos matching] [0.00, 0.20) n= 308 escenas= 29 | máx mediana  29.21 | p95 mediana 20.33 | medio mediana 13.69 | cumple 0.084 (26) | máx<3 0.029
+[CAL tramos matching] [0.20, 0.45) n= 258 escenas= 30 | máx mediana  38.03 | p95 mediana 20.35 | medio mediana 13.97 | cumple 0.074 (19) | máx<3 0.035
+[CAL tramos matching] [0.45, 0.75) n=  47 escenas= 21 | máx mediana  18.80 | p95 mediana 12.03 | medio mediana  7.52 | cumple 0.170 (8) | máx<3 0.085
+[CAL tramos matching] [0.75, 0.90) n=  26 escenas= 14 | máx mediana  15.10 | p95 mediana  6.18 | medio mediana  3.02 | cumple 0.308 (8) | máx<3 0.000
+[CAL tramos matching] [0.90, 0.99) n=  81 escenas= 25 | máx mediana  14.40 | p95 mediana  4.68 | medio mediana  2.42 | cumple 0.481 (39) | máx<3 0.123
+[CAL tramos matching] [0.99, 1.00] n=   0
+[CAL auc matching] criterio de_medio < 2.0: cumplen 100 de 720 | AUC del score = 0.702 IC95=[0.584, 0.825] (0.5 = no predice)
+[CAL auc matching (máx)] criterio de_max < 3.0: cumplen 32 de 720 | AUC del score = 0.627 IC95=[0.438, 0.784] (0.5 = no predice)
+[CAL auc matching sin desajuste] criterio de_medio < 2.0: cumplen 81 de 267 | AUC del score = 0.642 IC95=[0.546, 0.742] (0.5 = no predice)
+[CAL auc matching identica] criterio de_medio < 2.0: cumplen 91 de 120 | AUC del score = 0.399 IC95=[0.233, 0.587] (0.5 = no predice)
+[CAL umbral matching] criterio ALTA: fracción que cumple (de_medio < 2.0) entre los casos con score >= t, con IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CAL umbral matching] t=0.00 n= 720 cumple=0.139 IC95=[0.111, 0.167]
+[CAL umbral matching] t=0.20 n= 412 cumple=0.180 IC95=[0.141, 0.223]
+[CAL umbral matching] t=0.45 n= 154 cumple=0.357 IC95=[0.253, 0.475]
+[CAL umbral matching] t=0.60 n= 139 cumple=0.360 IC95=[0.248, 0.474]
+[CAL umbral matching] t=0.75 n= 107 cumple=0.439 IC95=[0.298, 0.564]
+[CAL umbral matching] t=0.80 n= 102 cumple=0.451 IC95=[0.316, 0.585]
+[CAL umbral matching] t=0.90 n=  81 cumple=0.481 IC95=[0.329, 0.630]
+[CAL umbral matching] t=0.95 n=  57 cumple=0.491 IC95=[0.295, 0.691]
+[CAL umbral matching] RESULTADO: t con IC inferior >= 0.95 en la rejilla: ninguno | t con estimación puntual >= 0.95 y n >= 20 en todos los scores distintos: ninguno | lo mejor con n >= 20: 0.511 (score >= 0.9678, n=47)
+[CAL umbral matching (máx)] criterio ALTA: fracción que cumple (de_max < 3.0) entre los casos con score >= t, con IC95 bootstrap por escena; se pide IC inferior >= 0.95
+[CAL umbral matching (máx)] t=0.00 n= 720 cumple=0.044 IC95=[0.025, 0.065]
+[CAL umbral matching (máx)] t=0.20 n= 412 cumple=0.056 IC95=[0.025, 0.092]
+[CAL umbral matching (máx)] t=0.45 n= 154 cumple=0.091 IC95=[0.035, 0.163]
+[CAL umbral matching (máx)] t=0.60 n= 139 cumple=0.086 IC95=[0.030, 0.153]
+[CAL umbral matching (máx)] t=0.75 n= 107 cumple=0.093 IC95=[0.028, 0.175]
+[CAL umbral matching (máx)] t=0.80 n= 102 cumple=0.098 IC95=[0.033, 0.180]
+[CAL umbral matching (máx)] t=0.90 n=  81 cumple=0.123 IC95=[0.042, 0.233]
+[CAL umbral matching (máx)] t=0.95 n=  57 cumple=0.088 IC95=[0.016, 0.184]
+[CAL umbral matching (máx)] RESULTADO: t con IC inferior >= 0.95 en la rejilla: ninguno | t con estimación puntual >= 0.95 y n >= 20 en todos los scores distintos: ninguno | lo mejor con n >= 20: 0.167 (score >= 0.9718, n=30)
+[CAL captura 17^3 en su plano] ALTA: 171 de 200; de esas, máx >= 3.0: 165 (0.965) | «100%» (score >= 0.995): 86; máx >= 3.0: 80 (0.930)
+[CAL captura 17^3 en su plano] mismo recuento con el máximo que enseña la pantalla (repo, contra el coloreado): 80 de 86
+[CAL captura 17^3 fuera de plano] ALTA: 855 de 1000; de esas, máx >= 3.0: 819 (0.958) | «100%» (score >= 0.995): 430; máx >= 3.0: 404 (0.940)
+[CAL captura 33^3 en su plano] ALTA: 171 de 200; de esas, máx >= 3.0: 113 (0.661) | «100%» (score >= 0.995): 100; máx >= 3.0: 42 (0.420)
+[CAL captura 33^3 en su plano] mismo recuento con el máximo que enseña la pantalla (repo, contra el coloreado): 42 de 100
+[CAL captura 33^3 fuera de plano] ALTA: 855 de 1000; de esas, máx >= 3.0: 767 (0.897) | «100%» (score >= 0.995): 500; máx >= 3.0: 415 (0.830)
+[CAL resolucion reverse] 240 filas 320×180 contra 640×360 | |Δscore| mediana 0.001 máx 0.065 | mismo nivel 1.000 | rho de_max 320 vs 640 +0.871 | cumple 320: 0.062 640: 0.033
+[CAL resolucion reverse] 17^3 compresion=0: score==1.0 en 640: 0.800 (min 0.994) | 320: 0.800 (min 0.994)
+[CAL resolucion reverse] 17^3 compresion=1: score==1.0 en 640: 0.000 (min 0.282) | 320: 0.000 (min 0.218)
+[CAL resolucion reverse] 33^3 compresion=0: score==1.0 en 640: 1.000 (min 1.000) | 320: 1.000 (min 1.000)
+[CAL resolucion reverse] 33^3 compresion=1: score==1.0 en 640: 0.000 (min 0.288) | 320: 0.000 (min 0.292)
+[CAL resolucion reverse] rho(score, de_max) 320: -0.506 | 640: -0.421 | AUC 320: 0.793 640: 0.784
+[CAL resolucion matching] 40 filas 320×180 contra 640×360 | |Δscore| mediana 0.000 máx 0.248 | mismo nivel 0.950 | rho de_medio 320 vs 640 +0.998 | cumple 320: 0.200 640: 0.200
+[CAL resolucion matching] rho(score, de_medio) 320: -0.554 | 640: -0.526 | AUC 320: 0.930 640: 0.910
+[CAL png] tests/calibracion/score_vs_error.png

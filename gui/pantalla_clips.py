@@ -61,7 +61,15 @@ COL_INDICE, COL_NOMBRE, COL_ANTES, COL_DESPUES, COL_CONFIANZA, COL_AVISO = range
 #: «DESPUÉS» (47 px) y la columna baja a 67. Los 16 px de diferencia, por dos
 #: columnas, son los que se lleva el nombre del clip. **No se abrevia ninguna
 #: palabra**: «ΔE DESP.» habria costado lo mismo y diria menos.
-CABECERAS = ("#", "CLIP", "ΔE\nANTES", "ΔE\nDESPUÉS", "CONFIANZA", "AVISO")
+#:
+#: [dia 4] Y ahora en TRES lineas, con «MEDIO» en medio. Las dos cifras son
+#: `MatchResult.delta_e_before` / `delta_e_after`, que son MEDIAS, y el contrato
+#: no trae el maximo por clip. Rotularlas «ΔE» a secas dejaba leer un maximo
+#: donde hay una media, que es la cifra holgada. En una sola linea, «ΔE MEDIO»
+#: mide 49 px y ensancharia las dos columnas 8 px entre las dos, o sea la
+#: ventana; en tres, la palabra mas ancha sigue siendo «DESPUÉS» y el ancho no
+#: se mueve. Lo que crece es el alto de la cabecera.
+CABECERAS = ("#", "CLIP", "ΔE\nMEDIO\nANTES", "ΔE\nMEDIO\nDESPUÉS", "CONFIANZA", "AVISO")
 
 #: Papel propio para sacar el `ClipDemo` de una fila sin pasar por el texto.
 ROL_CLIP = int(Qt.ItemDataRole.UserRole) + 1
@@ -235,9 +243,16 @@ class FichaClip(QWidget):
         fila.addStretch(1)
         self.panel.caja.addLayout(fila)
 
+        # [dia 4] «ΔE MEDIO» encima de las dos, y no «ΔE antes» / «ΔE después»:
+        # son medias (`MatchResult.delta_e_before/after`) y el contrato no trae
+        # el maximo por clip, asi que no se puede ensenar la cifra que decide.
+        # Lo que hay se rotula con su nombre. Un solo rotulo comun y no
+        # «ΔE medio antes» / «ΔE medio después» por el ancho: esos dos seguidos
+        # piden 252 px y la ficha tiene 246, o sea que ensancharian la ventana.
+        self.panel.caja.addWidget(Rotulo("ΔE medio"))
         cifras = QHBoxLayout()
         cifras.setSpacing(18)
-        for rotulo, attr in (("ΔE antes", "_de_antes"), ("ΔE después", "_de_despues")):
+        for rotulo, attr in (("antes", "_de_antes"), ("después", "_de_despues")):
             col = QVBoxLayout()
             col.setSpacing(2)
             col.addWidget(Rotulo(rotulo))

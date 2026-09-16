@@ -1,0 +1,154 @@
+
+[T5L] ===== montaje de esta mañana, secundarias, 6 A x 6 B =====
+[T5L manana secundarias | suma_w | A1 monocroma | B0 misma paleta, otra toma] todo_max=2.67711  sdr_max=2.67711  todo_p95=1.2464  todo_medio=0.423598  cub_max=2.67711  inv_max=1.87009
+[T5L manana secundarias | suma_w | A1 monocroma | B1 casi identica] todo_max=4.33417  sdr_max=4.33417  todo_p95=1.68039  todo_medio=0.622151  cub_max=4.33417  inv_max=1.82381
+[T5L manana secundarias | suma_w | A1 monocroma | B2 parecida] todo_max=4.09334  sdr_max=4.09334  todo_p95=2.41313  todo_medio=1.1442  cub_max=4.09334  inv_max=2.82268
+[T5L manana secundarias | suma_w | A1 monocroma | B3 distinta] todo_max=6.44197  sdr_max=6.44197  todo_p95=4.93737  todo_medio=2.33388  cub_max=6.44197  inv_max=4.61078
+[T5L manana secundarias | suma_w | A1 monocroma | B4 muy distinta] todo_max=2.53286  sdr_max=2.53286  todo_p95=1.76208  todo_medio=1.10733  cub_max=2.53286  inv_max=2.26426
+[T5L manana secundarias | suma_w | A1 monocroma | B5 opuesta] todo_max=2.87485  sdr_max=2.87485  todo_p95=1.76512  todo_medio=0.930524  cub_max=2.87485  inv_max=2.48751
+[T5L manana secundarias | suma_w | A2 interior calido | B0 misma paleta, otra toma] todo_max=5.47895  sdr_max=5.47895  todo_p95=1.28663  todo_medio=0.367087  cub_max=5.47895  inv_max=2.55193
+[T5L manana secundarias | suma_w | A2 interior calido | B1 casi identica] todo_max=3.59305  sdr_max=3.59305  todo_p95=0.911631  todo_medio=0.337829  cub_max=3.59305  inv_max=3.11093
+[T5L manana secundarias | suma_w | A2 interior calido | B2 parecida] todo_max=5.9213  sdr_max=5.9213  todo_p95=1.5572  todo_medio=0.475523  cub_max=5.9213  inv_max=4.56867
+[T5L manana secundarias | suma_w | A2 interior calido | B3 distinta] todo_max=5.25515  sdr_max=5.25515  todo_p95=2.66143  todo_medio=0.91989  cub_max=3.56579  inv_max=5.25515
+[T5L manana secundarias | suma_w | A2 interior calido | B4 muy distinta] todo_max=4.99628  sdr_max=4.99628  todo_p95=2.08227  todo_medio=1.00418  cub_max=4.99628  inv_max=4.35727
+[T5L manana secundarias | suma_w | A2 interior calido | B5 opuesta] todo_max=5.91539  sdr_max=5.91539  todo_p95=4.0102  todo_medio=1.68517  cub_max=5.91539  inv_max=3.92325
+[T5L manana secundarias | suma_w | A3 exterior | B0 misma paleta, otra toma] todo_max=5.23882  sdr_max=5.23882  todo_p95=1.91522  todo_medio=0.584488  cub_max=4.32446  inv_max=2.89577
+[T5L manana secundarias | suma_w | A3 exterior | B1 casi identica] todo_max=3.82646  sdr_max=3.82646  todo_p95=0.946939  todo_medio=0.329493  cub_max=3.61478  inv_max=3.82646
+[T5L manana secundarias | suma_w | A3 exterior | B2 parecida] todo_max=2.87342  sdr_max=2.87342  todo_p95=1.59341  todo_medio=0.74114  cub_max=2.87342  inv_max=2.39599
+[T5L manana secundarias | suma_w | A3 exterior | B3 distinta] todo_max=6.28057  sdr_max=6.28057  todo_p95=4.18877  todo_medio=2.35845  cub_max=3.33194  inv_max=6.28057
+[T5L manana secundarias | suma_w | A3 exterior | B4 muy distinta] todo_max=5.92011  sdr_max=5.92011  todo_p95=4.2677  todo_medio=1.47771  cub_max=2.52621  inv_max=5.92011
+[T5L manana secundarias | suma_w | A3 exterior | B5 opuesta] todo_max=4.70306  sdr_max=4.70306  todo_p95=4.01468  todo_medio=2.59323  cub_max=4.70306  inv_max=4.63678
+[T5L manana secundarias | suma_w | A4 variada | B0 misma paleta, otra toma] todo_max=11.5292  sdr_max=11.5292  todo_p95=3.91603  todo_medio=1.84179  cub_max=11.5292  inv_max=5.3407
+[T5L manana secundarias | suma_w | A4 variada | B1 casi identica] todo_max=9.94347  sdr_max=9.94347  todo_p95=3.99467  todo_medio=1.84639  cub_max=9.94347  inv_max=5.05668
+[T5L manana secundarias | suma_w | A4 variada | B2 parecida] todo_max=7.25911  sdr_max=7.25911  todo_p95=2.66041  todo_medio=1.22988  cub_max=7.25911  inv_max=4.52045
+[T5L manana secundarias | suma_w | A4 variada | B3 distinta] todo_max=13.8364  sdr_max=13.8364  todo_p95=4.3319  todo_medio=1.97343  cub_max=13.8364  inv_max=8.34408
+[T5L manana secundarias | suma_w | A4 variada | B4 muy distinta] todo_max=11.3137  sdr_max=11.3137  todo_p95=2.05822  todo_medio=0.834189  cub_max=9.84122  inv_max=7.10782
+[T5L manana secundarias | suma_w | A4 variada | B5 opuesta] todo_max=9.84943  sdr_max=9.84943  todo_p95=3.76934  todo_medio=1.5806  cub_max=9.84943  inv_max=4.46711
+[T5L manana secundarias | suma_w | A5 muy variada | B0 misma paleta, otra toma] todo_max=7.68996  sdr_max=7.68996  todo_p95=2.67519  todo_medio=1.11977  cub_max=7.68996  inv_max=5.14113
+[T5L manana secundarias | suma_w | A5 muy variada | B1 casi identica] todo_max=9.57595  sdr_max=9.57595  todo_p95=3.60569  todo_medio=1.56714  cub_max=9.57595  inv_max=9.28109
+[T5L manana secundarias | suma_w | A5 muy variada | B2 parecida] todo_max=16.4581  sdr_max=16.4581  todo_p95=3.76584  todo_medio=1.24674  cub_max=16.4581  inv_max=10.1502
+[T5L manana secundarias | suma_w | A5 muy variada | B3 distinta] todo_max=7.03888  sdr_max=7.03888  todo_p95=3.81313  todo_medio=1.21045  cub_max=7.03888  inv_max=5.93811
+[T5L manana secundarias | suma_w | A5 muy variada | B4 muy distinta] todo_max=7.03019  sdr_max=7.03019  todo_p95=2.90228  todo_medio=1.10125  cub_max=7.03019  inv_max=4.90321
+[T5L manana secundarias | suma_w | A5 muy variada | B5 opuesta] todo_max=7.32555  sdr_max=7.32555  todo_p95=2.97179  todo_medio=0.907222  cub_max=7.32555  inv_max=5.04849
+[T5L manana secundarias | suma_w | A6 barrido de gamut | B0 misma paleta, otra toma] todo_max=18.9404  sdr_max=5.45214  todo_p95=0.262934  todo_medio=0.104862  cub_max=12.4846  inv_max=18.9404
+[T5L manana secundarias | suma_w | A6 barrido de gamut | B1 casi identica] todo_max=26.1984  sdr_max=5.06259  todo_p95=0.295892  todo_medio=0.111595  cub_max=15.0073  inv_max=26.1984
+[T5L manana secundarias | suma_w | A6 barrido de gamut | B2 parecida] todo_max=11.3651  sdr_max=5.43925  todo_p95=0.390653  todo_medio=0.120973  cub_max=5.59726  inv_max=11.3651
+[T5L manana secundarias | suma_w | A6 barrido de gamut | B3 distinta] todo_max=42.4492  sdr_max=6.11205  todo_p95=1.14813  todo_medio=0.264744  cub_max=10.114  inv_max=42.4492
+[T5L manana secundarias | suma_w | A6 barrido de gamut | B4 muy distinta] todo_max=6.29683  sdr_max=6.29683  todo_p95=0.989626  todo_medio=0.230462  cub_max=2.57009  inv_max=6.29683
+[T5L manana secundarias | suma_w | A6 barrido de gamut | B5 opuesta] todo_max=12.5398  sdr_max=0.514577  todo_p95=5.02395  todo_medio=0.847478  cub_max=2.53783  inv_max=12.5398
+[T5L manana resumen secundarias | suma_w] pares=36  pares_max_bajo_3=4  pares_max_sdr_bajo_3=5  mediana_max=6.3694  peor_max=42.4492  A2_max_min=3.59305  A2_max_peor=5.9213  A2_pares_max_bajo_3=0
+[T5L manana secundarias | suma_w2 | A1 monocroma | B0 misma paleta, otra toma] todo_max=1.62064  sdr_max=1.62064  todo_p95=0.56551  todo_medio=0.214953  cub_max=1.62064  inv_max=0.831371
+[T5L manana secundarias | suma_w2 | A1 monocroma | B1 casi identica] todo_max=1.64311  sdr_max=1.64311  todo_p95=0.688028  todo_medio=0.309224  cub_max=1.64311  inv_max=0.820423
+[T5L manana secundarias | suma_w2 | A1 monocroma | B2 parecida] todo_max=2.24781  sdr_max=2.24781  todo_p95=1.03787  todo_medio=0.557788  cub_max=2.24781  inv_max=0.966059
+[T5L manana secundarias | suma_w2 | A1 monocroma | B3 distinta] todo_max=2.74165  sdr_max=2.74165  todo_p95=1.86501  todo_medio=0.825601  cub_max=2.74165  inv_max=2.63148
+[T5L manana secundarias | suma_w2 | A1 monocroma | B4 muy distinta] todo_max=1.76375  sdr_max=1.76375  todo_p95=1.48385  todo_medio=0.916609  cub_max=1.55755  inv_max=1.76375
+[T5L manana secundarias | suma_w2 | A1 monocroma | B5 opuesta] todo_max=2.211  sdr_max=2.211  todo_p95=1.37036  todo_medio=0.563116  cub_max=1.77637  inv_max=2.211
+[T5L manana secundarias | suma_w2 | A2 interior calido | B0 misma paleta, otra toma] todo_max=0.837096  sdr_max=0.837096  todo_p95=0.354622  todo_medio=0.145454  cub_max=0.837096  inv_max=0.601976
+[T5L manana secundarias | suma_w2 | A2 interior calido | B1 casi identica] todo_max=1.28834  sdr_max=1.28834  todo_p95=0.421393  todo_medio=0.158855  cub_max=0.899096  inv_max=1.28834
+[T5L manana secundarias | suma_w2 | A2 interior calido | B2 parecida] todo_max=1.29857  sdr_max=1.29857  todo_p95=0.747047  todo_medio=0.291551  cub_max=1.29857  inv_max=1.11875
+[T5L manana secundarias | suma_w2 | A2 interior calido | B3 distinta] todo_max=5.54953  sdr_max=5.54953  todo_p95=2.97017  todo_medio=1.21044  cub_max=1.627  inv_max=5.54953
+[T5L manana secundarias | suma_w2 | A2 interior calido | B4 muy distinta] todo_max=4.36867  sdr_max=4.36867  todo_p95=2.17141  todo_medio=0.964763  cub_max=1.39662  inv_max=4.36867
+[T5L manana secundarias | suma_w2 | A2 interior calido | B5 opuesta] todo_max=1.37406  sdr_max=1.37406  todo_p95=0.764962  todo_medio=0.40491  cub_max=1.22  inv_max=1.37406
+[T5L manana secundarias | suma_w2 | A3 exterior | B0 misma paleta, otra toma] todo_max=1.81349  sdr_max=1.81349  todo_p95=1.28818  todo_medio=0.43963  cub_max=1.66486  inv_max=1.81349
+[T5L manana secundarias | suma_w2 | A3 exterior | B1 casi identica] todo_max=2.73722  sdr_max=2.73722  todo_p95=0.967231  todo_medio=0.337783  cub_max=2.4092  inv_max=2.73722
+[T5L manana secundarias | suma_w2 | A3 exterior | B2 parecida] todo_max=3.06169  sdr_max=3.06169  todo_p95=1.7823  todo_medio=0.706778  cub_max=2.69336  inv_max=3.06169
+[T5L manana secundarias | suma_w2 | A3 exterior | B3 distinta] todo_max=5.74595  sdr_max=5.74595  todo_p95=4.19367  todo_medio=2.4646  cub_max=3.62446  inv_max=5.74595
+[T5L manana secundarias | suma_w2 | A3 exterior | B4 muy distinta] todo_max=6.34826  sdr_max=6.34826  todo_p95=4.69029  todo_medio=1.56529  cub_max=2.60514  inv_max=6.34826
+[T5L manana secundarias | suma_w2 | A3 exterior | B5 opuesta] todo_max=3.9294  sdr_max=3.9294  todo_p95=3.47804  todo_medio=2.66424  cub_max=3.75988  inv_max=3.9294
+[T5L manana secundarias | suma_w2 | A4 variada | B0 misma paleta, otra toma] todo_max=3.62259  sdr_max=3.62259  todo_p95=2.71362  todo_medio=0.968297  cub_max=2.10284  inv_max=3.62259
+[T5L manana secundarias | suma_w2 | A4 variada | B1 casi identica] todo_max=3.75976  sdr_max=3.75976  todo_p95=2.69196  todo_medio=1.23332  cub_max=2.79895  inv_max=3.75976
+[T5L manana secundarias | suma_w2 | A4 variada | B2 parecida] todo_max=3.55001  sdr_max=3.55001  todo_p95=2.43958  todo_medio=0.715973  cub_max=2.19198  inv_max=3.55001
+[T5L manana secundarias | suma_w2 | A4 variada | B3 distinta] todo_max=3.10384  sdr_max=2.68059  todo_p95=2.03751  todo_medio=0.554911  cub_max=2.11309  inv_max=3.10384
+[T5L manana secundarias | suma_w2 | A4 variada | B4 muy distinta] todo_max=2.37412  sdr_max=2.37412  todo_p95=1.82099  todo_medio=0.517769  cub_max=2.26827  inv_max=2.37412
+[T5L manana secundarias | suma_w2 | A4 variada | B5 opuesta] todo_max=1.80604  sdr_max=1.12758  todo_p95=0.831385  todo_medio=0.28328  cub_max=1.80296  inv_max=1.80604
+[T5L manana secundarias | suma_w2 | A5 muy variada | B0 misma paleta, otra toma] todo_max=3.30478  sdr_max=3.30478  todo_p95=1.76574  todo_medio=0.548942  cub_max=2.28605  inv_max=3.30478
+[T5L manana secundarias | suma_w2 | A5 muy variada | B1 casi identica] todo_max=3.992  sdr_max=3.992  todo_p95=3.08705  todo_medio=0.683376  cub_max=1.67933  inv_max=3.992
+[T5L manana secundarias | suma_w2 | A5 muy variada | B2 parecida] todo_max=2.50052  sdr_max=2.50052  todo_p95=1.6714  todo_medio=0.520841  cub_max=1.68042  inv_max=2.50052
+[T5L manana secundarias | suma_w2 | A5 muy variada | B3 distinta] todo_max=6.08691  sdr_max=6.08691  todo_p95=3.2846  todo_medio=0.851241  cub_max=2.05512  inv_max=6.08691
+[T5L manana secundarias | suma_w2 | A5 muy variada | B4 muy distinta] todo_max=3.5056  sdr_max=3.5056  todo_p95=2.41993  todo_medio=0.759613  cub_max=2.21656  inv_max=3.5056
+[T5L manana secundarias | suma_w2 | A5 muy variada | B5 opuesta] todo_max=6.08335  sdr_max=1.67486  todo_p95=2.6006  todo_medio=0.511613  cub_max=2.22934  inv_max=6.08335
+[T5L manana secundarias | suma_w2 | A6 barrido de gamut | B0 misma paleta, otra toma] todo_max=26.0237  sdr_max=7.85245  todo_p95=0.491827  todo_medio=0.161329  cub_max=18.289  inv_max=26.0237
+[T5L manana secundarias | suma_w2 | A6 barrido de gamut | B1 casi identica] todo_max=31.3267  sdr_max=7.38321  todo_p95=0.551014  todo_medio=0.171838  cub_max=20.1476  inv_max=31.3267
+[T5L manana secundarias | suma_w2 | A6 barrido de gamut | B2 parecida] todo_max=16.3935  sdr_max=7.88614  todo_p95=0.636906  todo_medio=0.192757  cub_max=8.60563  inv_max=16.3935
+[T5L manana secundarias | suma_w2 | A6 barrido de gamut | B3 distinta] todo_max=44.0967  sdr_max=8.59086  todo_p95=1.6124  todo_medio=0.348029  cub_max=17.048  inv_max=44.0967
+[T5L manana secundarias | suma_w2 | A6 barrido de gamut | B4 muy distinta] todo_max=8.8527  sdr_max=8.8527  todo_p95=1.28881  todo_medio=0.342401  cub_max=3.91704  inv_max=8.8527
+[T5L manana secundarias | suma_w2 | A6 barrido de gamut | B5 opuesta] todo_max=13.222  sdr_max=0.591449  todo_p95=5.61151  todo_medio=0.900028  cub_max=3.37504  inv_max=13.222
+[T5L manana resumen secundarias | suma_w2] pares=36  pares_max_bajo_3=15  pares_max_sdr_bajo_3=18  mediana_max=3.40519  peor_max=44.0967  A2_max_min=0.837096  A2_max_peor=5.54953  A2_pares_max_bajo_3=4
+.
+[T5L] ===== montaje de esta mañana, global, 6 A x 6 B =====
+[T5L manana global | suma_w | A1 monocroma | B0 misma paleta, otra toma] todo_max=2.78911  sdr_max=2.78911  todo_p95=1.14694  todo_medio=0.414043  cub_max=2.78911  inv_max=2.05327
+[T5L manana global | suma_w | A1 monocroma | B1 casi identica] todo_max=3.85133  sdr_max=3.85133  todo_p95=1.5322  todo_medio=0.628733  cub_max=3.85133  inv_max=1.9544
+[T5L manana global | suma_w | A1 monocroma | B2 parecida] todo_max=4.51609  sdr_max=4.51609  todo_p95=2.55656  todo_medio=1.25684  cub_max=4.51609  inv_max=2.80116
+[T5L manana global | suma_w | A1 monocroma | B3 distinta] todo_max=8.02454  sdr_max=8.02454  todo_p95=6.16695  todo_medio=2.95991  cub_max=8.02454  inv_max=5.0321
+[T5L manana global | suma_w | A1 monocroma | B4 muy distinta] todo_max=3.07748  sdr_max=3.07748  todo_p95=2.4219  todo_medio=1.294  cub_max=2.99482  inv_max=3.07748
+[T5L manana global | suma_w | A1 monocroma | B5 opuesta] todo_max=4.68505  sdr_max=4.68505  todo_p95=3.72075  todo_medio=0.959195  cub_max=4.2465  inv_max=4.68505
+[T5L manana global | suma_w | A2 interior calido | B0 misma paleta, otra toma] todo_max=4.64657  sdr_max=4.64657  todo_p95=1.20721  todo_medio=0.401253  cub_max=4.64657  inv_max=3.36396
+[T5L manana global | suma_w | A2 interior calido | B1 casi identica] todo_max=4.44251  sdr_max=4.44251  todo_p95=1.03072  todo_medio=0.385654  cub_max=3.83778  inv_max=4.44251
+[T5L manana global | suma_w | A2 interior calido | B2 parecida] todo_max=5.12746  sdr_max=5.12746  todo_p95=1.94585  todo_medio=0.688062  cub_max=5.12746  inv_max=4.21237
+[T5L manana global | suma_w | A2 interior calido | B3 distinta] todo_max=4.67844  sdr_max=4.49993  todo_p95=1.5982  todo_medio=0.803814  cub_max=4.67844  inv_max=2.74658
+[T5L manana global | suma_w | A2 interior calido | B4 muy distinta] todo_max=3.74978  sdr_max=3.74978  todo_p95=2.09886  todo_medio=1.36757  cub_max=3.74978  inv_max=2.37349
+[T5L manana global | suma_w | A2 interior calido | B5 opuesta] todo_max=3.74458  sdr_max=3.74458  todo_p95=2.81018  todo_medio=1.60737  cub_max=3.74458  inv_max=2.74296
+[T5L manana global | suma_w | A3 exterior | B0 misma paleta, otra toma] todo_max=5.08135  sdr_max=5.08135  todo_p95=1.52146  todo_medio=0.489497  cub_max=3.74464  inv_max=2.48225
+[T5L manana global | suma_w | A3 exterior | B1 casi identica] todo_max=4.03949  sdr_max=4.03949  todo_p95=0.855727  todo_medio=0.257587  cub_max=3.54239  inv_max=1.74479
+[T5L manana global | suma_w | A3 exterior | B2 parecida] todo_max=3.83069  sdr_max=3.83069  todo_p95=1.51722  todo_medio=0.645916  cub_max=3.61327  inv_max=2.40825
+[T5L manana global | suma_w | A3 exterior | B3 distinta] todo_max=5.15252  sdr_max=5.15252  todo_p95=2.38488  todo_medio=1.39727  cub_max=4.17604  inv_max=3.22091
+[T5L manana global | suma_w | A3 exterior | B4 muy distinta] todo_max=4.50174  sdr_max=4.50174  todo_p95=2.55059  todo_medio=0.949788  cub_max=2.62777  inv_max=4.50174
+[T5L manana global | suma_w | A3 exterior | B5 opuesta] todo_max=3.75883  sdr_max=3.75883  todo_p95=2.12043  todo_medio=1.33143  cub_max=3.75883  inv_max=2.74393
+[T5L manana global | suma_w | A4 variada | B0 misma paleta, otra toma] todo_max=12.4481  sdr_max=12.4481  todo_p95=3.26482  todo_medio=1.62813  cub_max=11.7002  inv_max=6.49273
+[T5L manana global | suma_w | A4 variada | B1 casi identica] todo_max=10.8641  sdr_max=10.8641  todo_p95=3.23188  todo_medio=1.55589  cub_max=10.8641  inv_max=6.01346
+[T5L manana global | suma_w | A4 variada | B2 parecida] todo_max=8.09726  sdr_max=8.09726  todo_p95=2.27418  todo_medio=1.0846  cub_max=8.09726  inv_max=3.68173
+[T5L manana global | suma_w | A4 variada | B3 distinta] todo_max=13.9679  sdr_max=13.9679  todo_p95=4.70995  todo_medio=2.00985  cub_max=13.9679  inv_max=10.5624
+[T5L manana global | suma_w | A4 variada | B4 muy distinta] todo_max=10.3721  sdr_max=10.3721  todo_p95=2.18153  todo_medio=0.891186  cub_max=10.3721  inv_max=8.58737
+[T5L manana global | suma_w | A4 variada | B5 opuesta] todo_max=10.7181  sdr_max=10.7181  todo_p95=3.95389  todo_medio=1.48092  cub_max=10.7181  inv_max=4.76357
+[T5L manana global | suma_w | A5 muy variada | B0 misma paleta, otra toma] todo_max=8.03562  sdr_max=8.03562  todo_p95=2.58165  todo_medio=1.02254  cub_max=8.03562  inv_max=4.76392
+[T5L manana global | suma_w | A5 muy variada | B1 casi identica] todo_max=8.62637  sdr_max=8.62637  todo_p95=3.87489  todo_medio=1.54785  cub_max=8.62637  inv_max=6.42986
+[T5L manana global | suma_w | A5 muy variada | B2 parecida] todo_max=9.27047  sdr_max=9.27047  todo_p95=4.16898  todo_medio=1.21192  cub_max=9.27047  inv_max=8.41738
+[T5L manana global | suma_w | A5 muy variada | B3 distinta] todo_max=7.67495  sdr_max=7.67495  todo_p95=2.90074  todo_medio=0.944044  cub_max=7.67495  inv_max=4.3776
+[T5L manana global | suma_w | A5 muy variada | B4 muy distinta] todo_max=8.13149  sdr_max=8.13149  todo_p95=2.97026  todo_medio=1.05329  cub_max=8.13149  inv_max=5.25927
+[T5L manana global | suma_w | A5 muy variada | B5 opuesta] todo_max=7.69116  sdr_max=7.69116  todo_p95=3.26412  todo_medio=0.950358  cub_max=7.69116  inv_max=6.94657
+[T5L manana global | suma_w | A6 barrido de gamut | B0 misma paleta, otra toma] todo_max=9.58145  sdr_max=2.49913  todo_p95=0.142699  todo_medio=0.0450263  cub_max=9.58145  inv_max=8.48072
+[T5L manana global | suma_w | A6 barrido de gamut | B1 casi identica] todo_max=24.9391  sdr_max=2.4403  todo_p95=0.161173  todo_medio=0.0578867  cub_max=14.6362  inv_max=24.9391
+[T5L manana global | suma_w | A6 barrido de gamut | B2 parecida] todo_max=6.07063  sdr_max=2.95253  todo_p95=0.209405  todo_medio=0.0594013  cub_max=4.48121  inv_max=6.07063
+[T5L manana global | suma_w | A6 barrido de gamut | B3 distinta] todo_max=44.3838  sdr_max=2.81802  todo_p95=1.24738  todo_medio=0.231089  cub_max=18.2152  inv_max=44.3838
+[T5L manana global | suma_w | A6 barrido de gamut | B4 muy distinta] todo_max=3.93457  sdr_max=3.93457  todo_p95=1.12531  todo_medio=0.183616  cub_max=2.5354  inv_max=3.93457
+[T5L manana global | suma_w | A6 barrido de gamut | B5 opuesta] todo_max=12.6584  sdr_max=0.374029  todo_p95=6.35791  todo_medio=1.01294  cub_max=5.9599  inv_max=12.6584
+[T5L manana resumen global | suma_w] pares=36  pares_max_bajo_3=1  pares_max_sdr_bajo_3=6  mediana_max=5.61157  peor_max=44.3838  A2_max_min=3.74458  A2_max_peor=5.12746  A2_pares_max_bajo_3=0
+[T5L manana global | suma_w2 | A1 monocroma | B0 misma paleta, otra toma] todo_max=1.67728  sdr_max=1.67728  todo_p95=0.549992  todo_medio=0.223388  cub_max=1.67728  inv_max=1.09102
+[T5L manana global | suma_w2 | A1 monocroma | B1 casi identica] todo_max=1.75721  sdr_max=1.75721  todo_p95=0.741774  todo_medio=0.329387  cub_max=1.75721  inv_max=1.07441
+[T5L manana global | suma_w2 | A1 monocroma | B2 parecida] todo_max=2.55492  sdr_max=2.55492  todo_p95=1.21196  todo_medio=0.637526  cub_max=2.55492  inv_max=1.26278
+[T5L manana global | suma_w2 | A1 monocroma | B3 distinta] todo_max=3.5565  sdr_max=3.5565  todo_p95=2.33941  todo_medio=1.0095  cub_max=3.5565  inv_max=2.52212
+[T5L manana global | suma_w2 | A1 monocroma | B4 muy distinta] todo_max=2.75812  sdr_max=2.75812  todo_p95=2.14692  todo_medio=1.25535  cub_max=1.97774  inv_max=2.75812
+[T5L manana global | suma_w2 | A1 monocroma | B5 opuesta] todo_max=4.51153  sdr_max=4.51153  todo_p95=3.24241  todo_medio=0.81918  cub_max=2.29534  inv_max=4.51153
+[T5L manana global | suma_w2 | A2 interior calido | B0 misma paleta, otra toma] todo_max=1.12492  sdr_max=1.12492  todo_p95=0.478991  todo_medio=0.198767  cub_max=1.12492  inv_max=0.65556
+[T5L manana global | suma_w2 | A2 interior calido | B1 casi identica] todo_max=1.15512  sdr_max=1.15512  todo_p95=0.48403  todo_medio=0.18904  cub_max=1.15512  inv_max=0.692417
+[T5L manana global | suma_w2 | A2 interior calido | B2 parecida] todo_max=1.9713  sdr_max=1.9713  todo_p95=1.13169  todo_medio=0.357929  cub_max=1.9713  inv_max=1.35094
+[T5L manana global | suma_w2 | A2 interior calido | B3 distinta] todo_max=2.9508  sdr_max=2.9508  todo_p95=0.965009  todo_medio=0.399708  cub_max=1.24106  inv_max=2.9508
+[T5L manana global | suma_w2 | A2 interior calido | B4 muy distinta] todo_max=2.44568  sdr_max=2.44568  todo_p95=1.96549  todo_medio=1.37099  cub_max=2.02266  inv_max=2.44568
+[T5L manana global | suma_w2 | A2 interior calido | B5 opuesta] todo_max=1.00686  sdr_max=0.943488  todo_p95=0.654517  todo_medio=0.383224  cub_max=1.00686  inv_max=0.943488
+[T5L manana global | suma_w2 | A3 exterior | B0 misma paleta, otra toma] todo_max=1.42408  sdr_max=1.42408  todo_p95=0.586804  todo_medio=0.222083  cub_max=1.37401  inv_max=1.42408
+[T5L manana global | suma_w2 | A3 exterior | B1 casi identica] todo_max=1.3151  sdr_max=1.3151  todo_p95=0.425806  todo_medio=0.145636  cub_max=1.3151  inv_max=0.881237
+[T5L manana global | suma_w2 | A3 exterior | B2 parecida] todo_max=2.18791  sdr_max=2.18791  todo_p95=1.20041  todo_medio=0.458533  cub_max=1.72813  inv_max=2.18791
+[T5L manana global | suma_w2 | A3 exterior | B3 distinta] todo_max=3.64687  sdr_max=3.61828  todo_p95=2.22466  todo_medio=1.31087  cub_max=2.24288  inv_max=3.64687
+[T5L manana global | suma_w2 | A3 exterior | B4 muy distinta] todo_max=4.93728  sdr_max=4.93728  todo_p95=3.22734  todo_medio=0.99959  cub_max=1.9486  inv_max=4.93728
+[T5L manana global | suma_w2 | A3 exterior | B5 opuesta] todo_max=2.21367  sdr_max=1.82045  todo_p95=1.57161  todo_medio=1.10773  cub_max=1.27643  inv_max=2.21367
+[T5L manana global | suma_w2 | A4 variada | B0 misma paleta, otra toma] todo_max=2.63549  sdr_max=2.63549  todo_p95=1.24445  todo_medio=0.398367  cub_max=1.73356  inv_max=2.63549
+[T5L manana global | suma_w2 | A4 variada | B1 casi identica] todo_max=2.49454  sdr_max=2.49454  todo_p95=1.73697  todo_medio=0.842963  cub_max=2.49454  inv_max=2.16482
+[T5L manana global | suma_w2 | A4 variada | B2 parecida] todo_max=3.29886  sdr_max=3.29886  todo_p95=1.25991  todo_medio=0.569361  cub_max=1.31489  inv_max=3.29886
+[T5L manana global | suma_w2 | A4 variada | B3 distinta] todo_max=2.45339  sdr_max=2.45339  todo_p95=1.14279  todo_medio=0.42422  cub_max=2.45339  inv_max=1.78979
+[T5L manana global | suma_w2 | A4 variada | B4 muy distinta] todo_max=2.15038  sdr_max=2.15038  todo_p95=1.47525  todo_medio=0.472025  cub_max=2.15038  inv_max=1.98918
+[T5L manana global | suma_w2 | A4 variada | B5 opuesta] todo_max=2.89726  sdr_max=0.614904  todo_p95=1.09271  todo_medio=0.257226  cub_max=2.89726  inv_max=2.83903
+[T5L manana global | suma_w2 | A5 muy variada | B0 misma paleta, otra toma] todo_max=2.70344  sdr_max=2.70344  todo_p95=1.24727  todo_medio=0.282557  cub_max=2.15328  inv_max=2.70344
+[T5L manana global | suma_w2 | A5 muy variada | B1 casi identica] todo_max=5.49753  sdr_max=5.49753  todo_p95=2.83102  todo_medio=0.610529  cub_max=2.2318  inv_max=5.49753
+[T5L manana global | suma_w2 | A5 muy variada | B2 parecida] todo_max=2.90267  sdr_max=2.84743  todo_p95=0.836831  todo_medio=0.280344  cub_max=1.86527  inv_max=2.90267
+[T5L manana global | suma_w2 | A5 muy variada | B3 distinta] todo_max=4.64259  sdr_max=2.99288  todo_p95=1.8381  todo_medio=0.461637  cub_max=2.10368  inv_max=4.64259
+[T5L manana global | suma_w2 | A5 muy variada | B4 muy distinta] todo_max=4.18679  sdr_max=4.18679  todo_p95=2.41202  todo_medio=0.525778  cub_max=1.99346  inv_max=4.18679
+[T5L manana global | suma_w2 | A5 muy variada | B5 opuesta] todo_max=8.22843  sdr_max=0.81786  todo_p95=4.51116  todo_medio=0.634911  cub_max=3.34662  inv_max=8.22843
+[T5L manana global | suma_w2 | A6 barrido de gamut | B0 misma paleta, otra toma] todo_max=19.2943  sdr_max=4.3883  todo_p95=0.281528  todo_medio=0.0736794  cub_max=19.2943  inv_max=16.6714
+[T5L manana global | suma_w2 | A6 barrido de gamut | B1 casi identica] todo_max=30.1323  sdr_max=4.27401  todo_p95=0.322056  todo_medio=0.0950937  cub_max=22.9664  inv_max=30.1323
+[T5L manana global | suma_w2 | A6 barrido de gamut | B2 parecida] todo_max=10.6202  sdr_max=5.16699  todo_p95=0.422298  todo_medio=0.0971687  cub_max=7.87054  inv_max=10.6202
+[T5L manana global | suma_w2 | A6 barrido de gamut | B3 distinta] todo_max=45.4863  sdr_max=5.1021  todo_p95=1.99857  todo_medio=0.30419  cub_max=24.1144  inv_max=45.4863
+[T5L manana global | suma_w2 | A6 barrido de gamut | B4 muy distinta] todo_max=4.74035  sdr_max=4.74035  todo_p95=1.525  todo_medio=0.26089  cub_max=3.31061  inv_max=4.74035
+[T5L manana global | suma_w2 | A6 barrido de gamut | B5 opuesta] todo_max=12.9366  sdr_max=0.126655  todo_p95=6.49902  todo_medio=1.0605  cub_max=3.55984  inv_max=12.9366
+[T5L manana resumen global | suma_w2] pares=36  pares_max_bajo_3=21  pares_max_sdr_bajo_3=24  mediana_max=2.82769  peor_max=45.4863  A2_max_min=1.00686  A2_max_peor=2.9508  A2_pares_max_bajo_3=6
+.
+2 passed, 11 deselected in 71.40s (0:01:11)

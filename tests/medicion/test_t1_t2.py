@@ -174,63 +174,98 @@ def _solape_con(hp, caja) -> float:
     return (sx * sy) / float(hp.w * hp.h)
 
 
-def _por_magnitud(hotspots):
-    """Hotspots ordenados de mas fuerte a menos fuerte, con desempate FIJO.
+def _principal(hotspots, etiqueta: str | None = None):
+    """La zona PRINCIPAL: la primera de la tupla, en el orden en que llega.
 
-    `max(..., key=magnitude)` devuelve el primero de los maximos, o sea que en
-    un empate exacto el veredicto dependeria del orden en que el modulo los
-    haya metido en la tupla. Aqui el desempate es `(x, y, w, h)`, que no
-    depende de nada externo. Con las cifras de hoy no hay empate (12.7255
-    contra 11.3772, un 11.85% de diferencia), pero el que lee esto dentro de
-    seis meses no tiene por que saberlo.
+    DESDE EL DIA 4 ES EL CONTRATO (`ReverseDiagnosis.hotspots` en
+    `core/contracts.py`, commit 86da011): los hotspots vienen **ordenados por
+    importancia y el primero es el principal**, que es exactamente el orden en
+    que la GUI los lista. Hasta el dia 3 este arnes elegia con
+    `max(magnitude)`, que entonces coincidia con el orden de la tupla porque el
+    modulo reordenaba por magnitud. Ya no reordena (ordena por masa), y elegir
+    por magnitud dejaria de probar lo que la interfaz enseña.
+
+    Con `etiqueta`, la primera de esa etiqueta, respetando el mismo orden. Hace
+    falta porque las etiquetas de forma (`vineta`, `textura`) van siempre
+    delante y no son la ventana.
     """
-    return sorted(hotspots, key=lambda z: (-z.magnitude, z.x, z.y, z.w, z.h))
+    candidatas = [hp for hp in hotspots if etiqueta is None or hp.label == etiqueta]
+    return candidatas[0] if candidatas else None
 
 
-#: Lo que sale HOY, medido y aferrado en
-#: `test_T2_las_dos_cajas_y_su_desempate_estan_aferrados`. Es el montaje del
-#: xfail de abajo: mi escena con viñeta y ventana aplicadas en luz lineal.
-#: (caja, magnitud) en orden de magnitud descendente.
+#: Lo que sale HOY, en el ORDEN DE LA TUPLA, medido el 2026-09-16 contra el
+#: commit 86da011 y aferrado en
+#: `test_T2_las_dos_cajas_y_su_orden_estan_aferrados`. Es el montaje del xfail
+#: de abajo: mi escena con viñeta y ventana aplicadas en luz lineal.
+#: (caja, magnitud).
+#:
+#: HISTORIA, para que nadie la reconstruya a mano:
+#:   dia 3 (hasta 71448ff): #0 (0,284,31,29) mag 12.725531826505737
+#:                          #1 (89,301,251,104) mag 11.377186278350779
+#:     -> magnitud = ΔE2000 medio del RECTANGULO; orden por esa magnitud.
+#:   dia 4 (86da011):       #0 (89,301,251,104) mag 14.93420487819448
+#:                          #1 (0,284,31,29) mag 12.297431460074693
+#:     -> magnitud = ΔE2000 medio de los PIXELES de la zona; orden por masa.
+#:   Las dos cajas son LAS MISMAS en los dos, y `lut_reproducible` es el mismo
+#:   bit a bit (0.9083604985578424). Solo cambia el orden y la magnitud.
 CAJAS_ESPERADAS_T2 = (
-    ((0, 284, 31, 29), 12.725531826505737),
-    ((89, 301, 251, 104), 11.377186278350779),
+    ((89, 301, 251, 104), 14.93420487819448),
+    ((0, 284, 31, 29), 12.297431460074693),
 )
 
+#: `lut_reproducible` del mismo montaje, identico el dia 3 y el dia 4.
+REPRODUCIBLE_ESPERADO_T2 = 0.9083604985578424
 
-def test_T2_las_dos_cajas_y_su_desempate_estan_aferrados():
+
+def test_T2_las_dos_cajas_y_su_orden_estan_aferrados():
     """EL CENTINELA DEL XFAIL DE ABAJO. Este test SI tiene que estar en verde.
 
     POR QUE EXISTE
     --------------
     El `xfail(strict=True)` de abajo afirma algo sobre **cual es la zona que el
-    modulo declara principal**. Si las dos cajas candidatas se movieran, ese
-    xfail podria pasar a XPASS -- que con `strict=True` es rojo -- y nadie
-    sabria si es que el limite se ha cerrado o es que el montaje se ha movido
-    por debajo.
+    modulo declara principal**. Si el montaje se moviera por debajo, ese xfail
+    podria pasar a XPASS -- que con `strict=True` es rojo -- y nadie sabria si
+    es que el limite se ha cerrado o es que ha cambiado otra cosa.
 
-    Asi que el desempate se aferra aqui, con los dos numeros. Si manana cambian,
-    **rojo en este test**, que dice exactamente que ha cambiado, en vez de un
-    XPASS misterioso alla abajo.
+    Asi que aqui se aferran las dos cajas, su ORDEN y sus magnitudes. Si mañana
+    cambian, rojo en este test, diciendo exactamente que ha cambiado.
 
-    DETERMINISMO: MEDIDO, NO SUPUESTO (2026-09-15)
-    ----------------------------------------------
-    Las dos magnitudes salen **bit a bit iguales** (12.725531826505737 y
-    11.377186278350779, con los 17 digitos) en 18 ejecuciones seguidas, con
-    `OMP_NUM_THREADS` en 1, 2, 8 y sin fijar, contra el arbol de trabajo y
-    contra una copia limpia de HEAD, y antes y despues del commit de umbrales.
-    Ademas, toda la aleatoriedad de `core` esta sembrada (`SEMILLA = 20260915`
-    en `core/matching/cdl_fit.py` y `core/analysis/stats.py`) y mi escena
-    tambien. **Aqui no hay nada que dependa del ultimo bit.**
+    YA SALTO UNA VEZ, Y PARA ESO ESTABA (dia 4)
+    -------------------------------------------
+    El commit 86da011 cambio el orden de las zonas (de ΔE del rectangulo a
+    masa) y la definicion de `magnitude` (de ΔE medio del rectangulo a ΔE medio
+    de los pixeles de la zona). Este centinela salto con "el hotspot #0 era
+    (0, 284, 31, 29) y ahora es (89,301,251,104)". Lo verifico su autor, no
+    quien cambio el detector, y se re-aferro al estado nuevo porque el cambio
+    es legitimo: las cajas no se mueven, `lut_reproducible` no se mueve, y la
+    nueva `magnitude` es una lectura mas fiel del contrato ("residuo medio en
+    la zona"). Detalle y verificacion en MEDICION-INDEPENDIENTE.md, seccion 3.
 
-    Y `pytest-randomly` NO esta instalado en este venv (`pip list` da pytest y
-    pytest-cov y nada mas), asi que `-p no:randomly` es un no-op y el orden de
-    recogida es siempre el orden de fichero: "con y sin `-p no:randomly`" es
-    literalmente la misma ejecucion.
+    LO QUE ESTE TEST YA NO AFIRMA, Y POR QUE
+    -----------------------------------------
+    El dia 3 afirmaba un margen de magnitud entre las dos cajas (11.85%) como
+    "el desempate". **Ya no es el desempate**: el orden va por masa, y la masa
+    no sale por la API publica (`Hotspot` no la lleva). El margen de magnitud
+    de hoy (21.44%) se sigue vigilando, pero como centinela de la DEFINICION de
+    `magnitude`, no como el motivo del orden. Las masas que cita el autor del
+    cambio (3909 contra 142) son cifra suya: yo no las he medido, porque solo
+    se ven por `analizar_espacial`, que el encargo de esta medicion me prohibe
+    llamar.
+
+    DETERMINISMO: medido el dia 3, NO re-medido contra 86da011
+    ----------------------------------------------------------
+    El dia 3, contra el codigo de entonces: magnitudes bit a bit iguales en 18
+    ejecuciones con `OMP_NUM_THREADS` en 1, 2, 8 y sin fijar. Contra 86da011 no
+    he repetido ese barrido (la maquina estaba compartida y a carga ~40); lo
+    unico medido hoy es que dos ejecuciones separadas del mismo commit dan los
+    mismos 17 digitos. Lo que no depende del commit sigue igual: la
+    aleatoriedad de `core` esta sembrada y `pytest-randomly` no esta instalado
+    en este venv, asi que `-p no:randomly` es un no-op.
     """
     original = E.escena_trabajo()
     coloreado = E.coloreado_con_lo_espacial(original, E.tabla_lut_conocida())
     d = invertir_grado(original, coloreado).diagnosis
-    hs = _por_magnitud(d.hotspots)
+    hs = list(d.hotspots)  # EN EL ORDEN DE LA TUPLA, que es el del contrato
 
     for i, hp in enumerate(hs):
         print(
@@ -238,13 +273,22 @@ def test_T2_las_dos_cajas_y_su_desempate_estan_aferrados():
             f"mag={hp.magnitude!r} solape={_solape_con(hp, E.CAJA_VENTANA):.4f}"
         )
     if len(hs) >= 2:
-        margen = hs[0].magnitude / hs[1].magnitude - 1.0
-        _informe("T2-aferrado-margen", margen_relativo=margen)
+        _informe(
+            "T2-aferrado-margen",
+            margen_de_magnitud=hs[0].magnitude / hs[1].magnitude - 1.0,
+            max_magnitud_coincide_con_la_primera=float(
+                max(hs, key=lambda z: z.magnitude) is hs[0]
+            ),
+        )
 
     pista = (
         "el montaje del xfail de T2 se ha movido. Mira MEDICION-INDEPENDIENTE.md "
-        "seccion 3 antes de tocar nada: si estas dos cajas cambian, el xfail de "
-        "abajo puede pasar a XPASS sin que el limite se haya cerrado"
+        "seccion 3 antes de tocar nada: si esto cambia, el xfail de abajo puede pasar "
+        "a XPASS sin que el limite se haya cerrado. Lo decide el autor de la medicion, "
+        "no quien cambio el detector"
+    )
+    assert d.lut_reproducible == pytest.approx(REPRODUCIBLE_ESPERADO_T2, rel=1e-9), (
+        f"lut_reproducible era {REPRODUCIBLE_ESPERADO_T2} y ahora es {d.lut_reproducible}: {pista}"
     )
     assert len(hs) == 2, f"esperaba 2 hotspots y hay {len(hs)}: {pista}"
     for i, (caja, magnitud) in enumerate(CAJAS_ESPERADAS_T2):
@@ -257,70 +301,80 @@ def test_T2_las_dos_cajas_y_su_desempate_estan_aferrados():
             f"la magnitud del hotspot #{i} era {magnitud} y ahora es {hp.magnitude}: {pista}"
         )
 
-    # Y el dato que de verdad importa para quien vaya a arreglarlo: las dos
-    # cajas estan al 11.85% una de otra. No es un empate de coma flotante --
-    # esto es determinista -- pero SI es un margen pequeño para una decision
-    # que la GUI enseña como "la zona principal".
+    # Centinela de la DEFINICION de magnitud, no del orden (ver docstring).
+    # Dia 3, con ΔE del rectangulo: 11.85% y en el orden contrario.
+    # Dia 4, con ΔE de los pixeles de la zona: 21.44%.
     margen = hs[0].magnitude / hs[1].magnitude - 1.0
-    assert 0.10 < margen < 0.14, (
-        f"el margen entre las dos cajas era del 11.85% y ahora es del {margen:.2%}: {pista}"
+    assert 0.18 < margen < 0.25, (
+        f"el margen de magnitud entre #0 y #1 era del 21.44% y ahora es del {margen:.2%}: "
+        f"¿ha vuelto a cambiar la definicion de Hotspot.magnitude? {pista}"
     )
 
 
 #: El `reason` del xfail de abajo, escrito aparte porque es largo y porque la
 #: regla de las cifras de CONTRATOS.md pide que lleve numeros reproducibles.
-#: Todas las cifras que aparecen aqui estan MEDIDAS el 2026-09-15 sobre el
-#: montaje que monta ESTE MISMO test, no sobre otro. Es exactamente el fallo
-#: que se documenta en CONTRATOS.md ("La regla de las cifras") y en
-#: AUDITORIA-DIA2.md caso 4, y por eso va con el comando al lado.
+#: Todas las cifras estan MEDIDAS el 2026-09-16 contra el commit 86da011 sobre
+#: el montaje que monta ESTE MISMO test, no sobre otro.
+#:
+#: REESCRITO EL DIA 4. El reason del dia 3 decia que la zona principal era la
+#: esquina (0,284,31,29) con solape 0.0000. Despues de 86da011 la principal es
+#: la ventana con solape 0.4294. El test seguia en XFAIL, pero **la descripcion
+#: ya no era cierta**, que es exactamente el fallo que la regla de las cifras
+#: existe para cazar (CONTRATOS.md, AUDITORIA-DIA2.md caso 4).
 _RAZON_XFAIL_T2 = (
-    "LIMITE CONOCIDO, MEDIDO EL 2026-09-15, NO ARREGLADO A PROPOSITO. "
-    "QUE FALLA: el recorte de la caja del hotspot, no el detector. "
+    "LIMITE CONOCIDO Y VIVO, MEDIDO EL 2026-09-16 CONTRA 86da011, NO ARREGLADO A PROPOSITO. "
+    "QUE FALLA: la CAJA de la ventana, no el detector y ya no el orden. "
     "CIFRAS, sobre el montaje de este mismo test (mi escena 720x405 semilla 20260915, "
-    "viñeta 0.42 + ventana (96,250,190,110) ganancia 1.55 aplicadas EN LUZ LINEAL): "
-    "la 'zona local' mas fuerte es (0,284,31,29) con magnitud 12.725531826505737 y solapa "
-    "0.0000 con la ventana real, contra el umbral de 0.80 que afirma el repo en su propio T2; "
-    "la segunda, (89,301,251,104) con magnitud 11.377186278350779, solapa 0.4294. "
-    "LAS DOS CAJAS ESTAN AL 11.85% UNA DE OTRA, y eso es informacion de primer orden para "
-    "quien vaya a arreglarlo: NO basta con retocar un umbral de magnitud, porque el que "
-    "gana gana por poco y por el motivo equivocado. "
-    "ESTO ES DETERMINISTA, MEDIDO Y NO SUPUESTO: las dos magnitudes salen bit a bit iguales "
-    "(los 17 digitos) en 18 ejecuciones seguidas, con OMP_NUM_THREADS en 1, 2, 8 y sin "
-    "fijar, contra el arbol de trabajo y contra una copia limpia de HEAD, y antes y despues "
-    "del commit 1d4330e de umbrales (que es un puro movimiento de constantes). Toda la "
-    "aleatoriedad de core esta sembrada (SEMILLA=20260915) y mi escena tambien, y "
-    "pytest-randomly NO esta instalado en este venv, asi que '-p no:randomly' es un no-op y "
-    "el orden de recogida no cambia nunca. El desempate entre las dos cajas esta aferrado "
-    "en test_T2_las_dos_cajas_y_su_desempate_estan_aferrados, que es un test EN VERDE: si "
-    "se mueven, salta ese y no este. "
-    "POR QUE ES LA CAJA Y NO EL DETECTOR: el 93.6% de los 500 pixeles de mayor residuo "
-    "SI caen dentro de la ventana real, y el residuo medio dentro (0.3689) es 4.74 veces "
-    "el de fuera (0.0779) -- o sea que el mapa de calor acierta y lo que se va al sitio "
-    "equivocado es la caja que se declara principal, un cuadrito de 31x29 en una esquina "
-    "en sombra profunda. "
-    "CUANDO SI PASA: con la convencion del repo, aplicando la MISMA viñeta y la MISMA "
-    "ventana sobre la imagen ya codificada en vez de en luz lineal, sale "
-    "lut_reproducible=0.6844 (publicado 0.7002), aparece la etiqueta 'vineta' y la zona "
-    "local mas fuerte pasa a (98,257,229,105) con solape 0.8053 > 0.80: pasaria. "
-    "O sea que el limite aparece cuando lo espacial es SUAVE, que es el caso de una "
-    "viñeta optica real. "
-    "QUE HARIA FALTA PARA CERRARLO: que el recorte de hotspots no declare principal una "
-    "zona de sombra profunda -- no basta con bajar un umbral; hoy, sin sombra en la "
-    "escena, el mas fuerte sigue sin solapar (caso 'sombra=False ventana-sola': "
-    "(117,368,101,37) solape 0.0000, mientras el segundo (57,244,226,120) solapa 0.7585). "
+    "viñeta 0.42 + ventana real (96,250,190,110) ganancia 1.55 aplicadas EN LUZ LINEAL): "
+    "la zona PRINCIPAL -- la primera 'zona local' de la tupla, que es lo que dice el contrato "
+    "desde el dia 4 y lo que lista la GUI -- es (89,301,251,104), magnitud 14.93420487819448, "
+    "y solapa 0.4294 con la ventana real, contra el umbral de 0.80 que el repo afirma en su "
+    "propio T2. La segunda es la esquina en sombra (0,284,31,29), magnitud 12.297431460074693, "
+    "solape 0.0000. lut_reproducible=0.9083604985578424. "
+    "QUE CAMBIO EL DIA 4 Y QUE NO: hasta 71448ff la principal era la esquina (solape 0.0000) "
+    "y con 86da011 la ventana pasa a primera. El porque (orden por masa en vez de por ΔE2000 medio "
+    "del rectangulo, y magnitud medida sobre los pixeles de la zona) lo he LEIDO en el diff, no "
+    "lo he medido: la masa no sale por la API publica. Lo MEDIDO, volcando todos los hotspots "
+    "de mis ocho montajes distintos contra 71448ff y contra 86da011: en este montaje las dos cajas son "
+    "las MISMAS y lut_reproducible es identico bit a bit; se arreglo el orden, no la caja. El orden y las magnitudes estan aferrados en "
+    "test_T2_las_dos_cajas_y_su_orden_estan_aferrados, que es un test EN VERDE: si se mueven, "
+    "salta ese y no este. "
+    "POR QUE ES LA CAJA Y NO EL DETECTOR: el 93.6% de los 500 pixeles de mayor residuo SI caen "
+    "dentro de la ventana real, y el residuo medio dentro (0.3689) es 4.74 veces el de fuera "
+    "(0.0779): el mapa de calor acierta, y lo que falla es la geometria de la caja principal. "
+    "En horizontal cubre la ventana entera (190 de 190 px) y se pasa 54 px por la derecha "
+    "(llega a x=340, la ventana a x=286); en vertical empieza 51 px MAS ABAJO (y=301 contra "
+    "y=250) y baja hasta el borde del cuadro (y=405, la ventana acaba en y=360), asi que solo "
+    "59 de sus 104 px de alto caen dentro. Area 26104 px contra 20900 de la ventana (1.25x). "
+    "190x59/26104 = 0.4294. "
+    "CUANDO SI PASA: con la convencion del repo, aplicando la MISMA viñeta y la MISMA ventana "
+    "sobre la imagen ya codificada en vez de en luz lineal, sale lut_reproducible=0.6844 "
+    "(publicado 0.7002), aparece la etiqueta 'vineta', y la primera 'zona local' es "
+    "(98,257,229,105) con solape 0.8053 > 0.80: pasaria. O sea que el limite aparece cuando lo "
+    "espacial es SUAVE, que es el caso de una viñeta optica real. Ese caso tambien esta "
+    "afirmado en verde en test_T2_atribucion_luz_lineal_contra_imagen_codificada. "
+    "QUE HARIA FALTA PARA CERRARLO: no basta con reordenar (ya se hizo, y la caja sigue en "
+    "0.4294) ni con retocar un umbral de magnitud. Tampoco se arregla quitando la sombra: con "
+    "sombra=False y ventana sola, la principal ya es la ventana, (57,244,226,120), pero solapa "
+    "0.7585 < 0.80; y con sombra=True y ventana sola la principal SIGUE siendo la esquina "
+    "(0,274,41,41), solape 0.0000. Hace falta que la caja de la ventana se ajuste a la ventana. "
+    "Segun el autor de 86da011, que probo cuatro formas y cada una rompia otro caso, eso pide "
+    "mirar bordes, que es otro detector: esa cifra es suya y no esta medida aqui. "
     "COMANDO QUE REPRODUCE LAS DOS COSAS (el rojo y el caso que si pasa): "
     "cd '/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color' && "
-    ".venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -p no:randomly -k T2 "
-    "-- mira las lineas [MEDICION T2-cajas], [MEDICION T2-atribucion] y [MEDICION T2-sonda]. "
-    "Ficha completa de cada cifra (montaje, comando y fecha) en MEDICION-INDEPENDIENTE.md, "
-    "seccion 3. "
-    "SI ESTO PASA A VERDE: el limite se ha cerrado; quitad el xfail y anotadlo, pero "
-    "comprobad antes que nadie ha tocado el montaje de este test, porque aflojarlo seria "
+    ".venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2 "
+    "-- mira las lineas [MEDICION T2-cajas], [MEDICION T2-aferrado], [MEDICION T2-atribucion] "
+    "y [MEDICION T2-sonda]. Ficha completa de cada cifra (montaje, comando y fecha) en "
+    "MEDICION-INDEPENDIENTE.md, seccion 3. "
+    "SI ESTO PASA A XPASS: comprobad primero que el centinela sigue en verde; si el centinela "
+    "salta a la vez, lo que se ha movido es el montaje o el detector, no se ha cerrado el "
+    "limite. Si el centinela sigue verde y esto pasa, es imposible con las cifras de arriba: "
+    "algo esta mal en el propio test. Y no toqueis el montaje de este test: aflojarlo seria "
     "exactamente la forma de hacerlo desaparecer sin arreglarlo."
 )
 
 
-@pytest.mark.xfail(strict=True, reason=_RAZON_XFAIL_T2)
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=_RAZON_XFAIL_T2)
 def test_T2_la_zona_senalada_cae_donde_esta_mi_ventana():
     """Mi caja contra la suya, y el residuo dentro contra el de fuera.
 
@@ -330,7 +384,9 @@ def test_T2_la_zona_senalada_cae_donde_esta_mi_ventana():
     T2, y con mi material no se cumple. Las cifras estan en el `reason`.
 
     El criterio que se afirma es el mismo que el repo afirma de si mismo: la
-    zona local MAS FUERTE tiene que solapar mas del 80% con la ventana real.
+    zona local PRINCIPAL -- la primera de la tupla, que es lo que dice el
+    contrato desde el dia 4 y lo que lista la GUI -- tiene que solapar mas del
+    80% con la ventana real. Hasta el dia 3 se elegia con `max(magnitude)`.
     Al lado se informa de todos los hotspots, del mejor solape de cualquiera de
     ellos y de donde caen de verdad los pixeles de mayor residuo, porque si el
     criterio no se cumple hay que poder decir si falla el detector o solo la
@@ -383,11 +439,11 @@ def test_T2_la_zona_senalada_cae_donde_esta_mi_ventana():
             f"{sorted({hp.label for hp in d.hotspots})}"
         )
 
-    hp = _por_magnitud(locales)[0]
+    hp = _principal(d.hotspots, "zona local")
     solape = _solape_con(hp, E.CAJA_VENTANA)
-    _informe("T2-zona-mas-fuerte", solape=solape, magnitud=hp.magnitude)
+    _informe("T2-zona-principal", solape=solape, magnitud=hp.magnitude)
     assert solape > 0.8, (
-        f"la zona mas fuerte que señala ({hp.x},{hp.y},{hp.w},{hp.h}) no cae dentro de mi "
+        f"la zona principal que señala ({hp.x},{hp.y},{hp.w},{hp.h}) no cae dentro de mi "
         f"ventana {E.CAJA_VENTANA}: solo solapa el {solape:.1%}"
     )
 
@@ -429,6 +485,23 @@ def test_T2_de_donde_sale_cada_hotspot_vineta_ventana_y_sombra():
                 f"con {nombre} encima (sombra={sombra}) dice que es 100% LUT"
             )
 
+            # Los dos casos de "ventana sola" los cita el reason del xfail de
+            # T2 en "que haria falta para cerrarlo", asi que se afirman aqui.
+            # Medido el 2026-09-16 contra 86da011, en el orden de la tupla.
+            principal = _principal(d.hotspots, "zona local")
+            if nombre == "ventana-sola" and principal is not None:
+                caja = (principal.x, principal.y, principal.w, principal.h)
+                solape = _solape_con(principal, E.CAJA_VENTANA)
+                esperado = {True: ((0, 274, 41, 41), 0.0), False: ((57, 244, 226, 120), 0.7585)}
+                caja_esp, solape_esp = esperado[sombra]
+                assert caja == caja_esp and solape == pytest.approx(solape_esp, abs=1e-4), (
+                    f"ventana sola, sombra={sombra}: la principal era {caja_esp} con solape "
+                    f"{solape_esp} y ahora es {caja} con {solape:.4f}. El reason del xfail de "
+                    f"T2 cita este caso: hay que revisarlo"
+                )
+            elif nombre == "ventana-sola":
+                pytest.fail(f"ventana sola, sombra={sombra}: ya no emite ninguna 'zona local'")
+
 
 def test_T2_atribucion_luz_lineal_contra_imagen_codificada():
     """¿De donde sale el hueco entre mi 0.908 y el 0.700 publicado?
@@ -458,6 +531,31 @@ def test_T2_atribucion_luz_lineal_contra_imagen_codificada():
                 f"mag={hp.magnitude:.4f} solape={_solape_con(hp, E.CAJA_VENTANA):.4f}"
             )
         assert not d.is_pure_lut, f"con {nombre} dice que es 100% LUT"
+
+        if not en_lineal:
+            # El `reason` del xfail cita este caso como "cuando SI pasa". Si lo
+            # cita, se afirma: una cifra publicada en un reason que no esta
+            # afirmada en ningun sitio es un recuerdo, no una medida.
+            # Medido el 2026-09-16 contra 86da011 (y la misma caja el dia 3).
+            principal = _principal(d.hotspots, "zona local")
+            assert principal is not None, "en el caso codificado ya no hay 'zona local'"
+            caja = (principal.x, principal.y, principal.w, principal.h)
+            solape = _solape_con(principal, E.CAJA_VENTANA)
+            assert caja == (98, 257, 229, 105), (
+                f"la zona principal del caso codificado era (98,257,229,105) y ahora es {caja}: "
+                f"el reason del xfail de T2 cita esta caja, hay que revisarlo"
+            )
+            assert solape > 0.8, (
+                f"el caso codificado ya no pasa el criterio ({solape:.4f}): el reason del xfail "
+                f"de T2 dice que si pasa, hay que revisarlo"
+            )
+            assert "vineta" in {hp.label for hp in d.hotspots}, (
+                "el caso codificado ya no etiqueta 'vineta': el reason del xfail lo afirma"
+            )
+            assert d.lut_reproducible == pytest.approx(0.6844404189343802, rel=1e-6), (
+                f"lut_reproducible del caso codificado era 0.6844 y ahora es "
+                f"{d.lut_reproducible}: el reason del xfail lo cita"
+            )
 
 
 def test_T2_contrapeso_sin_nada_espacial_dice_que_SI_es_un_lut():

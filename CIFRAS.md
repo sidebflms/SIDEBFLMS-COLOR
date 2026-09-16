@@ -37,23 +37,40 @@ escribió el código y con ΔE2000 de `colour-science`, no del repo). **Las dos 
 
 ## 1 · Las cuatro cifras de titular
 
+> **Cambio del día 4.** Hasta el día 3 el titular de T1 y T3 era **la media**. Pero el
+> criterio lo suspende **el máximo** (T1) y **el peor par** (T3), y la media es la cifra
+> holgada. **Desde hoy el titular es la que decide**, con su margen al límite al lado. La
+> media se sigue dando, detrás. Las filas son las mismas de antes, con los mismos comandos
+> verificados: sólo cambia el orden y se añade el margen.
+
+### Los titulares: la cifra que decide, y cuánto le falta para suspender
+
+| Criterio | Cifra que decide | Límite | **Margen** | Montaje | Comando | Fecha |
+|---|---|---|---|---|---|---|
+| **T1** ingeniería inversa | **ΔE2000 máximo 2.8867** | < 3.0 | **0.11** | independiente: escena 720×405 semilla 20260915, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T1` | 15-09 |
+| T1, montaje del repo | ΔE2000 máximo 1.7409 | < 3.0 | 1.26 | repo: retrato 640×360 piel 2, CDL+LUT conocidos | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T1` | 15-09 |
+| **T3** igualado de cámaras | **ΔE2000 peor par 1.906** | < 2.0 | **0.094** | independiente: escena propia, desviaciones más suaves, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t3.py -s` | 15-09 |
+| T3, montaje del repo | ΔE2000 peor par 0.981 | < 2.0 | 1.02 | repo: 4 cámaras desde el retrato | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T3` | 15-09 |
+| **T2** lo que no es un LUT | no dice 100% LUT **y** señala la zona | — | cualitativo | repo: viñeta 0.45 + ventana (440,30,170,120), sobre la imagen codificada | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T2` | 15-09 |
+| T2, montaje independiente | **la zona señalada NO cae en la ventana** (solape 0.0000) | — | **no cumple** | viñeta 0.42 + ventana (96,250,190,110), **en luz lineal** | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 15-09 |
+| **T4** QC de LUT | 3 de 3 cazados, 0 avisos sobre la identidad | 3/3 y 0 | exacto | 3 LUT fabricados; `LUT3D.identity(n)` en 17³, 33³, 65³ | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T4` | 15-09 |
+
+**Leer así:** T1 y T3 cumplen en los dos montajes, pero **en el montaje independiente
+pasan por un 4-5%**, sobre material sintético limpio. Con ruido, compresión o un plano
+distinto del que se extrajo, no hay garantía de que sigan cumpliendo. T5 (día 4) mide
+justo eso.
+
+### Detrás: las medias y el resto de cifras de los mismos montajes
+
 | Cifra | Valor | Montaje | Comando | Fecha |
 |---|---|---|---|---|
-| **T1** ΔE2000 medio, zona cubierta | **0.1415** | repo: retrato 640×360 piel 2, CDL+LUT conocidos | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T1` | 15-09 |
-| **T1** ΔE2000 máximo, zona cubierta | **1.7409** | ídem | ídem | 15-09 |
-| T1 medio · montaje independiente | 0.1687 | escena 720×405 semilla 20260915, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T1` | 15-09 |
-| **T1 máximo · montaje independiente** | **2.8867** | ídem — **a 0.11 del límite de 3.0** | ídem | 15-09 |
-| **T2** fracción reproducible en un `.cube` | **0.7002** | repo: viñeta 0.45 + ventana (440,30,170,120) ganancia 1.6, **sobre la imagen codificada** | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T2` | 15-09 |
-| **T2** solape de la zona señalada | **0.9941** | ídem | ídem | 15-09 |
-| T2 reproducible · montaje independiente | 0.90836 | viñeta 0.42 + ventana (96,250,190,110), **en luz lineal** | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 15-09 |
-| **T2 solape · montaje independiente** | **0.0000** | ídem — **no se reproduce**, ver §4 | ídem | 15-09 |
-| **T3** ΔE2000 medio entre cámaras, antes | **17.674** | repo: 4 cámaras desde el retrato, desviaciones del repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T3` | 15-09 |
-| **T3** ΔE2000 medio entre cámaras, después | **0.661** | ídem | ídem | 15-09 |
-| T3 peor par suelto, después | 0.981 | ídem | ídem | 15-09 |
-| T3 antes/después · independiente | 15.499 → 1.085 | escena propia, desviaciones más suaves, ΔE de `colour` | `.venv/bin/python -m pytest tests/medicion/test_t3.py -s` | 15-09 |
-| **T3 peor par · independiente** | **1.906** | ídem — **a 0.094 del límite de 2.0** | ídem | 15-09 |
-| **T4** LUT malos cazados | **3 de 3** | 3 LUT fabricados: no monótono, escalón, fuera de gamut | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T4` | 15-09 |
-| **T4** avisos sobre la identidad | **0**, en 17³, 33³ y 65³ | `LUT3D.identity(n)` | ídem | 15-09 |
+| T1 ΔE2000 medio, zona cubierta · repo | 0.1415 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T1` | 15-09 |
+| T1 ΔE2000 medio · independiente | 0.1687 | independiente | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T1` | 15-09 |
+| T2 fracción reproducible en un `.cube` · repo | 0.7002 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T2` | 15-09 |
+| T2 solape de la zona señalada · repo | 0.9941 | repo | ídem | 15-09 |
+| T2 fracción reproducible · independiente | 0.90836 | independiente | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 15-09 |
+| T3 ΔE2000 medio entre cámaras, antes → después · repo | 17.674 → 0.661 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k T3` | 15-09 |
+| T3 antes → después · independiente | 15.499 → 1.085 | independiente | `.venv/bin/python -m pytest tests/medicion/test_t3.py -s` | 15-09 |
 
 ### La cifra que faltaba en la tabla de titulares
 
@@ -201,3 +218,135 @@ Todas medidas el 16-09-2026, después de arreglar la escala tipográfica.
 |---|---|---|
 | `INSIGNIA_ANCHO` | **108 px**, y «MEDIA 100%» necesita **115** | La columna CONFIANZA mide `INSIGNIA_ANCHO + 16` y es la más ancha de las fijas: subirla **subiría la anchura mínima**, que es justo lo que no tocaba. Hoy no se ve porque un 100% siempre sale `alta`, y «ALTA» es la palabra más corta. |
 | Tracking de las cabeceras de tabla | **0** | Límite de Qt, comprobado por dos vías: `setFont()` sobre el `QHeaderView` lo borra Qt en el siguiente `polish`, y `headerData(…, FontRole)` no cambia ni un píxel. Haría falta un `QHeaderView` propio que se pinte las secciones. |
+
+---
+
+## 8 · T5 — el LUT extraído de un plano, aplicado a otro plano (día 4)
+
+**El caso de uso real**, que no se había medido: extraer el look de un plano y aplicarlo a
+los demás del mismo trabajo. Medido por un agente independiente contra la copia congelada
+de `v0.3.0`, con escenas propias y ΔE2000 de `colour-science`. Informe completo en
+[`MEDICION-T5.md`](MEDICION-T5.md).
+
+**El comando es el mismo para todas las filas**, y **hay que ejecutarlo desde la copia
+congelada**, no desde la raíz (si no, mide el repo vivo y los tests se saltan diciendo por
+qué):
+
+```bash
+git worktree add --detach .snapshots/v0.3.0 v0.3.0   # sólo si no existe
+cd .snapshots/v0.3.0 && PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest ../../tests/fuera_de_plano -s -p no:cacheprovider --import-mode=importlib --noconftest -rxXs
+```
+
+Cada fila dice qué línea de la salida mirar. **Verificadas el 16-09** re-ejecutando el
+comando: las cifras marcadas con ✔ salen idénticas.
+
+| Cifra | Valor | Montaje | Línea de la salida | Fecha |
+|---|---|---|---|---|
+| **T5 máximo en B, plano normal (A2, 0.41% del cubo)** | **3.593 – 5.921; 0 de 12 bajo 3.0** ✔ | escena A2 contra 6 escenas B × 2 looks | `[T5 AB …]` con `A2 interior`, campo `todo_max` | 16-09 |
+| T5 medio en B, plano normal | 0.338 – 1.685 | ídem | ídem, `todo_medio` | 16-09 |
+| T5 p95 en B, plano normal | 0.912 – 4.010 | ídem | ídem, `todo_p95` | 16-09 |
+| T5 pares A→B con máximo bajo 3.0 | **5 de 72** (11 de 72 quitando L\* > 100) | 6 A × 6 B × 2 looks | `[T5 nivel …]` | 16-09 |
+| T5 corte de cobertura para máximo < 3.0 | **no existe** en 0.15% – 4.8% | ídem | `[T5 corte ambos looks … todo_max]` | 16-09 |
+| T5 corte de fracción de B cubierta, para p95 < 3.0 | ≥ 0.8767 | ídem | `[T5 corte ambos looks … todo_p95]` | 16-09 |
+| Correlación (Spearman) del máximo en B con la cobertura de A | **+0.780** — al revés de lo esperado | ídem | `[T5 spearman todo_max]` | 16-09 |
+| Peor píxel en celda cubierta / a medias / inventada | 46 / 7 / 19 de 72 | ídem | `[T5 peor pixel todo]` | 16-09 |
+| **T1 A→A máximo en escena rica (A5)** | **4.00095 / 3.85405 — NO cumple < 3.0** ✔ | escena A5, look global / con secundarias | `[T5 ref … A5 muy variada]`, `todo_max` | 16-09 |
+| Power azul del CDL extraído, frente al conocido 1.02 | 1.193 – 1.466 | 12 extracciones | `[T5 cdl …]` | 16-09 |
+
+**Lo que dicen juntas:** con un plano, el LUT **no sirve** fuera de su plano; **más
+cobertura no arregla el máximo**, porque los peores errores vienen de nodos del cubo con
+pocas muestras, no de celdas vacías; y el **titular de T1 «cumple» no es general**: con
+una escena rica falla en su propio plano.
+
+---
+
+## 9 · T5 con el modo por lote (día 4, segunda vuelta)
+
+Medido por el mismo agente independiente, contra **otra** copia congelada: `.snapshots/dia4-lote`
+(commit `a90b59c`, la que ya tiene `invertir_grado_lote`). 640×360, ΔE2000 de `colour`.
+
+```bash
+git worktree add --detach .snapshots/dia4-lote a90b59c   # sólo si no existe
+cd .snapshots/dia4-lote && PYTHONDONTWRITEBYTECODE=1 ../../.venv/bin/python -m pytest \
+  ../../tests/fuera_de_plano/test_t5_lote.py -s -p no:cacheprovider --import-mode=importlib \
+  --noconftest -rxXs -k <K>
+```
+
+**Cómo leer las filas:** «planos de fuera» son 12 planos **del mismo trabajo que no entraron
+en el lote** (líneas `F00`–`F11` de la salida). Los planos `X00`–`X03` son **ajenos** al
+trabajo y van aparte: mezclarlos cambia la cifra —me pasó a mí al verificarla, y el peor
+máximo saltaba de 1.67 a 20.96—.
+
+✔ = re-ejecutado el comando y salen idénticas.
+
+| Cifra | Valor | `-k` | Fecha |
+|---|---|---|---|
+| **Lote de 3 planos, `suma_w2`, look global: peor máximo en planos de fuera** | **1.66778 — 12 de 12 bajo 3.0** ✔ | `t5l_global` | 16-09 |
+| Lote de 3, `suma_w2`, look con secundarias | 1.9516 — 12 de 12 | `t5l_secundarias` | 16-09 |
+| Lote de 40, `suma_w2`, global | **0.759774** ✔ | `t5l_global` | 16-09 |
+| Lote de 40, `suma_w`, global | **2.90825 — 12 de 12, a 0.09 del límite** ✔ | `t5l_global` | 16-09 |
+| Lote de 3, `suma_w`, global | 9.42269 — 7 de 12 ✔ | `t5l_global` | 16-09 |
+| **Look de secundarias estrechas, lote de 40, `suma_w2`** | **4.1987 — 10 de 12. Falta 1.20. Falla en celdas CUBIERTAS** | `t5l_estrechas` | 16-09 |
+| Planos ajenos al trabajo, lote de 40, peor máximo | 12.70 – 22.09 según look | los tres | 16-09 |
+| Cobertura con 1 / 3 / 5 / 10 / 20 / 40 planos, 640×360 | 0.431 / 0.843 / 0.946 / 1.222 / 1.486 / **1.812 %** | `t5l_secundarias` | 16-09 |
+| Un solo plano, montaje de la mañana: pares bajo 3.0, `suma_w` → `suma_w2` | global **1 → 21 de 36** · secundarias 4 → 15 de 36 | `t5l_manana` | 16-09 |
+| Un solo plano, secundarias estrechas, A→A por encima de 3.0 | `suma_w` 4 de 11 · `suma_w2` **1 de 11** | `t5l_un_plano` | 16-09 |
+
+**Lo que dicen juntas:** el lote **sí** resuelve el caso de uso **con looks suaves, en planos
+del mismo trabajo, y con `suma_w2`** (que es el defecto del lote). No lo resuelve con
+secundarias estrechas —un LUT no puede con ellas, tenga los datos que tenga— ni con planos
+de otro trabajo.
+
+**Cifra del autor del lote que NO se reproduce:** él midió que `suma_w2` empeora planos
+sueltos con secundarias estrechas (7 de 11 por encima de 3.0, frente a 2). Con otro look
+de secundarias estrechas sale al revés (1 de 11 frente a 4). No es la misma escena, así que
+no se sabe si su cifra está mal: se sabe que **no generaliza**. No se publica como hecho.
+
+---
+
+## 10 · Detector espacial y ventana (día 4)
+
+| Cifra | Valor | Montaje | Comando | Fecha |
+|---|---|---|---|---|
+| Zona principal en el montaje independiente | **la ventana** `(89,301,251,104)` — antes era la esquina | viñeta 0.42 + ventana en luz lineal | `.venv/bin/python -m pytest tests/medicion/test_t1_t2.py -s -k T2` | 16-09 |
+| **Solape de su caja con la ventana real** | **0.4294 — no cumple 0.80** | ídem | ídem | 16-09 |
+| T1 y T2 del repo tras el cambio | idénticos: 0.1415 / 1.7409 y 0.7002 / 0.9941 | repo | `.venv/bin/python -m pytest tests/test_entregables.py -s -k "T1 or T2"` | 16-09 |
+
+---
+
+## 11 · Interfaz (actualiza §7)
+
+| Cifra | Valor | Montaje | Comando | Fecha |
+|---|---|---|---|---|
+| **Tamaño mínimo real de la ventana** | **973 × 727** | medido **a 973 px de ancho** en las cuatro pantallas | `.venv/bin/python -m pytest tests/test_gui_texto.py -k anchura_minima_real` | 16-09 |
+| ídem, midiendo `minimumSizeHint()` en ventana ancha | 973 × 713 — **no vale**: a 973 px la leyenda del mapa ocupa dos líneas | — | — | 16-09 |
+
+---
+
+## 12 · Calibración de la confianza (día 4)
+
+Medido por un agente independiente: 3.600 casos sintéticos con verdad conocida (2.400 de
+ingeniería inversa, 720 de igualado), 320×180 comprobado contra 640×360, ΔE2000 de `colour`.
+Informe en [`CALIBRACION-CONFIANZA.md`](CALIBRACION-CONFIANZA.md).
+
+```bash
+.venv/bin/python -m pytest tests/calibracion -q -rx          # tests
+.venv/bin/python -m tests.calibracion.analizar               # tablas; filtrar con grep
+```
+
+✔ = re-ejecutado el análisis el 16-09 y sale idéntico.
+
+| Cifra | Valor | Línea de la salida | Fecha |
+|---|---|---|---|
+| **Valores distintos de la nota de `reverse`, 33³, fuera de plano, sin compresión** | **1 en 500 casos — la nota es constante** ✔ | `[CAL spearman reverse 33^3 fuera \| compresion=0.0]` | 16-09 |
+| Máximo fuera de plano en esos mismos casos | 0.50 – 39.26 | `CALIBRACION-CONFIANZA.md` §3 | 16-09 |
+| Spearman nota–máximo, `reverse` 17³ fuera de plano, todo junto | −0.290 ✔ (y −0.078 sin compresión: el todo junto es paradoja de Simpson) | `[CAL spearman reverse 17^3 fuera …]` | 16-09 |
+| Fracción que cumple máximo < 3.0 entre los «alta» (nota ≥ 0.75), `reverse` 17³ fuera | **4.2%**, IC95 2.4 – 6.0% ✔ | `[CAL umbral reverse 17^3 fuera] t=0.75` | 16-09 |
+| Mejor fracción que cumple con cualquier umbral, `reverse` 33³ fuera | 17.0%, IC95 13.8 – 20.6% | `[CAL umbral reverse 33^3 fuera]` | 16-09 |
+| «alta» en su propio plano, rejilla 17³, que pasan de 3.0 | 165 de 171 (96.5%) | `CALIBRACION-CONFIANZA.md` §4 | 16-09 |
+| Igualado de clips, misma escena: AUC de la nota para predecir que cumple | 0.399, IC95 0.233 – 0.587 | `CALIBRACION-CONFIANZA.md` §2 | 16-09 |
+| **Umbrales resultantes** | **ninguno: 0.75 y 0.45 se quedan**, porque ningún corte llega al 95% | — | 16-09 |
+
+**Sin verificar, y por eso no va como cifra:** que `make_clip(codec="h264")` del generador
+codifica con matriz BT.601 y etiqueta BT.709 (error 0.027 frente a 0.0046). Lo midió a mano el
+agente de calibración; no hay test que lo fije.

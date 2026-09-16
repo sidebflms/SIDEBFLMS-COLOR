@@ -52,7 +52,9 @@ def test_las_seis_estan_marcadas_en_el_codigo():
 def test_la_decision_de_cada_incognita_esta_en_un_solo_sitio():
     """Una marca por incognita como maximo en todo `core/` fuera de incognitas.py,
     y las de incognitas.py concentradas en su funcion."""
-    for p in (RAIZ / "core").rglob("*.py"):
+    ficheros = sorted((RAIZ / "core").rglob("*.py"))
+    assert ficheros, f"no hay nada que comprobar: {RAIZ / 'core'} sin ningun .py"
+    for p in ficheros:
         if p.name == "incognitas.py":
             continue
         texto = p.read_text(encoding="utf-8")

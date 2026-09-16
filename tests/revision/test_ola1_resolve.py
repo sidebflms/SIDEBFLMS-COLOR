@@ -283,6 +283,10 @@ def test_la_regla_de_oro_corta_las_cinco_escrituras_de_grado(operacion):
     assert fake._grados_escritos == []
     assert fake.version_names("clip001") == [VERSION_INICIAL]
     for clip in ("clip001", "clip002"):
+        assert fake.list_nodes(clip), (
+            f"no hay nada que comprobar: {clip} no tiene nodos en el falso, y el bucle de abajo "
+            "pasaria sin mirar ninguno"
+        )
         for nodo in fake.list_nodes(clip):
             assert nodo.lut_path is None
             assert nodo.enabled is True
@@ -391,6 +395,11 @@ def test_la_regla_de_oro_vive_en_la_clase_base_asi_que_LiveResolve_la_hereda():
     # que sale en un comentario o en un docstring, y E documento el porque del
     # arreglo E-3 justo ahi. Lo que se quiere afirmar es que NO FALTA ninguna
     # escritura sin comprobar, no que nadie pueda escribir el nombre en prosa.
+    # AVISO (revisor de vacios, dia 4): estas dos lineas NO lo afirman. Pasan
+    # aunque las cinco menciones sean comentarios y no haya ni una llamada
+    # (`AUDITORIA-DIA2.md`, caso 2). La comprobacion de verdad, por AST, es
+    # `tests/auditoria/test_dia2_regla_de_oro.py::test_AUD2_las_cinco_escrituras_llaman_a_la_regla_por_AST`.
+    # Se dejan como estaban: no se cambia lo que afirma un test ajeno.
     assert fuente_live.count("_exigir_version_propia") >= len(ESCRITURAS_DE_GRADO)
     assert fuente_fake.count("_exigir_version_propia") >= len(ESCRITURAS_DE_GRADO)
 
@@ -471,6 +480,9 @@ def test_fakeresolve_no_ofrece_ninguna_forma_PUBLICA_de_leer_el_cdl():
     asegurar_version(fake, "clip001")
     fake.set_cdl("clip001", NODE_BALANCE, CDL(slope=(2.0, 2.0, 2.0)))
     # Y lo que si es publico (list_nodes) no lleva el CDL dentro:
+    assert fake.list_nodes("clip001"), (
+        "no hay nada que comprobar: clip001 no tiene nodos, y el bucle de abajo pasaria sin mirar ninguno"
+    )
     for nodo in fake.list_nodes("clip001"):
         assert not hasattr(nodo, "cdl")
     assert not hasattr(fake, "get_cdl")

@@ -236,6 +236,7 @@ def test_la_saturacion_nunca_se_sale_de_0_1(exterior_trabajo):
 
 def test_hay_locus_en_los_seis_tonos_de_piel(pieles_trabajo):
     """Si solo funcionara con pieles claras, no funcionaria."""
+    assert pieles_trabajo, "no hay nada que comprobar: el fixture `pieles_trabajo` ha salido vacio"
     for i, img in enumerate(pieles_trabajo):
         s = estadisticas(img)
         assert s.skin_locus is not None, f"tono {i} sin locus"
@@ -243,6 +244,7 @@ def test_hay_locus_en_los_seis_tonos_de_piel(pieles_trabajo):
 
 
 def test_el_locus_va_en_oklab_y_cae_donde_cae_la_piel(pieles_trabajo):
+    assert pieles_trabajo, "no hay nada que comprobar: el fixture `pieles_trabajo` ha salido vacio"
     for img in pieles_trabajo:
         s = estadisticas(img)
         ll, a, b = s.skin_locus

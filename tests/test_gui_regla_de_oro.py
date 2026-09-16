@@ -80,6 +80,7 @@ def test_aplicar_al_lote_pasa_por_aplicar_grado_seguro(monkeypatch):
     finally:
         v.close()
 
+    assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
     assert [c for c, _ in visto] == [c.clip_id for c in est.clips], (
         "algun clip se ha escrito sin pasar por aplicar_grado_seguro"
     )
@@ -128,6 +129,7 @@ def test_todas_las_escrituras_caen_en_la_version_de_la_app():
         v.close()
 
     escritos = est.puente._grados_escritos
+    assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
     assert len(escritos) == len(est.clips), "no se ha escrito en todos los clips"
     for g in escritos:
         assert g.version == VERSION_NAME, (
@@ -140,6 +142,7 @@ def test_todas_las_escrituras_caen_en_la_version_de_la_app():
 def test_la_version_del_usuario_sigue_intacta_despues_de_aplicar():
     """El grado de Mario se queda en `Version 1`, sin CDL y sin LUT."""
     est = dd.estado_demo()
+    assert est.clips, "no hay nada que comprobar: el estado de demostracion no trae clips"
     for clip in est.clips:
         assert est.puente.current_version(clip.clip_id) == VERSION_INICIAL
 
@@ -181,6 +184,7 @@ def test_aplicar_dos_veces_no_crea_una_segunda_version():
     """Idempotente: nada de `SIDEB COLOR 2`, `SIDEB COLOR 3`..."""
     est = dd.estado_demo()
     ids = [c.clip_id for c in est.clips]
+    assert ids, "no hay nada que comprobar: el estado de demostracion no trae clips"
     pa.aplicar(est, ids)
     pa.aplicar(est, ids)
     for clip_id in ids:
@@ -238,6 +242,9 @@ def test_ningun_modulo_de_la_gui_llama_a_una_escritura_cruda():
     explicar que no se usa no puede hacer fallar el test, y una llamada
     escondida dentro de una expresion si tiene que salir."""
     culpables: list[str] = []
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     for archivo in sorted(RAIZ_GUI.glob("*.py")):
         for linea, metodo in _llamadas_de(archivo):
             if metodo in ESCRITURAS_CRUDAS:
@@ -254,6 +261,9 @@ def test_la_gui_no_toca_la_via_de_escape_de_la_regla_de_oro():
     Se llama asi de feo a proposito. Si aparece en `gui/`, el diseno esta mal.
     """
     culpables: list[str] = []
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     for archivo in sorted(RAIZ_GUI.glob("*.py")):
         texto = archivo.read_text(encoding="utf-8")
         if "PELIGRO_escribir_fuera_de_la_version" in texto:
@@ -267,6 +277,9 @@ def test_la_gui_no_importa_el_puente_de_verdad():
     """`LiveResolve`, `DaVinciResolveScript` y `fusionscript`, ni mencionados."""
     prohibidos = ("DaVinciResolveScript", "fusionscript", "core.resolve.live", "LiveResolve")
     culpables: list[str] = []
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     for archivo in sorted(RAIZ_GUI.glob("*.py")):
         arbol = ast.parse(archivo.read_text(encoding="utf-8"), filename=str(archivo))
         for nodo in ast.walk(arbol):
@@ -293,6 +306,9 @@ def test_hoy_la_gui_no_tiene_ningun_camino_de_copiar_grados():
     boton de «copiar a los demas», tiene que salir por ahi, y este test se
     convierte en el que lo comprueba.
     """
+    assert sorted(RAIZ_GUI.glob("*.py")), (
+        f"no hay nada que comprobar: {RAIZ_GUI} no tiene ningun .py (carpeta movida o renombrada)"
+    )
     llamadas = {
         metodo
         for archivo in RAIZ_GUI.glob("*.py")

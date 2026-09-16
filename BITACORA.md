@@ -681,3 +681,205 @@ y hoy a 973×651.)*
    dejamos, o los calibramos contra material tuyo cuando lo haya?
 4. **La convención de la viñeta** (§D3-5 punto 3): ¿la calibramos para luz lineal, que es
    lo que hace una lente de verdad?
+
+---
+---
+
+# DÍA 4 — 16 de septiembre de 2026
+
+Los días 1, 2 y 3 siguen arriba sin tocar.
+
+**Lo primero, y en una línea cada una, porque hoy se han caído dos cosas que se daban por
+buenas:**
+
+1. **El LUT extraído de UN plano no sirve para los demás planos.** El máximo pasa de 3.0 en
+   12 de 12. **Acumulando 3 planos o más del mismo trabajo, sí sirve** (con looks suaves).
+2. **La confianza no predice el error.** «ALTA 100%» con un máximo de 5.53 no es un caso
+   raro: es lo normal.
+
+---
+
+## D4-0 · Los titulares, desde hoy
+
+La cifra que se publica es **la que decide** —el máximo en T1, el peor par en T3—, con su
+margen al límite al lado. La media va detrás. Las de antes siguen en los días 1–3 tal como
+se escribieron.
+
+| Criterio | Cifra que decide | Límite | Margen | Montaje |
+|---|---|---|---|---|
+| **T1** ingeniería inversa, en su plano | **ΔE2000 máximo 2.8867** | 3.0 | **0.11** | independiente |
+| T1, escena muy rica de color | **4.0009** | 3.0 | **−1.00 — no cumple** | T5, escena A5 |
+| **T3** igualado de cámaras | **peor par 1.906** | 2.0 | **0.094** | independiente |
+| T2 lo que no es un LUT | la zona principal ya es la ventana, pero su caja solapa **0.43** | 0.80 | **no cumple** | independiente |
+| T4 QC de LUT | 3 de 3, identidad limpia | — | exacto | repo |
+| **T5 (nuevo)** un plano → otros planos | **3.593 – 5.921; 0 de 12 bajo 3.0** | 3.0 | **no cumple** | independiente |
+| **T5 con lote de 3 planos**, `suma_w2` | **1.668; 12 de 12 bajo 3.0** | 3.0 | **1.33** | independiente, re-verificado |
+
+Todas con su comando en `CIFRAS.md`.
+
+---
+
+## D4-1 · T5: el caso de uso no se había medido nunca
+
+Todo lo medido hasta ayer era ida y vuelta sobre el mismo plano. **El caso real** —extraer el
+look de un plano de un trabajo entregado y aplicarlo a los otros treinta— **no existía**. Lo
+midió un agente que no había escrito ni medido nada, contra una copia congelada de
+`v0.3.0`, con escenas propias y ΔE2000 de `colour-science`.
+
+**Veredicto: con un plano, no sirve.** 72 pares, 5 bajo 3.0. Falla incluso cuando el otro
+plano es otra toma con la misma paleta.
+
+Y tres cosas que pesan más que el veredicto:
+
+- **Más cobertura no arregla el máximo.** La cobertura del plano de origen correlaciona
+  **+0.78** con el peor error, al revés de lo que se esperaba. Los errores más gordos no
+  vienen de celdas vacías, vienen de **nodos del cubo con pocas muestras mal
+  determinados**: un gris con los ocho nodos «cubiertos» dio 11.53, con dos de ellos con 7
+  y 14 muestras.
+- **T1 tampoco aguanta una escena rica ni en el caso fácil**: 4.0009 en su propio plano. El
+  titular «T1 cumple» era cierto para los montajes probados, no en general.
+- **El CDL extraído no es el del colorista.** Se queda con parte del contraste del LUT
+  (power azul 1.19–1.47 frente al 1.02 real). **Quien lea el nodo 2 en Resolve leerá
+  números que nadie puso.**
+
+Y el aviso de cobertura baja **avisa al revés**: salta en las escenas que mejor se portan
+fuera de plano y calla en las peores.
+
+---
+
+## D4-2 · El remedio: acumular por proyecto
+
+**Modo por lote:** N pares (bruto, máster) → un solo CDL + LUT.
+
+**Medido por el mismo agente independiente**, con su propio proyecto, contra otra copia
+congelada con el modo por lote. Peor máximo en 12 planos del trabajo **que no entraron en el
+lote**:
+
+| Planos en el lote | Look global, `suma_w2` | Look global, ajuste de siempre | Secundarias estrechas, `suma_w2` |
+|---|---|---|---|
+| 1 | 2.77 · 12 de 12 | 10.71 · 0 de 12 | 9.99 · 1 de 12 |
+| **3** | **1.67 · 12 de 12** | 9.42 · 7 de 12 | 7.09 · 4 de 12 |
+| 40 | 0.76 · 12 de 12 | 2.91 · 12 de 12 | **4.20 · 10 de 12** |
+
+**Qué es `suma_w2`:** el ajuste decidía cuánto manda cada nodo del cubo sumando pesos, y así
+contaba igual un píxel pegado al nodo que ocho en la esquina opuesta. `suma_w2` suma los
+pesos al cuadrado, que es lo que el nodo pesa de verdad. **Es el defecto del modo por lote.**
+
+**Dónde no llega, y no va a llegar:**
+- **Secundarias estrechas.** Con 40 planos le falta 1.20, y falla en celdas **cubiertas**: no
+  es falta de datos, **un LUT no puede reproducir una secundaria de 20°**.
+- **Planos de otro trabajo.** Falla siempre (12.7 a 22.1).
+
+**La cobertura se satura**: 40 planos llenan el **1.8%** del cubo. Nunca va a estar lleno;
+lo que resuelve no es llenarlo, es determinar bien los nodos que se usan.
+
+**Detección de planos corregidos aparte:** si el colorista corrigió planos por separado,
+acumular los mezcla y sale un LUT con buena cara que no es de ninguno. El modo los detecta:
+con 3 de 20 corregidos, **señala exactamente esos 3** y dice hacia dónde («más frío, b\*
+−10.2»), con cero falsos avisos por ruido. **Límite dicho:** una corrección floja (×0.25) no
+la ve.
+
+---
+
+## D4-3 · La confianza no predice el error
+
+`CONFIDENCE_ALTA` = 0.75 y `CONFIDENCE_MEDIA` = 0.45 no tenían medida detrás. Un agente
+independiente generó **3.600 casos** con verdad conocida para calibrarlos. **No se pudo,
+porque no hay nada que calibrar**:
+
+- **Ingeniería inversa:** la nota vale **1.0 en las 100 extracciones** de material limpio,
+  mientras el máximo fuera de plano va de **0.50 a 39.26**. La nota sólo mira la media en el
+  propio plano: no ve el máximo, no ve la cobertura, no ve el plano de destino.
+- **Igualado de clips:** sólo predice «estas dos escenas son distintas». Con la misma escena,
+  que es cuando igualar tiene sentido, no predice nada.
+- **Ningún umbral** consigue que el 95% de los «alta» cumpla: lo mejor es un 17%.
+- La correlación que sale al mezclarlo todo **es una paradoja de Simpson**: la compresión
+  baja la nota y sube el error a la vez.
+
+**«ALTA 100%» con un máximo de 5.53 es lo normal**: el 96.5% de los «alta» pasan de 3.0.
+
+**Los umbrales no se han cambiado**, y ése es el resultado correcto: calibrar un número que
+no predice nada sería maquillarlo. Su texto en `core/umbrales.py` ya no dice «no se sabe»:
+dice lo que se ha medido.
+
+**Lo que hace falta, y no es de hoy:** rediseñar la confianza para que mire lo que decide
+—el máximo, la cobertura, la distancia a lo medido—. Hoy, **la confianza que ve Mario en
+pantalla no debería usarse para decidir nada**.
+
+---
+
+## D4-4 · Lo demás
+
+- **La caja del detector:** la primera zona que enseña la app **ya es la ventana** y no la
+  esquina en sombra. La causa no era la sombra: se ordenaba por el ΔE medio del rectángulo
+  entero, y la ventana sólo ocupa el 55% de su rectángulo. **La caja sigue solapando sólo
+  0.43**, frente a 0.80: se probaron cuatro formas de ajustarla y cada una rompía otro
+  caso. Queda como `xfail` con la geometría exacta.
+- **Tests que pasaban en vacío:** 58 guardas puestas. **Una destapó un test cuya mitad
+  llevaba desde el día 2 sin comprobar nada**: miraba un corte del cubo sin ninguna celda
+  medida. Arreglado con control negativo. Hay un detector nuevo, `tests/test_sin_vacio.py`,
+  y la lista de lo que el detector no ve está en `CONTRATOS.md`.
+- **La interfaz:** el ΔE **máximo** es el titular con su margen; «no cumple» sin rojo; la
+  cobertura del cubo igual de grande que la reproducibilidad, con una frase llana. Donde
+  sólo hay media, pone «ΔE medio».
+- **La primera prueba con material real, preparada y sin ejecutar:** `pruebas/primera_real.py`
+  y `pruebas/COMO-HACER-LA-PRIMERA-PRUEBA.md`. Simulacro por defecto, rutas sólo por
+  argumento, y **probado que deja el origen idéntico byte a byte** con un origen de sólo
+  lectura. Localiza cada plano dentro del máster por estructura, no por color.
+
+---
+
+## D4-5 · Lo que hice mal hoy
+
+1. **El comando que le di al medidor para medir contra la copia congelada medía en realidad
+   el repo vivo.** Él lo detectó, lo demostró y dejó una guarda.
+2. **En el commit del detector escribí «no puede aparecer un falso positivo nuevo»**,
+   copiado del agente sin comprobarlo. No es cierto: con el tope de 8 zonas, cambia una.
+3. **En el commit del lote escribí que `suma_w2` quedaba «como opción, no por defecto».**
+   Impreciso: **es el defecto del modo por lote**; sólo el de un plano sigue con el ajuste
+   de siempre.
+4. **Una fila que añadí a `CIFRAS.md` rompió el lector de la prueba real.** Arreglado en el
+   lector.
+5. **Al verificar la cifra de titular del lote, mi primer resumen mezclaba planos ajenos al
+   trabajo** y daba 20.96 en vez de 1.67. Otra vez el error de medir sobre un montaje
+   distinto del que dice la fila. Lo cacé antes de publicar.
+6. **Saturé la máquina** (carga 60) con una re-ejecución mía mientras corrían tres agentes.
+   Los tres se colgaron.
+
+---
+
+## D4-6 · Sin resolver
+
+1. **La confianza hay que rediseñarla**, no calibrarla (D4-3).
+2. **Un plano no basta**, y las secundarias estrechas no las resuelve ningún LUT (D4-1, D4-2).
+3. **El CDL extraído absorbe contraste del LUT**: el nodo 2 no enseña lo que puso el
+   colorista.
+4. **El aviso de cobertura baja avisa al revés.**
+5. **El detector de desajuste de contenido salta con el mismo plano** en el 26–32% de los
+   pares comprimidos en h264, y en igualado de clips **42 pares de escenas distintas salen
+   «alta»** sin cumplir ninguno.
+6. **La caja de la ventana**, 0.43 frente a 0.80.
+7. **Posible fallo en el generador de material** (`tests/media/generate.py`, mío): según la
+   calibración, el h264 se codifica con matriz BT.601 y se etiqueta BT.709. **Medido a mano
+   por un agente, sin test que lo fije: no lo publico como cifra hasta verificarlo.** Si se
+   confirma, afecta a los casos «con compresión» medidos hasta hoy.
+8. Las 10 filas de T5 y las del lote **sólo se comprueban desde las copias congeladas**; en
+   la suite normal se saltan, a propósito y diciéndolo.
+9. **Sigue sin ejecutarse nada contra un Resolve real.**
+
+---
+
+## D4-7 · Lo que necesito de ti
+
+1. **El probe.** Sigue siendo lo primero.
+2. **Material real para `pruebas/primera_real.py`**: un trabajo entregado con su máster y sus
+   brutos. Es la única forma de saber si lo de D4-2 aguanta fuera del material sintético.
+3. **El defecto de un solo plano.** Hoy es el ajuste de siempre. Medido: cambiarlo a
+   `suma_w2` lleva los pares que sirven fuera de plano **de 1 a 21 de 36**. ¿Lo cambiamos?
+4. **La altura mínima de la ventana ha subido de 651 a 727 px** para que quepa el titular
+   nuevo. La alternativa es una barra de desplazamiento en la columna derecha, que deja el
+   mapa de residuo bajo el pliegue. ¿Cuál?
+5. **Dos campos que faltan en los contratos:** el ΔE **máximo** por clip (hoy la lista de
+   clips sólo puede enseñar la media) y en cuántos planos se midió un grado. ¿Se añaden?
+6. **Qué hacemos con la confianza** mientras no se rediseña: ¿se oculta, o se deja con un
+   aviso de que no predice?

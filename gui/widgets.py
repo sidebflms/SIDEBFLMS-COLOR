@@ -12,11 +12,15 @@ Lo importante que vive aqui:
   semaforo. Se usa desde un widget suelto y desde el delegado de la tabla, para
   que las dos se dibujen con el mismo codigo.
 * `Cifra` — `QLabel` monoespaciado. Toda cifra de la app es una de estas.
+* `MarcaLimite` — [dia 4] «cumple / no cumple» un limite del encargo, con su
+  margen, por forma (relleno / contorno discontinuo) y **nunca en rojo**.
 * `MarcaDesajuste` — el aviso de «estas dos escenas no son comparables». En
   naranja de marca y con forma propia (rombo), **nunca en rojo**.
 """
 
 from __future__ import annotations
+
+import math
 
 from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import (
@@ -154,6 +158,53 @@ class Rotulo(EtiquetaElidida):
     def minimumSizeHint(self) -> QSize:  # noqa: N802
         """El texto entero. Un rotulo no cede ancho: lo cede la ventana."""
         return self.sizeHint()
+
+
+class TextoAjustado(QLabel):
+    """`QLabel` con `wordWrap` cuyo ALTO MINIMO es el de las lineas que ocupa.
+
+    **[dia 4] El problema que arregla, medido.** Un `QLabel` con `wordWrap`
+    declara su alto minimo como si el texto cupiera en UNA linea: el calculo del
+    minimo de un layout no usa `heightForWidth`. A 973 px la linea de alcance
+    del diagnostico ocupa dos, y la columna, creyendo que le sobraban 15 px, se
+    los quitaba al panel que no estira: el «18.29» salia a 19 px de alto sobre
+    los 31 que necesita y el «1.06%» a 15, pisado por su barra. En la captura se
+    veia.
+
+    Lo que hace: `minimumSizeHint()` devuelve el alto de `heightForWidth()` al
+    ancho que tiene AHORA, y cuando un cambio de ancho cambia ese alto avisa al
+    layout (`updateGeometry`). Con eso el minimo de la ventana es el de verdad a
+    cada ancho, no el de una ventana holgada.
+
+    El ancho minimo se queda a 0, como en el resto de etiquetas de texto largo
+    de la app: parte en lineas, no empuja la anchura de la ventana.
+    """
+
+    def __init__(self, texto: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(texto, parent)
+        self.setWordWrap(True)
+        self.setMinimumWidth(0)
+        self._alto_visto = -1
+
+    def _alto_para_ancho(self) -> int:
+        ancho = self.width()
+        return self.heightForWidth(ancho) if ancho > 0 else -1
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        base = super().minimumSizeHint()
+        return QSize(base.width(), max(base.height(), self._alto_para_ancho()))
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        alto = self._alto_para_ancho()
+        if alto != self._alto_visto:
+            self._alto_visto = alto
+            self.updateGeometry()
+
+    def setText(self, texto: str) -> None:  # noqa: N802
+        super().setText(texto)
+        self._alto_visto = -1
+        self.updateGeometry()
 
 
 class Cifra(QLabel):
@@ -363,6 +414,167 @@ class MarcaDesajuste(QWidget):
 
 
 # ---------------------------------------------------------------------------
+# Cumple / no cumple un limite del encargo, por forma
+# ---------------------------------------------------------------------------
+
+
+class MarcaLimite(QWidget):
+    """«CUMPLE · MARGEN 0.11» o «NO CUMPLE · MARGEN -15.29». Por forma y texto.
+
+    **[dia 4]** Es la pieza que va al lado del titular de error. Tres cosas que
+    importan:
+
+    * **No calcula ningun limite.** Se le PASA el limite, y el que le pasa la
+      pantalla es `core.umbrales.LIMITE_T1_DELTA_E_MAXIMO`, importado. Lo unico
+      que hace aqui es restar (`limite - valor`) y comparar con `<`, que es como
+      esta escrito el criterio del encargo («ΔE2000 maximo < 3.0»).
+    * **No cumplir no es rojo.** El rojo en esta identidad es solo para
+      acciones destructivas. Se distingue con la misma gramatica que la
+      confianza: **relleno solido** (brand-600) cuando cumple, **contorno
+      discontinuo** sin relleno cuando no. Y el texto dice «no cumple» con
+      todas las letras, que es lo que de verdad se lee.
+    * **El limite no es una medida perceptual.** Es un objetivo del encargo, y
+      el tooltip lo dice; la pantalla no puede sugerir que «a partir de aqui el
+      ojo lo nota», porque nadie lo ha medido.
+
+    Se pinta a mano (como la insignia de confianza) para que la hoja de estilo
+    no le pise ni la familia del rotulo ni la de la cifra. Su `sizeHint` sale
+    de medir el texto con las mismas fuentes con las que se pinta, y no cede
+    ancho: recortada no dice nada.
+    """
+
+    ALTO = 22
+    PAD_IZQ = 8
+    ICONO = 8
+    HUECO = 6
+    PAD_DER = 9
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._valor = float("nan")
+        self._limite = float("nan")
+        self._que = ""
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(self.ALTO)
+
+    # -- datos -------------------------------------------------------------
+
+    def poner(self, valor: float, limite: float, *, que: str = "") -> None:
+        self._valor, self._limite, self._que = float(valor), float(limite), que
+        self.setToolTip(
+            f"{que + ': ' if que else ''}{self._valor:.2f} frente a un límite de "
+            f"{self._limite:.1f}. Ese límite es el objetivo que fijó el encargo, "
+            f"no una medida de dónde empieza a notarse la diferencia."
+        )
+        self.updateGeometry()
+        self.update()
+
+    def medido(self) -> bool:
+        return math.isfinite(self._valor) and math.isfinite(self._limite)
+
+    def margen(self) -> float:
+        """`limite - valor`. Negativo = se pasa del limite."""
+        return self._limite - self._valor
+
+    def cumple(self) -> bool:
+        """El criterio tal y como lo escribe el encargo: estrictamente por debajo."""
+        return self.medido() and self._valor < self._limite
+
+    def partes(self) -> tuple[str, str, str]:
+        """(estado, «margen», cifra), en el orden en que se pintan."""
+        if not self.medido():
+            return ("sin medir", "", "")
+        return ("cumple" if self.cumple() else "no cumple", "margen", f"{self.margen():.2f}")
+
+    def texto(self) -> str:
+        """Lo que se lee, en una linea. Para los tests y para el informe."""
+        estado, margen, cifra = self.partes()
+        return f"{estado} · {margen} {cifra}" if margen else estado
+
+    # -- medida y dibujo ---------------------------------------------------
+
+    @staticmethod
+    def _fuentes() -> tuple[QFont, QFont, QFont]:
+        return (
+            idn.fuente_rotulo(10, QFont.Weight.Bold),
+            idn.fuente_rotulo(10),
+            idn.fuente_cifra(11, QFont.Weight.DemiBold),
+        )
+
+    def _anchos(self) -> tuple[int, int, int]:
+        f_estado, f_margen, f_cifra = self._fuentes()
+        estado, margen, cifra = self.partes()
+        return (
+            QFontMetrics(f_estado).horizontalAdvance(estado.upper()) + 2,
+            QFontMetrics(f_margen).horizontalAdvance(margen.upper()) + 2 if margen else 0,
+            QFontMetrics(f_cifra).horizontalAdvance(cifra) + 2 if cifra else 0,
+        )
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        a_estado, a_margen, a_cifra = self._anchos()
+        ancho = self.PAD_IZQ + self.ICONO + self.HUECO + a_estado
+        if a_margen:
+            ancho += 2 * self.HUECO + 4 + a_margen + 4 + a_cifra
+        return QSize(ancho + self.PAD_DER, self.ALTO)
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return self.sizeHint()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        cumple = self.cumple()
+        if cumple:
+            p.setPen(QPen(idn.color(idn.BRAND_500), 1.0))
+            p.setBrush(QBrush(idn.color(idn.BRAND_600)))
+            tinta = idn.color(idn.BRAND_50)
+        else:
+            trazo = QPen(idn.color(idn.BRAND_400), 1.0)
+            trazo.setStyle(Qt.PenStyle.DashLine)
+            trazo.setDashPattern([3.0, 2.5])
+            p.setPen(trazo)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            tinta = idn.color(idn.BRAND_400)
+        p.drawRoundedRect(r, 4.0, 4.0)
+
+        # El icono repite la forma en pequeno: cuadrado lleno o cuadrado vacio
+        # con trazo discontinuo. Se lee en gris sin leer la palabra.
+        icono = QRectF(r.left() + self.PAD_IZQ, r.center().y() - self.ICONO / 2,
+                       self.ICONO, self.ICONO)
+        if cumple:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(tinta))
+            p.drawRect(icono)
+        else:
+            pluma = QPen(tinta, 1.0)
+            pluma.setStyle(Qt.PenStyle.DotLine)
+            p.setPen(pluma)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(icono.adjusted(0.5, 0.5, -0.5, -0.5))
+
+        f_estado, f_margen, f_cifra = self._fuentes()
+        a_estado, a_margen, a_cifra = self._anchos()
+        estado, margen, cifra = self.partes()
+        centro_v = int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        x = icono.right() + self.HUECO
+        p.setPen(QPen(tinta))
+        p.setFont(f_estado)
+        p.drawText(QRectF(x, r.top(), a_estado, r.height()), centro_v, estado.upper())
+        if margen:
+            x += a_estado + self.HUECO
+            p.drawText(QRectF(x, r.top(), 4, r.height()),
+                       int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter), "·")
+            x += 4 + self.HUECO
+            p.setFont(f_margen)
+            p.drawText(QRectF(x, r.top(), a_margen, r.height()), centro_v, margen.upper())
+            x += a_margen + 4
+            p.setFont(f_cifra)
+            p.drawText(QRectF(x, r.top(), a_cifra, r.height()), centro_v, cifra)
+        p.end()
+
+
+# ---------------------------------------------------------------------------
 # Barra de proporcion (cobertura, lut_reproducible, progreso de lote)
 # ---------------------------------------------------------------------------
 
@@ -429,8 +641,10 @@ __all__ = [
     "EtiquetaElidida",
     "InsigniaConfianza",
     "MarcaDesajuste",
+    "MarcaLimite",
     "Panel",
     "Rotulo",
+    "TextoAjustado",
     "color_texto",
     "fila_dato",
     "pintar_insignia_confianza",

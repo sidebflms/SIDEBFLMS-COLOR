@@ -1,0 +1,19 @@
+
+[T5L guardia] core.__file__=/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color/.snapshots/dia4-lote/core/__init__.py
+[T5L guardia] core.reverse.__file__=/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color/.snapshots/dia4-lote/core/reverse/__init__.py
+[T5L guardia] t5_lote_material.__file__=/Users/mariobote/Documents/Varios/CLAUDE CODE/sidebflms-color/tests/fuera_de_plano/t5_lote_material.py
+[T5L guardia] defecto de informacion en invertir_grado_lote = 'suma_w2'
+[T5L guardia] defecto de informacion en invertir_grado = 'suma_w'
+.[T5L material global] qc_ok=True  codigos=-  escalones_banding=0  celdas_no_monotonas=0  max_dist_identidad=0.187481
+[T5L material secundarias] qc_ok=True  codigos=-  escalones_banding=0  celdas_no_monotonas=0  max_dist_identidad=0.329655
+[T5L material estrechas] qc_ok=False  codigos=banding  escalones_banding=67  celdas_no_monotonas=0  max_dist_identidad=0.578359
+[T5L material proyecto] planos_lote=40  planos_fuera=16  solape_fuera_con_lote40_min=0.138326
+.
+[T5L cobertura 320x180 secundarias | N=1] alto=180  ancho=320  cobertura=0.00372875  nodos_1_3=6  nodos_4_15=13  nodos_16_63=32  nodos_64=89
+[T5L cobertura 320x180 secundarias | N=3] alto=180  ancho=320  cobertura=0.00787489  nodos_1_3=11  nodos_4_15=18  nodos_16_63=24  nodos_64=241
+[T5L cobertura 320x180 secundarias | N=5] alto=180  ancho=320  cobertura=0.00862621  nodos_1_3=8  nodos_4_15=17  nodos_16_63=25  nodos_64=268
+[T5L cobertura 320x180 secundarias | N=10] alto=180  ancho=320  cobertura=0.0112141  nodos_1_3=8  nodos_4_15=14  nodos_16_63=32  nodos_64=357
+[T5L cobertura 320x180 secundarias | N=20] alto=180  ancho=320  cobertura=0.0138854  nodos_1_3=10  nodos_4_15=16  nodos_16_63=39  nodos_64=444
+[T5L cobertura 320x180 secundarias | N=40] alto=180  ancho=320  cobertura=0.0166124  nodos_1_3=17  nodos_4_15=26  nodos_16_63=40  nodos_64=531
+.
+3 passed, 10 deselected in 25.56s

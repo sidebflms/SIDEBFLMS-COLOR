@@ -115,6 +115,26 @@ monotonia radial se pide en valor absoluto, y la puerta del R2 radial se deja en
 - Cuando no encaja en ninguna forma pero el residuo esta ahi, se emite "zona
   local" con su caja. Decir "hay algo espacial aqui" sin saber que es sigue
   siendo informacion util; inventarse la etiqueta no lo seria.
+
+EN QUE ORDEN SALEN LAS ZONAS (reescrito el dia 4)
+-------------------------------------------------
+**De mas a menos MASA**: la suma, sobre los pixeles de la componente, de la
+desviacion de ganancia suavizada. O sea area por intensidad media. Y la
+`magnitude` de cada zona es el ΔE2000 medio **sobre los pixeles de la
+componente**, no sobre su rectangulo.
+
+Hasta el dia 3 las zonas se ordenaban por el PICO del campo de ganancia y
+despues `_recortar` las volvia a ordenar por el ΔE2000 medio DEL RECTANGULO.
+Los dos son estadisticos de intensidad, y los dos premian lo pequeno y
+concentrado. Medido sobre la escena de la medicion independiente (viñeta y
+ventana en luz lineal, sombra profunda en una esquina):
+
+- la ventana ocupa 14.418 pixeles de un rectangulo de 26.104 (el 55%), asi que
+  su ΔE medio de rectangulo se diluye a 11.38 mientras el de sus pixeles es
+  14.93; el cuadrito de la esquina ocupa 731 de 899 y no se diluye (12.73);
+- por masa no hay discusion: 3909 contra 142, un factor 27.
+
+La cifra completa, con el comando, en `NOTAS.md` §6.7.
 """
 
 from __future__ import annotations
@@ -400,15 +420,42 @@ def _centro_de_la_caida(g: np.ndarray) -> tuple[float, float]:
     return float(cx), float(cy)
 
 
-def _componentes(campo: np.ndarray, umbral: float) -> list[tuple[int, int, int, int]]:
-    """Cajas de las componentes conexas de `campo > umbral` con area suficiente."""
+@dataclass(frozen=True)
+class _Zona:
+    """Una componente conexa del campo de fuerza local, ya medida."""
+
+    caja: tuple[int, int, int, int]
+    #: Suma de la fuerza (logaritmo de ganancia) sobre los pixeles de la
+    #: componente: area por intensidad media. Es lo que ordena.
+    masa: float
+    #: ΔE2000 medio sobre los pixeles de la componente (no del rectangulo).
+    residuo_medio: float
+
+
+def _zonas(campo: np.ndarray, umbral: float, residuo: np.ndarray) -> list[_Zona]:
+    """Las componentes de `campo > umbral`, medidas y ordenadas por masa.
+
+    **Por que masa y no pico.** El pico premia lo pequeno y concentrado, y lo
+    pequeno y concentrado es justo lo que fabrican los artefactos: la huella que
+    deja el LUT en los colores oscuros que comparte con la ventana, o el borde
+    de una sombra profunda, donde el logaritmo de valores codificados amplifica
+    cualquier diferencia. Una ventana es grande y coherente, y eso no lo fabrica
+    un artefacto local.
+
+    **Por que el ΔE de la componente y no el del rectangulo.** Un rectangulo que
+    envuelve una forma irregular se llena de pixeles que no son la zona, y la
+    media se diluye tanto mas cuanto mas grande y menos rectangular es la
+    forma. Una zona pequena y cuadrada no se diluye. Promediar sobre el
+    rectangulo es otra forma de premiar lo pequeno.
+    """
     h, w = campo.shape
     marcado = np.isfinite(campo) & (campo > umbral)
     if not marcado.any():
         return []
     etiquetas, cuantas = ndimage.label(marcado)
-    fuera: list[tuple[int, int, int, int]] = []
     area_min = max(int(AREA_MINIMA_HOTSPOT * h * w), 4)
+    res = np.asarray(residuo, dtype=np.float64)
+    fuera: list[_Zona] = []
     for rebanada, k in zip(ndimage.find_objects(etiquetas), range(1, cuantas + 1), strict=True):
         if rebanada is None:
             continue
@@ -416,9 +463,20 @@ def _componentes(campo: np.ndarray, umbral: float) -> list[tuple[int, int, int, 
         if int(trozo.sum()) < area_min:
             continue
         sy, sx = rebanada
+        dentro = res[rebanada][trozo]
+        finitos = np.isfinite(dentro)
         fuera.append(
-            (int(sx.start), int(sy.start), int(sx.stop - sx.start), int(sy.stop - sy.start))
+            _Zona(
+                caja=(
+                    int(sx.start), int(sy.start), int(sx.stop - sx.start), int(sy.stop - sy.start)
+                ),
+                masa=float(np.nansum(campo[rebanada][trozo])),
+                residuo_medio=float(dentro[finitos].mean()) if finitos.any() else float("nan"),
+            )
         )
+    # Desempate fijo por posicion: el orden no puede depender de como numera
+    # `ndimage.label` si dos masas empatan al ultimo bit.
+    fuera.sort(key=lambda z: (-z.masa, z.caja))
     return fuera
 
 
@@ -470,8 +528,15 @@ class AnalisisEspacial:
     pico_local: float
     #: Umbral efectivo con el que se han recortado las zonas.
     umbral_local: float
-    #: Cajas `(x, y, w, h)` de las zonas locales, de mas a menos fuerte.
+    #: Cajas `(x, y, w, h)` de las zonas locales, de MAS A MENOS MASA (dia 4;
+    #: antes, de mas a menos pico).
     zonas: tuple[tuple[int, int, int, int], ...]
+    #: Masa de cada zona, en el mismo orden: suma de la fuerza local (logaritmo
+    #: de ganancia) sobre sus pixeles, o sea `pixeles x logaritmo`.
+    masas: tuple[float, ...] = ()
+    #: ΔE2000 medio sobre los PIXELES de cada zona, en el mismo orden. Es lo que
+    #: sale como `Hotspot.magnitude`.
+    residuos_zonas: tuple[float, ...] = ()
 
 
 def analizar_espacial(
@@ -538,12 +603,7 @@ def analizar_espacial(
     mediana = float(np.percentile(fuerza, 50))
     pico = float(np.percentile(fuerza, 99.5))
     umbral_local = max(SUELO_GANANCIA_LOCAL, mediana + FRACCION_DE_PICO * (pico - mediana))
-    zonas = _componentes(fuerza, umbral_local)
-    zonas.sort(
-        key=lambda caja: -float(
-            np.nanmax(fuerza[caja[1] : caja[1] + caja[3], caja[0] : caja[0] + caja[2]])
-        )
-    )
+    zonas = _zonas(fuerza, umbral_local, res)
 
     return AnalisisEspacial(
         recorrido_ganancia=recorrido_g,
@@ -561,7 +621,9 @@ def analizar_espacial(
         hay_textura=hay_textura,
         pico_local=pico,
         umbral_local=umbral_local,
-        zonas=tuple(zonas),
+        zonas=tuple(z.caja for z in zonas),
+        masas=tuple(z.masa for z in zonas),
+        residuos_zonas=tuple(z.residuo_medio for z in zonas),
     )
 
 
@@ -571,10 +633,15 @@ def _recortar(hotspots: list[Hotspot]) -> list[Hotspot]:
     Si se ordena todo por magnitud y se corta, una vineta de 3 dE2000 se queda
     fuera por culpa de ocho esquinas de 9 dE2000 que son **esa misma vineta**.
     El titular no se pierde por el detalle.
+
+    **Las zonas NO se reordenan aqui** (dia 4). Llegan ordenadas por masa desde
+    `analizar_espacial`, y ese es el orden en que la GUI las lista y por el que
+    se corta. Hasta el dia 3 se reordenaban aqui por `magnitude`, que era el
+    ΔE2000 medio del rectangulo, y eso ponia primero un cuadrito de 31x29 px en
+    una esquina en sombra por delante de la ventana de verdad.
     """
     formas = [hp for hp in hotspots if hp.label in _ETIQUETAS_DE_FORMA]
     resto = [hp for hp in hotspots if hp.label not in _ETIQUETAS_DE_FORMA]
-    resto.sort(key=lambda hp: -hp.magnitude)
     hueco = max(MAX_HOTSPOTS - len(formas), 0)
     return formas + resto[:hueco]
 
@@ -684,17 +751,19 @@ def diagnosticar(
             f"textura, y se recupera volviendo a rodar o volviendo a revelar, no con un .cube."
         )
 
-    for x, y, cw, ch in analisis.zonas:
+    for (x, y, cw, ch), real in zip(analisis.zonas, analisis.residuos_zonas, strict=True):
         # La magnitud se reporta sobre el residuo ΔE2000 TOTAL: al usuario le
         # importa cuanto se desvia ahi de verdad, no cuanto vale el campo
-        # intermedio con el que yo he decidido buscarla.
-        real = float(np.nanmean(residuo[y : y + ch, x : x + cw]))
+        # intermedio con el que yo he decidido buscarla. Y se promedia sobre
+        # los pixeles de la zona, no sobre su rectangulo (ver `_zonas`).
         hotspots.append(Hotspot(x=x, y=y, w=cw, h=ch, magnitude=real, label="zona local"))
     if analisis.zonas:
         notas.append(
             f"Hay {len(analisis.zonas)} zona(s) del fotograma donde la ganancia se desvia de lo "
             f"que el color explica por encima de {analisis.umbral_local:.3f} en logaritmo (pico "
-            f"{analisis.pico_local:.3f}): pinta de ventana o de secundaria."
+            f"{analisis.pico_local:.3f}): pinta de ventana o de secundaria. Van de mas a menos "
+            f"extension por intensidad: la primera es la que mas imagen cambia, no la que tiene "
+            f"el pixel mas fuerte."
         )
         if analisis.hay_vineta:
             notas.append(

@@ -134,7 +134,8 @@ def _estados():
 def test_la_anchura_minima_real_es_la_medida():
     """El numero de la tercera captura de cada pantalla.
 
-    **966 la noche del 14, 985 el dia 2, 973 x 651 hoy.** Ninguno de los tres
+    **966 la noche del 14, 985 el dia 2, 973 x 651 el dia 3, 973 x 727 el dia
+    4.** Ninguno de los cuatro
     se ha elegido: los tres son lo que contesta el contenido. El porque de este
     ultimo cambio esta entero en `ANCHURA_MINIMA` (ancho: las columnas de
     cifras de la tabla han dejado de medirse por su cabecera; alto: las cifras
@@ -155,7 +156,20 @@ def test_la_anchura_minima_real_es_la_medida():
     try:
         assert v.anchura_minima() == ANCHURA_MINIMA
         assert v.minimumSizeHint().width() == ANCHURA_MINIMA
-        assert v.minimumSizeHint().height() == ALTO_MINIMO
+        # [dia 4] El alto se mide A LA ANCHURA MINIMA y en las cuatro pantallas,
+        # quedandose con el mayor. Medido en la ventana de 1440 (como se hacia)
+        # sale 713, y es mentira: a 973 px la leyenda del mapa de cobertura
+        # parte en dos lineas, `TextoAjustado` se lo dice al layout, y en la
+        # pantalla de ingenieria inversa el minimo de verdad es 727.
+        alto = 0
+        for indice in range(4):
+            v.ir_a(indice)
+            redimensionar(v, ANCHURA_MINIMA, 400)
+            alto = max(alto, v.minimumSizeHint().height())
+            assert v.minimumSizeHint().width() == ANCHURA_MINIMA, (
+                f"en la pantalla {indice} la anchura minima deja de ser {ANCHURA_MINIMA}"
+            )
+        assert alto == ALTO_MINIMO
     finally:
         v.close()
 

@@ -85,16 +85,12 @@ def test_AUDF_las_tipografias_de_marca_no_estan_instaladas_en_esta_maquina():
     assert isinstance(instaladas, list)
 
 
-def test_AUDF_ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella():
-    """LA PREGUNTA DEL ENCARGO, respondida de forma mecanica.
+def _vigilar_peticiones_de_cifra(construir):
+    """Construye con `construir()` espiando `QWidget.setFont`.
 
-    Se intercepta `QWidget.setFont` durante la construccion de la ventana
-    entera. Cada vez que alguien pasa una fuente cuya lista de familias es la
-    de cifra, se apunta el widget: eso es un «yo queria monoespaciada aqui».
-    Al final, con la ventana montada y la hoja aplicada, se mide cada uno.
-
-    Si alguno no mide monoespaciada, es un sitio donde alguien creyo fijar la
-    fuente y no la fijo.
+    Devuelve `(raiz, vivos, fallidos)`: los widgets que pidieron la fuente de
+    cifra y siguen vivos, y de esos los que al final NO miden monoespaciada.
+    `raiz` es lo que devolvio `construir()`; cierralo tu.
     """
     app_qt()
     pedidas: list[tuple[QWidget, str]] = []
@@ -111,41 +107,102 @@ def test_AUDF_ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella():
 
     QWidget.setFont = espia
     try:
-        v = ventana()
+        raiz = construir()
         asentar()
     finally:
         QWidget.setFont = original
 
-    try:
-        vivos = [(w, n) for w, n in pedidas if _sigue_vivo(w)]
-        fallidos = [(w, n) for w, n in vivos if not _mide_mono(w.font())]
-        print(f"\n[AUDF] widgets que PIDIERON fuente de cifra: {len(pedidas)} "
-              f"(vivos al final: {len(vivos)})")
-        for w, n in vivos:
-            marca = "mono" if _mide_mono(w.font()) else "NO MONO"
-            etiqueta = w.text()[:30] if isinstance(w, QLabel) else ""
-            print(f"[AUDF]   {n:<18} objectName={w.objectName()!r:<14} "
-                  f"clase={w.property('class')!r:<10} {marca:<8} {etiqueta!r}")
-        for w, _n in fallidos:
-            print(f"[AUDF] FALLIDO -> {_linaje(w)}  texto={w.text()!r}")
-        assert vivos, "el espia no ha visto ni un setFont de cifra: el test se ha quedado ciego"
+    vivos = [(w, n) for w, n in pedidas if _sigue_vivo(w)]
+    fallidos = [(w, n) for w, n in vivos if not _mide_mono(w.font())]
+    print(f"\n[AUDF] widgets que PIDIERON fuente de cifra: {len(pedidas)} "
+          f"(vivos al final: {len(vivos)})")
+    for w, n in vivos:
+        marca = "mono" if _mide_mono(w.font()) else "NO MONO"
+        etiqueta = w.text()[:30] if isinstance(w, QLabel) else ""
+        print(f"[AUDF]   {n:<18} objectName={w.objectName()!r:<14} "
+              f"clase={w.property('class')!r:<10} {marca:<8} {etiqueta!r}")
+    for w, _n in fallidos:
+        texto = w.text() if isinstance(w, QLabel) else ""
+        print(f"[AUDF] FALLIDO -> {_linaje(w)}  texto={texto!r}")
+    return raiz, vivos, fallidos
 
-        # Cuarentena: el unico sitio que hay HOY, identificado y con su linea.
-        # No lo arreglo yo (gui/ no es mio); esta en el informe. En cuanto se
-        # arregle, este test salta y hay que vaciar la lista.
-        conocidos = {"gui/pantalla_aplicar.py:286 ruta_look (EtiquetaElidida)"}
-        nuevos = [(n, w.text()) for w, n in fallidos if _es_ruta_look(w) is False]
-        assert len(fallidos) <= len(conocidos), (
-            f"han aparecido sitios NUEVOS donde se pide fuente de cifra y no se consigue: "
-            f"{[(n, w.text()) for w, n in fallidos]}. Conocido y ya reportado: {conocidos}"
-        )
-        assert not nuevos, (
-            f"sitio nuevo (no es el `ruta_look` ya reportado): {nuevos}"
-        )
-        if fallidos:
-            print(f"[AUDF] (1 fallido conocido y reportado: {conocidos})")
+
+def _afirmar_ninguna_peticion_fallida(vivos, fallidos) -> None:
+    assert vivos, "el espia no ha visto ni un setFont de cifra: el test se ha quedado ciego"
+    # Dia 4: aqui habia una cuarentena para `ruta_look` (gui/pantalla_aplicar.py).
+    # Se arreglo el dia 3 y la cuarentena seguia dando verde sin vigilar nada
+    # (`0 <= 1`), y ademas daba por «ya conocida» a CUALQUIER EtiquetaElidida de
+    # PantallaAplicar. Ya no hay conocidos: cualquier fallido es rojo.
+    assert not fallidos, (
+        f"{len(fallidos)} sitio(s) piden fuente de cifra y no la consiguen: "
+        f"{[(n, _linaje(w)) for w, n in fallidos]}"
+    )
+
+
+def test_AUDF_ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella():
+    """LA PREGUNTA DEL ENCARGO, respondida de forma mecanica.
+
+    Se intercepta `QWidget.setFont` durante la construccion de la ventana
+    entera. Cada vez que alguien pasa una fuente cuya lista de familias es la
+    de cifra, se apunta el widget: eso es un «yo queria monoespaciada aqui».
+    Al final, con la ventana montada y la hoja aplicada, se mide cada uno.
+
+    Si alguno no mide monoespaciada, es un sitio donde alguien creyo fijar la
+    fuente y no la fijo.
+    """
+    v, vivos, fallidos = _vigilar_peticiones_de_cifra(ventana)
+    try:
+        _afirmar_ninguna_peticion_fallida(vivos, fallidos)
     finally:
         v.close()
+
+
+def test_AUDF_control_negativo_una_etiqueta_plantada_sin_cifra_pone_rojo():
+    """Control negativo del test de arriba: que de verdad se puede poner rojo.
+
+    Se planta en la ventana real un `QLabel` sin clase ni objectName que pide
+    `fuente_cifra` con `setFont()`. La hoja de estilo lo pisa (es el hecho que
+    comprueba `test_AUDF_la_hoja_de_estilo_SI_pisa_a_setFont`), asi que acaba
+    sin monoespaciada. El espia tiene que verlo y la afirmacion tiene que fallar.
+    """
+    plantada: list[QLabel] = []
+
+    def construir():
+        v = ventana()
+        lab = QLabel("123.456", v.centralWidget() or v)
+        lab.setObjectName("plantadaPorElControlNegativo")
+        lab.setFont(idn.fuente_cifra(13))
+        lab.show()
+        plantada.append(lab)
+        return v
+
+    v, vivos, fallidos = _vigilar_peticiones_de_cifra(construir)
+    try:
+        assert any(w is plantada[0] for w, _n in fallidos), (
+            "la etiqueta plantada no sale como fallida: el control negativo no ha "
+            "conseguido fabricar el fallo, asi que no demuestra nada"
+        )
+        with pytest.raises(AssertionError, match="piden fuente de cifra y no la consiguen"):
+            _afirmar_ninguna_peticion_fallida(vivos, fallidos)
+    finally:
+        v.close()
+
+
+def test_AUDF_control_negativo_sin_peticiones_el_test_no_se_queda_ciego():
+    """Si nadie pide la fuente de cifra, el test no puede dar verde en vacio."""
+    def construir():
+        w = QWidget()
+        QVBoxLayout(w).addWidget(QLabel("sin cifra"))
+        w.show()
+        return w
+
+    w, vivos, fallidos = _vigilar_peticiones_de_cifra(construir)
+    try:
+        assert vivos == [] and fallidos == []
+        with pytest.raises(AssertionError, match="se ha quedado ciego"):
+            _afirmar_ninguna_peticion_fallida(vivos, fallidos)
+    finally:
+        w.close()
 
 
 def _linaje(w) -> str:
@@ -157,12 +214,6 @@ def _linaje(w) -> str:
         partes.append(f"{type(actual).__name__}({actual.objectName() or '-'})")
         actual = actual.parent()
     return " < ".join(partes)
-
-
-def _es_ruta_look(w) -> bool:
-    """¿Es el `ruta_look` de la pantalla de aplicar, el fallido ya conocido?"""
-    linaje = _linaje(w)
-    return type(w).__name__ == "EtiquetaElidida" and "Aplicar" in linaje
 
 
 def _sigue_vivo(w) -> bool:

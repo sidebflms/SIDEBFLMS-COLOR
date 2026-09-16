@@ -39,6 +39,7 @@ def test_la_escena_tiene_negros_con_detalle(escena_estudio):
 
 
 def test_la_mascara_de_piel_cubre_area_suficiente(escenas_pieles):
+    assert escenas_pieles, "no hay nada que comprobar: el fixture `escenas_pieles` ha salido vacio"
     for escena in escenas_pieles:
         fraccion = escena.skin_mask.mean()
         assert 0.03 < fraccion < 0.45, f"{escena.name}: piel al {fraccion:.1%}"
@@ -46,6 +47,9 @@ def test_la_mascara_de_piel_cubre_area_suficiente(escenas_pieles):
 
 def test_los_seis_tonos_de_piel_son_distinguibles(escenas_pieles):
     medias = [e.image[e.skin_mask].mean(axis=0) for e in escenas_pieles]
+    assert len(medias) >= 2, (
+        f"no hay nada que comprobar: con {len(medias)} tono(s) el zip de abajo no da ni un par"
+    )
     for i, (a, b) in enumerate(zip(medias, medias[1:])):  # noqa: B905  longitudes distintas a proposito
         assert np.linalg.norm(a - b) > 0.05, f"los tonos {i} y {i + 1} se parecen demasiado"
 

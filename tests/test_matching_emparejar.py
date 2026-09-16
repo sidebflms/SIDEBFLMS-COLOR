@@ -131,6 +131,7 @@ def test_acepta_imagenes_y_listas_indistintamente(estudio_trabajo):
 
 def test_los_seis_tonos_de_piel_se_igualan_igual_de_bien(pieles_trabajo):
     """El emparejamiento no puede funcionar solo con pieles claras."""
+    assert pieles_trabajo, "no hay nada que comprobar: el fixture `pieles_trabajo` ha salido vacio"
     for i, piel in enumerate(pieles_trabajo):
         px = pix(piel)
         m = emparejar(GRADO.apply(px), px)
@@ -318,6 +319,9 @@ def test_emparejar_analisis_no_importa_core_analysis():
 
     assert sys is not None  # solo para que quede claro que no se importa nada de B
     carpeta = pathlib.Path(__file__).resolve().parents[1] / "core" / "matching"
+    assert sorted(carpeta.glob("*.py")), (
+        f"no hay nada que comprobar: {carpeta} no tiene ningun .py (carpeta renombrada o movida)"
+    )
     for archivo in sorted(carpeta.glob("*.py")):
         for numero, linea in enumerate(archivo.read_text(encoding="utf-8").splitlines(), 1):
             pelada = linea.strip()

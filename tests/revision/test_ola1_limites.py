@@ -91,6 +91,10 @@ def test_ninguna_ruta_absoluta_del_sistema_aparece_en_core(paquete):
     """
     permitidos = {"incognitas.py", "live.py"}
     culpables = {}
+    assert _ficheros(paquete), (
+        f"no hay nada que comprobar: {paquete} no tiene ningun .py (carpeta renombrada o movida), "
+        "y `culpables == {}` pasaria sin haber leido nada"
+    )
     for fichero in _ficheros(paquete):
         if fichero.name in permitidos:
             continue
@@ -160,6 +164,10 @@ def test_core_no_usa_tempfile_ni_Path_home_para_escribir():
     con_tempfile = []
     con_home = []
     for paquete in ("core/color", "core/io", "core/resolve"):
+        assert _ficheros(paquete), (
+            f"no hay nada que comprobar: {paquete} no tiene ningun .py (carpeta renombrada o "
+            "movida), y `con_tempfile == []` pasaria sin haberlo leido"
+        )
         for fichero in _ficheros(paquete):
             texto = fichero.read_text(encoding="utf-8")
             if "tempfile" in texto:

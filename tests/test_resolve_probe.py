@@ -142,7 +142,13 @@ def test_importar_core_resolve_no_carga_resolve():
 def test_el_unico_archivo_de_core_que_importa_resolve_es_live():
     """Se mira el arbol de sintaxis, no el texto: en los docstrings el nombre
     aparece a menudo, y decir 'aqui no se importa' no puede hacer fallar esto."""
-    for p in (RAIZ / "core").rglob("*.py"):
+    ficheros = sorted((RAIZ / "core").rglob("*.py"))
+    assert ficheros, f"no hay nada que comprobar: {RAIZ / 'core'} sin ningun .py"
+    assert any(p.name == "live.py" for p in ficheros), (
+        "no hay nada que comprobar por el lado del si: no aparece live.py en core/, y el bucle "
+        "solo comprobaria que NADIE importa Resolve"
+    )
+    for p in ficheros:
         importa = any(
             isinstance(n, ast.Import)
             and any(a.name in ("DaVinciResolveScript", "fusionscript") for a in n.names)

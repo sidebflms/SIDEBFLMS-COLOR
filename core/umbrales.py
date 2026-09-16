@@ -61,6 +61,11 @@ from __future__ import annotations
 
 __all__ = [
     "AREA_MINIMA_HOTSPOT",
+    "PENA_LOTE_INCOHERENTE",
+    "PIXELES_COMPARTIDOS_MINIMOS_LOTE",
+    "UMBRAL_DISCREPANCIA_LOTE",
+    "LIMITE_T1_DELTA_E_MAXIMO",
+    "LIMITE_T3_DELTA_E_PEOR_PAR",
     "CONFIDENCE_ALTA",
     "CONFIDENCE_MEDIA",
     "DELTA_E_INDISTINGUIBLE",
@@ -125,13 +130,35 @@ DELTA_E_INDISTINGUIBLE: float = 1.0
 #: módulo») y lo único que faltaba era que estuviera donde se pueda importar sin
 #: arrastrar los contratos enteros.
 #:
-#: **NO SE SABE POR QUÉ VALE ESTO.** No hay ninguna medida detrás del 0.75 ni en
-#: el código, ni en los commits, ni en `BITACORA.md`, ni en los `NOTAS.md`.
+#: **SIN CALIBRAR, Y NO PORQUE NO SE HAYA INTENTADO (día 4).** Se midió contra
+#: 200 extracciones de `core.reverse` (×2 rejillas, en su plano y en 5 planos más)
+#: y 720 pares de `core.matching`, con verdad conocida y ΔE2000 de `colour-science`
+#: (`CALIBRACION-CONFIANZA.md`). Resultado: **la nota no predice el error que
+#: decide**, así que no hay dónde poner este número:
+#:
+#: * `reverse`, 33³, material sin comprimir: la nota vale **1.0 en las 100
+#:   extracciones** mientras el ΔE2000 máximo fuera de plano va de 0.50 a 39.26.
+#:   Una constante no ordena nada (AUC 0.500). La correlación global (Spearman
+#:   −0.55) sale entera de que la compresión baja la nota y sube el error a la vez;
+#:   dentro de cada clase de material es nula o del signo contrario.
+#: * Ningún corte deja el 95% de los casos por encima bajo el límite: lo mejor que
+#:   da la nota es 17.0% fuera de plano en `reverse` 33³ (6.4% en 17³) y 51.1%
+#:   (medio < 2.0, con score >= 0.968) en `matching`.
+#:
+#: Así que el 0.75 **sigue sin medida detrás** y no se ha movido: cambiarlo no
+#: haría que «alta» signifique nada. Arreglarlo es rediseñar la nota, no el umbral.
+#: Comando: `.venv/bin/python -m tests.calibracion.analizar | grep "CAL umbral"`.
 CONFIDENCE_ALTA: float = 0.75
 
 #: **Unidad: fracción 0..1.** Por debajo de aquí, «baja». Entre las dos, «media».
 #:
-#: **NO SE SABE POR QUÉ VALE ESTO**, igual que `CONFIDENCE_ALTA`.
+#: **SIN CALIBRAR**, por lo mismo que `CONFIDENCE_ALTA`. Y medido: en `reverse` la
+#: nota es bimodal —cerca de 1, o multiplicada por `PENA_DESAJUSTE` hacia 0.3— y
+#: **ninguna** de las 400 extracciones cae entre 0.45 y 0.75, así que «media» no
+#: sale nunca y mover este número no cambia ningún veredicto. En `matching` el
+#: tramo por debajo de 0.45 cumple en un 8% y el de 0.45–0.75 en un 17%, con
+#: intervalos que se pisan: los datos no separan ahí «revisar» de «no sirve».
+#: Comando: `.venv/bin/python -m tests.calibracion.analizar | grep "CAL tramos"`.
 CONFIDENCE_MEDIA: float = 0.45
 
 #: **Unidad: fracción 0..1 (multiplicador).** Cuánto se multiplica la nota de
@@ -504,3 +531,72 @@ UMBRAL_NEUTRA_TOTAL: float = 0.999
 #: `.cube` que se lleva— y lo miran dos módulos (`core.io` y `core.reverse`), así
 #: que su sitio es éste. `core/contracts.py` lo reexporta para no romper a nadie.
 LUT_SIZE_DEFAULT: int = 33
+
+
+# ---------------------------------------------------------------------------
+# Límites de los criterios de entrega (día 4)
+# ---------------------------------------------------------------------------
+#
+# Desde el día 4 el titular de T1 y T3 es la cifra que DECIDE -el máximo y el
+# peor par-, con su margen al límite al lado. La interfaz enseña ese margen, así
+# que los dos límites tienen que vivir aquí y no escritos a mano en `gui/`.
+#
+# OJO CON LO QUE SON: **no son medidas.** Son los criterios que fijó el encargo
+# del día 1 («ΔE2000 máximo < 3.0», «ΔE2000 entre cámaras < 2.0 después»). Nadie
+# ha medido que 3.0 o 2.0 sean el sitio donde un colorista empieza a notar algo:
+# son objetivos, y se escriben aquí como objetivos para que nadie los lea como
+# un umbral perceptual calibrado.
+
+#: **Unidad: ΔE2000.** Límite del ΔE2000 **máximo** de la ingeniería inversa
+#: (T1). Por encima, el criterio no se cumple.
+#:
+#: **Criterio del encargo del día 1, no medido.**
+LIMITE_T1_DELTA_E_MAXIMO: float = 3.0
+
+#: **Unidad: ΔE2000.** Límite del ΔE2000 del **peor par** de cámaras después de
+#: igualarlas (T3).
+#:
+#: **Criterio del encargo del día 1, no medido.** El encargo lo escribía sobre
+#: la media; desde el día 4 se aplica al peor par, que es la cifra que decide.
+LIMITE_T3_DELTA_E_PEOR_PAR: float = 2.0
+
+
+# ===========================================================================
+# 10. Modo por lote (día 4): ¿llevan todos los planos el mismo grado?
+#     Decide si Mario lee «estos 3 planos no llevan el mismo grado que el
+#     resto». Un aviso que salta siempre no lo lee nadie; uno que no salta
+#     entrega un LUT que no es de ningún plano con buena cara.
+# ===========================================================================
+
+#: **Unidad: ΔE2000, mediana** sobre los colores que un plano comparte con los
+#: demás, entre su salida real y la que predice el grado ajustado con los
+#: demás. Por encima, `core.reverse.comprobar_coherencia` dice que ese plano no
+#: lleva el mismo grado que el resto.
+#:
+#: **Por qué este valor**: es `DELTA_E_INDISTINGUIBLE`. Si en la mitad de los
+#: colores compartidos la diferencia no llega a lo que el ojo distingue, mezclar
+#: ese plano con los demás no cambia nada que se vea. **Medido** en el proyecto
+#: sintético de 20 planos (`.venv/bin/python -m pytest tests/test_reverse_lote.py
+#: -s -q`): el plano más alto de un proyecto coherente puntúa 0.0992, y una
+#: corrección extra puntúa más o menos lo que ella misma mueve su plano (mediana
+#: propia 1.071 -> 1.156; 0.531 -> 0.553, que no avisa). **En material real, con
+#: compresión de verdad, no medido.**
+UMBRAL_DISCREPANCIA_LOTE: float = DELTA_E_INDISTINGUIBLE
+
+#: **Unidad: píxeles** de la submuestra de un plano (20.000 como mucho) cuyos
+#: ocho nodos tienen datos de los demás planos. Por debajo, ese plano sale en
+#: `sin_comparar`: no hay con qué decir si lleva el mismo grado.
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO** más allá de «una mediana de menos de 200
+#: valores se mueve con poco». Es el 1% de la submuestra.
+PIXELES_COMPARTIDOS_MINIMOS_LOTE: int = 200
+
+#: **Unidad: fracción 0..1 (multiplicador)** de `Confidence.score` cuando el lote
+#: no es coherente y aun así se ajusta con todos (`excluir_discrepantes=False`).
+#: Multiplica por lo mismo que `PENA_DESAJUSTE`, y por la misma razón: un LUT
+#: que mezcla dos grados no es «una pega más», es que el número de arriba no
+#: significa lo que parece. Con 0.35 una nota perfecta baja a «baja».
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO** aparte de copiar el criterio de
+#: `PENA_DESAJUSTE`, que tampoco tiene medida detrás.
+PENA_LOTE_INCOHERENTE: float = PENA_DESAJUSTE

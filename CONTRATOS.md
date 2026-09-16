@@ -166,3 +166,51 @@ Mandaba a buscar un problema estructural donde había un umbral rozando.
 
 Lo cazó una auditoría independiente al día siguiente, no el que lo escribió. Ver
 `AUDITORIA-DIA2.md`, caso 4.
+
+---
+
+## Tests que pasan en vacío — añadido el día 4
+
+**Un test que no comprueba nada da verde, y el verde miente.** Van tres en este proyecto:
+
+1. **Día 2**: `assert fuente.count("_exigir_version_propia") >= 5`. Pasaba aunque las cinco
+   menciones estuvieran en comentarios y no hubiera ni una llamada.
+2. **Día 3**: una cuarentena que toleraba un fallo conocido. Se arregló el fallo y quedó
+   afirmando `0 <= 1`.
+3. **Día 4**: la mitad de `test_el_mapa_de_cobertura_distingue_lo_medido_de_lo_inventado`
+   miraba un corte del cubo **sin ninguna celda cubierta**. Desde el día 2 afirmaba algo
+   sobre un conjunto vacío.
+
+### Lo que vigila la máquina
+
+`tests/test_sin_vacio.py` recorre los tests y avisa de aserciones sobre colecciones que
+pueden quedarse vacías **sin que nadie se entere**: las que salen de `glob`, `rglob`,
+`iterdir`, `os.walk`, `findChildren`, de un filtro con `if`, o de una función auxiliar que
+devuelva una de ésas. Caza `for … : assert`, `assert all(…)`, `assert not any(…)` y
+«acumular en una lista y luego `assert not lista`», si no hay antes una guarda. Tiene
+controles negativos y positivos. **Si añades una excepción, que sea con su razón en una
+línea; si la lista pasa de 15, el test salta.**
+
+### Lo que tiene que vigilar una persona al revisar
+
+El detector no ve esto, porque vigilarlo sin ruido no ha sido posible:
+
+- **Bucles sobre fixtures, atributos o llamadas** (`est.clips`, `list_nodes()`, una
+  fixture de escenas): comprueba antes que no vienen vacíos.
+- **Un `if …: continue`** dentro de un bucle de comprobación: puede saltarse todas las
+  vueltas.
+- **`.count()` sobre código fuente**: cuenta también comentarios y docstrings. Para contar
+  llamadas, usa el AST.
+- **Un `xfail(strict=True)` sin `raises=`**: cualquier excepción —un `KeyError`, un import
+  roto— cuenta como el fallo esperado, y el test se queda en «xfail» por el motivo
+  equivocado. Si lo que se espera es que falle una aserción, pon `raises=AssertionError`.
+- **Una guarda puesta *después* de la aserción** no guarda nada.
+- **Un test que sólo imprime** cifras sin afirmar nada es una medición, no un test: está
+  bien que exista, pero que no cuente como cobertura de nada.
+
+### La receta, cuando encuentres uno
+
+**Primero la guarda, sin cambiar lo que el test afirma**:
+`assert cosas, "no hay nada que comprobar: <por qué podría estar vacío>"`.
+Si al ponerla el test se pone rojo, **eso es un hallazgo**: se deja rojo, se marca
+`xfail(strict=True, raises=AssertionError)` con la cifra y el comando, y se dice.

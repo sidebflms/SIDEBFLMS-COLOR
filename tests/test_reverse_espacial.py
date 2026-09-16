@@ -562,3 +562,312 @@ def test_una_vineta_que_ACLARA_hacia_fuera_tambien_se_detecta(estudio_trabajo):
     assert "vineta" in etiquetas
     assert a.pearson_radial > 0, "una vineta que aclara tiene que correlar POSITIVO con el radio"
     assert "aclara" in " ".join(res.diagnosis.notes)
+
+
+# ===========================================================================
+# DIA 4 - La zona PRINCIPAL. El mapa de calor acertaba y la primera linea no.
+# ===========================================================================
+#
+# La medicion independiente del dia 3 encontro que, con una vineta y una
+# ventana suaves aplicadas en luz lineal y una sombra profunda en una esquina,
+# la primera "zona local" era un cuadrito de 31x29 px en esa esquina, con
+# solape 0.0 con la ventana, y la ventana salia segunda. La causa medida (y
+# escrita en `core/reverse/NOTAS.md` §6.7) fue el ORDEN: las zonas se
+# ordenaban por pico y despues por el ΔE2000 medio de su RECTANGULO, y los dos
+# estadisticos premian lo pequeno y concentrado. Hoy se ordenan por masa.
+#
+# El montaje de aqui es MIO y no importa nada de `tests/medicion/`: otra
+# escena ("el taller"), otra esquina, otra caja. Lo que comparte con aquel es
+# la receta del fallo: sombra profunda en una esquina, color variado que el
+# LUT absorbe a trozos, y lo espacial aplicado EN LUZ LINEAL.
+
+from core.color import log_decode, log_encode  # noqa: E402
+from core.contracts import LUMA_REC709, WORKING_SPACE  # noqa: E402
+from core.reverse.diagnostico import _zonas  # noqa: E402
+from tests.conftest import a_trabajo  # noqa: E402
+
+#: La ventana del taller, lejos de la sombra pero en su lado del cuadro.
+CAJA_TALLER = (360, 180, 190, 110)
+
+#: Una ventana DENTRO de una sombra profunda (la del taller con la sombra
+#: grande). Medido: la luminancia lineal media de esa caja esta 1.33 paradas
+#: por debajo de la mediana del cuadro.
+CAJA_EN_SOMBRA = (520, 250, 110, 100)
+
+#: Parches del taller, escena-lineal Rec.709. Saturados y variados a proposito:
+#: son lo que hace que el LUT absorba la ventana a trozos, que es la mitad de la
+#: receta del fallo.
+_PARCHES_TALLER = np.array(
+    [
+        [0.40, 0.06, 0.05], [0.05, 0.30, 0.07], [0.04, 0.07, 0.38], [0.45, 0.38, 0.04],
+        [0.30, 0.05, 0.32], [0.04, 0.33, 0.36], [0.55, 0.22, 0.05], [0.12, 0.10, 0.30],
+        [0.25, 0.42, 0.08], [0.60, 0.60, 0.58], [0.02, 0.02, 0.02], [0.18, 0.18, 0.18],
+        [0.35, 0.20, 0.14], [0.07, 0.15, 0.05], [0.50, 0.08, 0.20],
+    ]
+)
+
+
+def _escena_taller(
+    *, sombra: bool = True, radio_x: float = 0.18, radio_y: float = 0.28, semilla: int = 7
+) -> np.ndarray:
+    """El taller, ya en espacio de trabajo: fondo en degradado, 15 parches, una
+    sombra profunda en la esquina INFERIOR DERECHA (suelo al 4%, unas 4.6
+    paradas) y grano sembrado proporcional a la raiz de la senal."""
+    h, w = 360, 640
+    rng = np.random.default_rng(semilla)
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float64)
+    u, v = xx / (w - 1), yy / (h - 1)
+    arriba = np.array([0.16, 0.18, 0.26])
+    abajo = np.array([0.30, 0.22, 0.14])
+    img = (arriba * (1 - v)[..., None] + abajo * v[..., None]) * (0.35 + 0.65 * u**1.2)[..., None]
+    for k, color in enumerate(_PARCHES_TALLER):
+        x0, y0 = 30 + (k % 5) * 84, 24 + (k // 5) * 84
+        img[y0 : y0 + 68, x0 : x0 + 68] = color
+    if sombra:
+        campo = np.exp(-(((yy - h) / (radio_y * h)) ** 2 + ((xx - w) / (radio_x * w)) ** 2))
+        img = img * np.clip(1.0 - campo, 0.04, 1.0)[..., None]
+    img = img + rng.normal(0.0, 0.005, img.shape) * np.sqrt(np.clip(img, 0.0, None) + 0.01)
+    return a_trabajo(np.clip(img, 0.0, None))
+
+
+def _en_luz_lineal(
+    coloreado: np.ndarray, *, vineta: float, caja: tuple[int, int, int, int] | None,
+    ganancia: float = 1.5,
+) -> np.ndarray:
+    """Vineta y ventana aplicadas EN LUZ LINEAL: se decodifica la curva del
+    espacio de trabajo, se multiplica y se vuelve a codificar. Es un obturado
+    optico y un foco, no una ganancia sobre valores logaritmicos."""
+    lin = log_decode(np.asarray(coloreado, dtype=np.float64), WORKING_SPACE)
+    if vineta:
+        lin = gen.apply_vignette(lin, strength=vineta, power=1.8).astype(np.float64)
+    if caja is not None:
+        lin = gen.apply_window(
+            lin, box=caja, gain=ganancia, tint=(1.0, 1.0, 1.0), feather=10
+        ).astype(np.float64)
+    return log_encode(lin, WORKING_SPACE).astype(np.float32)
+
+
+@pytest.fixture(scope="module")
+def taller() -> dict[str, tuple[np.ndarray, object]]:
+    """(original, resultado) de cada montaje del taller. Se paga una vez."""
+    normal = _escena_taller()
+    grande = _escena_taller(radio_x=0.30, radio_y=0.45)
+    montajes = {
+        "vineta+ventana": (normal, _en_luz_lineal(
+            _coloreado_limpio(normal), vineta=0.42, caja=CAJA_TALLER)),
+        "ventana sola": (normal, _en_luz_lineal(
+            _coloreado_limpio(normal), vineta=0.0, caja=CAJA_TALLER)),
+        "nada espacial": (normal, _coloreado_limpio(normal)),
+        "en sombra+vineta": (grande, _en_luz_lineal(
+            _coloreado_limpio(grande), vineta=0.42, caja=CAJA_EN_SOMBRA)),
+        "en sombra sola": (grande, _en_luz_lineal(
+            _coloreado_limpio(grande), vineta=0.0, caja=CAJA_EN_SOMBRA)),
+    }
+    return {n: (o, invertir_grado(o, c)) for n, (o, c) in montajes.items()}
+
+
+def _imprimir(caso: str, d, caja) -> None:
+    print(f"\n[{caso}] etiquetas={[hp.label for hp in d.hotspots]}")
+    for i, hp in enumerate(_locales(d)):
+        b = (hp.x, hp.y, hp.w, hp.h)
+        extra = f" IoU={_iou(b, caja):.3f}" if caja else ""
+        print(f"[{caso}]   #{i} {b} mag={hp.magnitude:.3f}{extra}")
+
+
+@pytest.mark.parametrize("caso", ["vineta+ventana", "ventana sola"])
+def test_T2g_la_zona_principal_es_la_ventana_y_no_la_esquina_en_sombra(taller, caso):
+    """La primera "zona local" es la que la GUI lista primero. Tiene que ser la
+    ventana, con IoU > 0.5, aunque haya una esquina en sombra con mas ΔE2000
+    medio en su rectangulo.
+
+    Medido con el codigo del dia 3 sobre este mismo montaje: en los dos casos la
+    primera era (559,204,81,83) / (563,218,77,33), en el borde de la sombra, con
+    IoU 0.000, y la ventana salia segunda con IoU 0.898 / 0.922.
+    """
+    _, res = taller[caso]
+    d = res.diagnosis
+    _imprimir(f"T2g {caso}", d, CAJA_TALLER)
+    locales = _locales(d)
+    assert locales, f"no senala ninguna zona: {[hp.label for hp in d.hotspots]}"
+    primera = locales[0]
+    iou = _iou((primera.x, primera.y, primera.w, primera.h), CAJA_TALLER)
+    assert iou > 0.5, (
+        f"la zona principal es ({primera.x},{primera.y},{primera.w},{primera.h}) y solapa "
+        f"IoU {iou:.3f} con la ventana {CAJA_TALLER}"
+    )
+
+
+def test_T2g_el_montaje_sigue_teniendo_la_trampa(taller):
+    """EL CENTINELA DEL TEST DE ARRIBA. Si esto se pone rojo, el test de arriba
+    pasa sin probar nada, y hay que saberlo.
+
+    Se reordenan las zonas con el criterio viejo (ΔE2000 medio del
+    RECTANGULO, que es la misma cuenta sobre el mapa normalizado) y se afirma
+    que con ese criterio la primera NO seria la ventana. Se hace sobre "ventana
+    sola", donde el margen medido es amplio: 5.772 contra 3.962 ΔE2000 con el
+    codigo del dia 3. En "vineta+ventana" el margen era del 2% (4.996 contra
+    4.902) y no sirve de centinela.
+
+    Si un dia la esquina deja de salir como zona -- por ejemplo porque se
+    arregle el ajuste del LUT en las sombras --, esto salta y el test de arriba
+    necesita otro montaje; no es que el detector haya empeorado.
+    """
+    _, res = taller["ventana sola"]
+    d = res.diagnosis
+    mapa = np.asarray(d.spatial_residual, dtype=np.float64)
+    por_rectangulo = sorted(
+        _locales(d),
+        key=lambda hp: -float(np.nanmean(mapa[hp.y : hp.y + hp.h, hp.x : hp.x + hp.w])),
+    )
+    assert por_rectangulo, "el taller ya no emite ninguna zona local"
+    vieja = por_rectangulo[0]
+    iou = _iou((vieja.x, vieja.y, vieja.w, vieja.h), CAJA_TALLER)
+    print(f"\n[T2g-trampa] criterio viejo pondria primera ({vieja.x},{vieja.y},{vieja.w},"
+          f"{vieja.h}) IoU={iou:.3f}")
+    assert iou < 0.5, (
+        "con el criterio del dia 3 la ventana ya saldria primera: el montaje ha dejado de "
+        "tener la trampa y el test de la zona principal no prueba nada"
+    )
+
+
+def test_T2g_una_ventana_en_sombra_de_verdad_se_sigue_viendo(taller):
+    """El caso contrario. Arreglar la esquina a base de ignorar las sombras
+    cambiaria un fallo por otro: una ventana DENTRO de una sombra profunda
+    tiene que seguir saliendo, y primera."""
+    original, res = taller["en sombra+vineta"]
+    lum = log_decode(np.asarray(original, dtype=np.float64), WORKING_SPACE) @ LUMA_REC709
+    x, y, w, h = CAJA_EN_SOMBRA
+    paradas = float(np.log2(lum[y : y + h, x : x + w].mean() / np.median(lum)))
+    d = res.diagnosis
+    _imprimir("T2g en sombra", d, CAJA_EN_SOMBRA)
+    print(f"[T2g en sombra] la caja esta {paradas:+.2f} paradas respecto a la mediana")
+    # Que la sombra sea de verdad: si alguien toca la escena y la caja deja de
+    # estar a oscuras, este test dejaria de probar lo que dice.
+    assert paradas < -1.0, f"la caja 'en sombra' solo esta {paradas:+.2f} paradas por debajo"
+    locales = _locales(d)
+    assert locales, "una ventana en sombra se le escapa entera"
+    primera = locales[0]
+    iou = _iou((primera.x, primera.y, primera.w, primera.h), CAJA_EN_SOMBRA)
+    assert iou > 0.5, f"la zona principal solapa IoU {iou:.3f} con la ventana en sombra"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason=(
+        "LIMITE CONOCIDO, MEDIDO EL 2026-09-16, NO ARREGLADO. La misma ventana en sombra "
+        "(520,250,110,100), ganancia 1.5 en luz lineal, SIN vineta, sobre el taller con la "
+        "sombra grande: la zona de mas masa es (0,0,113,360), la franja oscura del borde "
+        "IZQUIERDO, con 6.04 dE2000 medio y IoU 0.000; la ventana sale partida en "
+        "(515,243,88,61) IoU 0.377 y (490,259,150,101) IoU 0.620. Con el orden del dia 3 "
+        "tambien salia primera la franja (6.04 era tambien el mayor dE2000 medio), asi que "
+        "no es una regresion del orden por masa. Es la HUELLA de la ventana en el LUT: una "
+        "ventana que aclara colores oscuros ensena al LUT a aclarar esos colores, y el LUT "
+        "los aclara tambien en todo el resto de lo oscuro del cuadro, que aqui es mucho. "
+        "Eso es residuo real y ninguna forma de ordenar lo distingue de la ventana."
+    ),
+)
+def test_T2g_una_ventana_en_sombra_sin_vineta_limite_conocido(taller):
+    """Lo mismo que el test de arriba pero sin vineta. Ver el `reason`."""
+    _, res = taller["en sombra sola"]
+    d = res.diagnosis
+    _imprimir("T2g en sombra sin vineta", d, CAJA_EN_SOMBRA)
+    locales = _locales(d)
+    assert locales
+    primera = locales[0]
+    assert _iou((primera.x, primera.y, primera.w, primera.h), CAJA_EN_SOMBRA) > 0.5
+
+
+def test_T2g_el_taller_sin_nada_espacial_no_se_inventa_zonas(taller):
+    """El contrapeso, en MI escena: la sombra profunda por si sola, sin nada
+    espacial encima, no puede convertirse en una zona."""
+    _, res = taller["nada espacial"]
+    d = res.diagnosis
+    print(f"\n[T2g nada] repro={d.lut_reproducible:.4f} puro={d.is_pure_lut} "
+          f"etiquetas={[hp.label for hp in d.hotspots]}")
+    assert d.hotspots == (), f"se inventa {len(d.hotspots)} zona(s) en el taller sin nada espacial"
+
+
+# ---------------------------------------------------------------------------
+# DIA 4 - Masa contra intensidad
+# ---------------------------------------------------------------------------
+
+
+def _dos_ventanas(original: np.ndarray, ventanas) -> object:
+    col = _coloreado_limpio(original)
+    for caja, ganancia in ventanas:
+        col = gen.apply_window(col, box=caja, gain=ganancia, tint=(1.0, 1.0, 1.0), feather=12)
+    return invertir_grado(original, np.asarray(col, dtype=np.float32)).diagnosis
+
+
+def test_T2h_una_zona_grande_y_floja_va_antes_que_una_pequena_e_intensa(estudio_trabajo):
+    """Grande y floja: (20,200,240,140) a x1.35. Pequena e intensa:
+    (500,40,60,50) a x1.9. Gana la GRANDE, y es lo correcto por tres razones:
+
+    1. La primera linea dice **que reconstruir primero para recuperar mas
+       imagen**. La grande cambia mas cuadro (medido: masa 7831 contra 2157).
+    2. Lo pequeno e intenso es exactamente lo que fabrican los artefactos -- la
+       esquina en sombra del dia 3 era 31x29 px --; lo grande y coherente no lo
+       fabrica un artefacto local.
+    3. La pequena NO se pierde: sale segunda, con su ΔE2000 medio, que es MAYOR
+       (24.17 contra 12.35) y se lee en la misma linea.
+
+    El precio, dicho: un retoque diminuto y muy fuerte (unos ojos) saldra detras
+    de un lavado amplio y suave aunque al ojo le importe mas. Lo que se ordena
+    es cuanta imagen cambia, no cuanto llama la atencion.
+    """
+    grande, pequena = ((20, 200, 240, 140), 1.35), ((500, 40, 60, 50), 1.9)
+    d = _dos_ventanas(estudio_trabajo, [grande, pequena])
+    _imprimir("T2h grande-floja vs pequena-intensa", d, grande[0])
+    locales = _locales(d)
+    assert len(locales) >= 2, f"no salen las dos: {[(z.x, z.y, z.w, z.h) for z in locales]}"
+    primera, segunda = locales[0], locales[1]
+    assert _iou((primera.x, primera.y, primera.w, primera.h), grande[0]) > 0.5
+    assert _iou((segunda.x, segunda.y, segunda.w, segunda.h), pequena[0]) > 0.5
+    # Y la competicion es de verdad: por ΔE2000 medio la pequena iria primero.
+    assert segunda.magnitude > primera.magnitude, (
+        "la pequena ya no es la mas intensa: este test ha dejado de enfrentar masa e intensidad"
+    )
+
+
+def test_T2h_si_la_intensa_tambien_cambia_mas_imagen_va_primera(estudio_trabajo):
+    """El contrario, para que quede claro que se ordena por MASA y no por AREA:
+    (470,30,130,120) a x2.0 contra (20,220,200,110) a x1.4. La intensa tiene
+    mas masa (medido: 10848 contra 1322 del trozo mayor de la floja) y va
+    primera."""
+    intensa, floja = ((470, 30, 130, 120), 2.0), ((20, 220, 200, 110), 1.4)
+    d = _dos_ventanas(estudio_trabajo, [floja, intensa])
+    _imprimir("T2h intensa con mas masa", d, intensa[0])
+    locales = _locales(d)
+    assert locales
+    primera = locales[0]
+    assert _iou((primera.x, primera.y, primera.w, primera.h), intensa[0]) > 0.5
+
+
+def test_zonas_ordena_por_masa_y_mide_el_residuo_sobre_la_componente():
+    """`_zonas` a pelo, sin LUT de por medio, con un campo fabricado:
+
+    - una meseta grande y baja (60x60 a 0.2: masa 720),
+    - un pico pequeno y alto (12x12 a 1.0: masa 144),
+    - y una "L" (dos brazos de 40x6) cuyo rectangulo es casi todo vacio.
+
+    Por pico iria primero el pico; por masa, la meseta. Y el residuo de la L
+    se promedia sobre sus pixeles (todos a 10.0), no sobre su rectangulo, que
+    daria 10.0 x 444/1600 = 2.8."""
+    campo = np.zeros((200, 200))
+    residuo = np.zeros((200, 200))
+    campo[20:80, 20:80] = 0.2
+    campo[150:162, 150:162] = 1.0
+    campo[120:160, 20:26] = 0.5
+    campo[154:160, 20:60] = 0.5
+    residuo[120:160, 20:26] = 10.0
+    residuo[154:160, 20:60] = 10.0
+    zonas = _zonas(campo, 0.1, residuo)
+    cajas = [z.caja for z in zonas]
+    print(f"\n[_zonas] {[(z.caja, round(z.masa, 1), round(z.residuo_medio, 3)) for z in zonas]}")
+    assert cajas[0] == (20, 20, 60, 60), f"la meseta no va primera: {cajas}"
+    ele = next(z for z in zonas if z.caja == (20, 120, 40, 40))
+    assert ele.residuo_medio == pytest.approx(10.0), (
+        f"el residuo de la L se promedia sobre su rectangulo: {ele.residuo_medio}"
+    )
+    assert [z.masa for z in zonas] == sorted((z.masa for z in zonas), reverse=True)
