@@ -247,6 +247,10 @@ def test_CONTROL_NEGATIVO_un_fragmento_bien_escrito_pasa_entero(capsys):
 
 def test_ningun_umbral_suelto_en_los_paquetes_vigilados(capsys):
     """Ni un literal de umbral fuera de `core/umbrales.py`, salvo la lista de arriba."""
+    assert _ficheros_vigilados(), (
+        f"no hay nada que comprobar: los paquetes vigilados {PAQUETES} no tienen ningun .py "
+        "(renombrados o movidos), y `not sin_excusa` pasaria sin haber barrido nada"
+    )
     sin_excusa = [h for h in _barrido() if (h.ruta, h.valor) not in EXCEPCIONES]
     with capsys.disabled():
         print(f"[BARRIDO] paquetes vigilados: {PAQUETES}")
@@ -296,6 +300,11 @@ def test_ningun_umbral_centralizado_se_redefine_fuera_de_core_umbrales(capsys):
     ponerle un valor.
     """
     centralizados = set(umbrales.__all__)
+    assert centralizados, (
+        "no hay nada que comprobar: `core.umbrales.__all__` esta vacio, asi que ningun nombre "
+        "podria salir como reasignado"
+    )
+    assert _ficheros_vigilados(), f"no hay nada que comprobar: {PAQUETES} sin ningun .py"
     reasignados: list[str] = []
     for fichero in _ficheros_vigilados():
         rel = fichero.relative_to(RAIZ)
@@ -351,6 +360,7 @@ def test_cada_umbral_centralizado_lleva_unidad_escrita(capsys):
     lineas = fuente.splitlines()
     arbol = ast.parse(fuente)
     sin_unidad: list[str] = []
+    revisadas: list[str] = []
     for nodo in arbol.body:
         nombre = None
         if isinstance(nodo, ast.AnnAssign) and isinstance(nodo.target, ast.Name):
@@ -361,6 +371,7 @@ def test_cada_umbral_centralizado_lleva_unidad_escrita(capsys):
             nombre = nodo.targets[0].id
         if nombre is None or nombre.startswith("_") or nombre == "__all__":
             continue
+        revisadas.append(nombre)
         # El bloque de comentarios `#:` que va justo encima.
         bloque: list[str] = []
         i = nodo.lineno - 2
@@ -372,6 +383,10 @@ def test_cada_umbral_centralizado_lleva_unidad_escrita(capsys):
     with capsys.disabled():
         print(f"[UNIDADES] constantes publicas en core/umbrales.py: {len(umbrales.__all__)}")
         print(f"[UNIDADES] sin unidad escrita: {sin_unidad or 'ninguna'}")
+    assert revisadas, (
+        "no hay nada que comprobar: no se ha reconocido ni una constante publica en "
+        "core/umbrales.py (¿se definen de otra forma?), y `not sin_unidad` pasaria solo"
+    )
     assert not sin_unidad, f"estas constantes no dicen en que unidad estan: {sin_unidad}"
 
 

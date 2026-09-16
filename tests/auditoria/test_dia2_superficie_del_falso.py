@@ -210,6 +210,10 @@ def test_D1_ninguno_de_los_de_mas_devuelve_un_CDL_ni_un_grado():
     fake = FakeResolve(n_clips=1)
     asegurar_version(fake, "clip001")
     fake.set_cdl("clip001", NODE_BALANCE, CDL(slope=(3.0, 3.0, 3.0)))
+    assert _publicos_de_mas(), (
+        "no hay nada que comprobar: `_publicos_de_mas()` sale vacio (o se ha podado el falso hasta "
+        "el protocolo, o ha cambiado como se calcula). El bucle y el `not any` de abajo pasarian solos"
+    )
     for nombre in _publicos_de_mas():
         metodo = getattr(FakeResolve, nombre)
         anotacion = inspect.signature(metodo).return_annotation

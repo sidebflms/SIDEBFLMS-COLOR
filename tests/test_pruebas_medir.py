@@ -64,6 +64,10 @@ def test_prefiltro_el_fotograma_correcto_gana_a_sus_vecinos(montaje, master_esca
     for sigma, bruto, k, c, v in filas:
         print(f"   {sigma:.1f} | {bruto:15s} | {k:3d} | {c:.3f} | {v:.3f} | {c - v:+.3f}")
     con = [f for f in filas if f[0] > 0]
+    assert con, (
+        "no hay nada que comprobar: no hay ni una fila con prefiltro (¿`_tramos_largos` vacio o "
+        "SIGMA_PREFILTRO a 0?), y el `all` de abajo pasaria solo"
+    )
     assert all(c > v for _, _, _, c, v in con), "con prefiltro, un vecino gana al correcto"
     margen_sin = np.mean([c - v for s, _, _, c, v in filas if s == 0])
     margen_con = np.mean([c - v for _, _, _, c, v in con])

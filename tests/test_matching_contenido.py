@@ -104,6 +104,9 @@ def test_los_seis_tonos_de_piel_siguen_siendo_la_misma_escena(pieles_trabajo):
     detector y el que menos margen tiene: medido, el peor par (el mas claro
     contra el mas oscuro) llega a 0.59 con el umbral en 0.70."""
     peor = 0.0
+    assert len(pieles_trabajo) >= 2, (
+        f"no hay nada que comprobar: con {len(pieles_trabajo)} tono(s) no hay ni un par que comparar"
+    )
     for i in range(len(pieles_trabajo)):
         for j in range(i + 1, len(pieles_trabajo)):
             hay, d, _ = desajuste_de_contenido(pix(pieles_trabajo[i]), pix(pieles_trabajo[j]))

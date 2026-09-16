@@ -96,6 +96,9 @@ def test_igualado_de_cuatro_camaras(camaras):
 
 def test_todos_los_pares_mejoran_y_ninguno_empeora(camaras):
     resultado = igualar_camaras(camaras, indice_referencia=0)
+    assert resultado.delta_e_por_par_antes, (
+        "no hay nada que comprobar: `delta_e_por_par_antes` ha salido vacio y el bucle no miraria ni un par"
+    )
     for par, antes in resultado.delta_e_por_par_antes.items():
         assert resultado.delta_e_por_par_despues[par] < antes, par
 
@@ -125,6 +128,9 @@ def test_ninguna_camara_sale_marcada_como_otra_escena(camaras):
     """Son la MISMA escena con otra camara y otro balance: si el detector de
     contenido las marcara, no valdria para nada."""
     resultado = igualar_camaras(camaras, indice_referencia=0)
+    assert any(m is not None for m in resultado.emparejamientos), (
+        "no hay nada que comprobar: todos los emparejamientos son None (solo la referencia deberia serlo)"
+    )
     for nombre, m in zip([c[0] for c in CAMARAS], resultado.emparejamientos, strict=True):
         if m is None:
             continue
@@ -135,6 +141,9 @@ def test_ninguna_camara_sale_marcada_como_otra_escena(camaras):
 def test_con_lut_tambien_cumple(camaras):
     resultado = igualar_camaras(camaras, indice_referencia=0, con_lut=True)
     assert resultado.delta_e_medio_despues < DE_MAXIMO_DESPUES
+    assert any(m is not None for m in resultado.emparejamientos), (
+        "no hay nada que comprobar: todos los emparejamientos son None (solo la referencia deberia serlo)"
+    )
     for m in resultado.emparejamientos:
         if m is not None:
             assert m.lut is not None

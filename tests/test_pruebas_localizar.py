@@ -99,6 +99,9 @@ def test_localiza_cada_plano_donde_esta(montaje, loc):
 
 
 def test_ninguna_aparicion_aceptada_asigna_un_fotograma_al_bruto_equivocado(montaje, loc):
+    assert any(a.aceptada for a in loc.apariciones), (
+        "no hay nada que comprobar: ninguna aparicion aceptada, y el bucle de abajo se las salta todas"
+    )
     for a in loc.apariciones:
         if not a.aceptada:
             continue
@@ -133,6 +136,10 @@ def test_toma_gemela_sin_la_toma_buena_no_se_acepta_la_otra(montaje, escaneos, q
     print(f"\n  sin {quitar}:")
     _imprime(loc2)
     tramos_quitados = [t for t in montaje.tramos if t.bruto == quitar]
+    assert tramos_quitados, (
+        f"no hay nada que comprobar: ningun tramo del montaje es de {quitar!r} (¿renombrado en el "
+        "parametrize o en el montaje?), y el bucle de abajo no miraria nada"
+    )
     for t in tramos_quitados:
         for a in loc2.apariciones:
             if not a.aceptada:
@@ -142,6 +149,10 @@ def test_toma_gemela_sin_la_toma_buena_no_se_acepta_la_otra(montaje, escaneos, q
                 k for k in range(t.master_desde, t.master_desde + t.n)
                 if _brutos_verdad(montaje, k) == {quitar}
             ]
+            assert solo_quitado, (
+                f"no hay nada que comprobar: el tramo de {quitar!r} en [{t.master_desde}, "
+                f"{t.master_desde + t.n}) no tiene ni un fotograma solo suyo (todo fundido)"
+            )
             pisados = [k for k in solo_quitado if a.master_desde <= k < a.master_hasta]
             assert not pisados, f"{a.bruto} aceptado sobre fotogramas de {quitar}: {pisados[:5]}"
     assert quitar not in loc2.no_encontrados  # no esta en la lista: ni se busca

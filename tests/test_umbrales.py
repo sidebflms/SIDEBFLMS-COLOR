@@ -105,6 +105,10 @@ def test_las_rampas_de_confianza_no_se_movieron():
 
 def test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo():
     """Para que no se pueda añadir un umbral a `core.umbrales` sin anotarlo aquí."""
+    assert umbrales.__all__, (
+        "no hay nada que comprobar: `core.umbrales.__all__` esta vacio y la resta de abajo "
+        "saldria vacia sin mirar nada"
+    )
     faltan = set(umbrales.__all__) - set(VALORES_DE_ORIGEN) - {"RAMPAS_DE_CONFIANZA"}
     assert not faltan, f"umbrales sin valor de origen anotado: {sorted(faltan)}"
 
