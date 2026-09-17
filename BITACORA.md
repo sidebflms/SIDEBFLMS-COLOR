@@ -1028,3 +1028,171 @@ material.
 5. Todo lo que ya estaba sin resolver de los días 3-4 y no se ha tocado hoy: la caja del
    detector de ventana (0.43 frente a 0.80), el CDL extraído absorbiendo contraste del
    LUT, el aviso de cobertura baja al revés, sigue sin ejecutarse nada contra Resolve real.
+
+---
+
+# DÍA 6 — 17 de septiembre de 2026
+
+**Primer día con material real.** Mario dejó diez `.drx` en `tests/powergrades_reales/`
+y su biblioteca de LUTs (79 `.cube`, varias subcarpetas incluida «SECRET SAUCE») en
+`tests/luts_reales/`. Las dos, de sólo lectura, ya en `.gitignore` desde ayer. El probe
+ampliado del día 5 sigue sin ejecutarse — no había nada que resolver de la tarea 7 hoy.
+
+## D6-1 · El formato `.drx`, desmontado de verdad
+
+"Mira antes de parsear": los diez son XML plano UTF-8 (la suposición de foro del día 5
+era correcta), con elemento raíz `<Gallery::GyStill>` — nombre que viola «Namespaces in
+XML» por el doble `::`, y que `ElementTree.fromstring()` rechaza; hubo que construir el
+árbol a mano con `expat.ParserCreate()` sin namespaces. Dentro de cada `<Body>`: un byte
+de cabecera (`0x81`, constante en las 20 muestras) + un frame **Zstandard** + **Protocol
+Buffers** sin `.proto` publicado. `core/io/drx_protobuf.py` decodifica el wire format sin
+necesitar el esquema; `core/io/drx.py::leer_grado` busca las rutas de LUT como texto en
+cualquier hoja del subárbol de cada nodo, no en una ruta de campos fija — más robusto a
+que Blackmagic mueva algo de sitio entre builds.
+
+Confirmado en material real: **10 de 10 archivos referencian al menos un LUT** por ruta
+relativa; **2 de 10 referencian dos** (conversión de cámara + look, en el mismo grado —
+confirma con datos reales el diseño de nodos que la app ya asumía). Los índices de nodo
+**no son 1-based por clip** en los dos archivos de "trabajo real" (260-281 consecutivos):
+parecen un contador global de proyecto, no reiniciado por clip — anotado como límite de
+diseño para quien use `NodoDRX.indice` más adelante.
+
+El avisador de dependencias, probado contra las 10: **9 de 10 encuentran todo**; el único
+que falta es un LUT de fábrica de Sony (no algo que Mario tuviera que copiar). Todo el
+detalle, confirmado-vs-supuesto por separado, en `core/io/FORMATO-DRX.md`. 39 tests
+nuevos en `tests/test_io_drx.py` + `tests/test_io_drx_protobuf.py`.
+
+Dependencia nueva: `zstandard` (pyproject.toml) — se prefirió sobre invocar el binario
+`zstd` del sistema porque no se puede garantizar que esté en el `PATH` de cada máquina.
+
+## D6-2 · El QC de LUT, por primera vez contra material real
+
+Igual que la confianza ayer: no podía ser yo quien mida si el QC (`core/io/qc.py`,
+construido y probado el día 3 sólo con LUTs sintéticos fabricados para fallar) se
+comporta bien con material de verdad. Delegado a un agente independiente. Detalle
+completo en `CIFRAS.md` §17 y en `tests/test_io_qc_reales.py`.
+
+**Lo bueno primero:** `qc_lut()` no lanzó sobre ninguno de los 79 `.cube` reales, y los
+tres detectores que importan para no entregar algo roto —gamut fuera de rango,
+NaN/infinito, LUT plano— salieron limpios en los 79.
+
+**La pregunta del día 3, puesta a prueba:** clasificando los 79 por lo que HACEN (medido:
+se aplica cada LUT a una rampa de gris neutro de 17 puntos y se mide cuánto se separan R,
+G y B — una conversión de curva+primarios preserva el neutro, un look con tinte no; hueco
+real medido entre 0.0072 y 0.0264, factor 3.7) salen **8 LUTs de conversión** (manuales de
+fábrica DJI/GPLOG + un monitor "CLEAN") y **71 "look"**. Los 8 de conversión disparan
+banding — confirma la hipótesis del día 3 — pero también los 71 "look": el aviso es
+prácticamente universal en material real, lo que refuerza que siga sin bloquear.
+
+**La sorpresa:** de los escalones de banding en los 8 LUTs de conversión, el 96% (1182 de
+1232) NO están pegados al negro — lo contrario de lo que `EXPLICACION_MEDIOS` daba a
+entender desde el día 3 (que estar fuera de sombras era por sí solo sospechoso). Cambio de
+**texto únicamente** en `core/io/qc.py`: `UMBRAL_BANDING`, `SALTO_MINIMO_BANDING` y
+`UMBRAL_SOMBRAS` no se tocaron, y `tests/test_io_qc.py` sigue en verde sin tocar un assert.
+
+**Lo que NO se tocó, y es el hallazgo más grande del día:** `no_monotonia` —un ERROR, no
+un aviso— dispara en **76 de los 79 archivos reales**, incluidos los 8 manuales de fábrica
+(`DJI Mavic 4 Pro D-Log to Rec.709 V1.cube` baja el rojo 0.04249 en un punto, cien veces el
+ruido de redondeo). Las seis peores caídas (hasta 0.230) son variantes de `SECRET
+SAUCE/A4 MONITOR LUTs V2/SONY Slog3 Monitor LUTs V2/`. No se tocó `TOL_MONOTONIA` ni el
+detector: no es una decisión que el agente deba arbitrar sobre trabajo ajeno — queda
+medido, con nombre de archivo, para decidir aparte (ver D6-6).
+
+**Dato menor corregido del encargo:** se suponía ~1.4 MB por `.cube` de 65³; medido en
+disco son 7.5–7.6 MB (33³: 0.5–0.8 MB). La conclusión —hay 65³ de verdad, 36 de 79— era
+correcta, pero por `LUT_3D_SIZE` leído del fichero, no por el peso en disco.
+
+## D6-3 · La confianza como orden de triaje — hecho
+
+Decisión de Mario: el listón del 95% (certificar) no se baja, pero el modo fácil no
+necesita certificar, necesita triar. Delegado a un segundo agente independiente el
+diseño de la puntuación de orden (incorporando la clase de material, que el día 5 mostró
+que cambia la escala de las señales) y la medición de precisión@5/@10.
+
+**Qué se midió.** Reutilizando las 1.700 filas "fuera de plano" del día 5 (sin generar
+material nuevo): en lotes simulados de 20 candidatos, el orden calibrado por clase de
+material (`cobertura_destino`, `muestras_p10_zona` y `planos_acumulados`, cada uno como
+z-score DENTRO de su clase antes de comparar entre clips de clases distintas) saca
+**precisión@5 = 0.40 y precisión@10 = 0.62-0.63**. Frente a **0.25 / 0.50 de un orden al
+azar** y **0.373 / 0.609 del mismo cálculo sin normalizar por clase** ("ingenuo" — la
+comparación que prueba que normalizar por clase ayuda de verdad, no es intuición: sobre
+los mismos lotes, el calibrado gana en más de los que pierde, 451 contra 267 en
+precisión@5). `variance_zona` se probó y se descartó: su signo se invierte dentro de la
+clase comprimida incluso separando por clase (el mismo hallazgo del día 5, §3.2/§6.1),
+así que meterla habría empeorado el orden justo en el material más difícil.
+
+**El hallazgo que no esperaba:** normalizar sólo por `tam_rejilla` (la única clase que se
+conoce de verdad sobre un clip real — `ClipRef` no lleva códec ni marca de recorte) rinde
+**igual o mejor** que normalizar por la clase completa (compresión y recorte exactos, que
+sólo existen dentro del arnés de calibración). No hacía falta inventar un campo de códec
+en el contrato para que esto funcione: la rejilla explica la mayor parte de la diferencia
+de escala entre clases.
+
+Funciona razonablemente para triaje (el listón era "mejor que azar", no 95%), así que se
+implementó de verdad: `core/reverse/orden_repaso.py` (nuevo — la función de orden,
+calibrada, nunca devuelve un número, sólo el orden de los `id`), conectado a
+`gui/asistente_facil.py::ejecutar_repasar` con un parámetro opcional
+(`candidatos_orden`, `None` por defecto). QUIÉN entra en la lista de repaso no cambió
+(sigue siendo `content_mismatch` + grupos pendientes del paso 1, tal y como pedía el
+encargo); lo que cambia es el ORDEN. Con la GUI de demostración de hoy, que no extrae
+ningún LUT por ingeniería inversa (el paso 4 aplica un look ya horneado, sin
+`CoverageMap`), ese parámetro llega vacío y el paso cae a un **orden simple declarado**
+(más motivos de revisión primero, y a igualdad el orden de detección) en vez de fingir
+una señal que no existe todavía en ese camino — es el mismo diseño que pedía el encargo
+para el caso "no funciona mejor", aplicado aquí al caso "no hay dato todavía". Cifras
+completas y comando reproducible en `CIFRAS.md` §18; tests de aritmética en
+`tests/test_reverse_orden_repaso.py` y de integración en `tests/test_gui_asistente_facil.py`.
+
+## D6-4 · La biblioteca de presets, con contenido real
+
+`core/io/biblioteca.py`: sembrada desde los 79 `.cube` reales (`sembrar_desde_carpeta`) y
+también directamente desde un `.drx` con dos LUTs (`sembrar_desde_drx`, que separa el look
+—lo que se empaqueta— de la dependencia de conversión —lo que se declara y avisa—).
+Bundle `.sidebcolor` de UN preset suelto (distinto del `.sidebcolor` de sesión completa
+que ya existía): `preset.json` + `look.cube` (ida y vuelta exacta, bit a bit) +
+`miniatura.png` opcional, generada aplicando el LUT real a una escena SINTÉTICA —nunca a
+material de Mario— del mismo generador que usa el resto de la app.
+
+**El viaje probado de verdad**: bundle creado, abierto desde un `tempfile.mkdtemp()` sin
+ningún acceso a la carpeta original ("como si fuera otro Mac"), LUT recuperado idéntico.
+Con un preset que dependía de un segundo LUT no incluido (el caso real de `_1.1.1.drx`):
+avisa exactamente de ese archivo al abrir, no se aplica a medias en silencio.
+
+Conectado al paso 4 del modo fácil: selector de chips con nombre legible (nunca el
+nombre de archivo), visible sólo cuando hay biblioteca. Con 79 presets reales, mostrar
+una miniatura renderizada por cada chip habría sido caro sin aportar nada que el
+antes/después del paso no enseñe ya para el elegido — pendiente de que la tarea 2
+(clasificación conversión/look) filtre este selector a mostrar sólo looks de verdad, no
+las ~30 conversiones de cámara que hoy salen mezcladas alfabéticamente.
+
+## D6-5 · Capturas deterministas — no había nada que arreglar
+
+El encargo daba por hecho que hacía falta fijar fuente/antialiasing/escala. Verificado
+antes de tocar nada: `capturas/` completa generada dos veces seguidas, con tres procesos
+saturando la CPU, y con DOS invocaciones corriendo genuinamente en paralelo — **cero
+diferencias de bytes en las tres pruebas**, sobre ~30 imágenes.
+
+Comparando a nivel de píxel las 16 capturas que el día 5 se revirtieron por "ruido": la
+diferencia cae siempre dentro del carril de navegación (el botón "Modo fácil" que se
+añadió ese mismo día) y nunca fuera. **No era ruido: era un cambio de diseño legítimo que
+se descartó por error sin comparar a nivel de píxel.** Se han regenerado hoy con el botón
+visible, que es el estado correcto. Test permanente añadido
+(`tests/test_gui_capturas_deterministas.py`, marcado `lento`) para detectar una regresión
+de verdad si algún día aparece.
+
+## D6-6 · Sin resolver
+
+1. **`no_monotonia` dispara en 76 de 79 LUT reales**, con caídas de hasta 0.230, incluidos
+   manuales de fábrica DJI. Sigue siendo un ERROR bloqueante en `core/io/qc.py`. Alguien
+   tiene que decidir: ¿el detector está mal calibrado para material real, o son defectos
+   de verdad que Mario debería saber que tiene? No lo decide quien sólo mide.
+2. El probe sigue sin ejecutarse — nada que resolver de la tarea 7 hoy.
+3. El significado del byte de cabecera `0x81` de `<Body>`, y si el índice de nodo es de
+   verdad un contador global de proyecto (§FORMATO-DRX.md §5).
+4. El selector de presets del paso 4 mezclaba conversiones y looks — con la clasificación
+   de D6-2 ya medida (8 conversión / 71 look), se filtró (ver el commit de hoy).
+5. `core.reverse.orden_repaso` sólo llega a `ejecutar_repasar` cuando alguien extrae un
+   `CoverageMap` por ingeniería inversa; el camino real del modo fácil hoy no lo hace
+   (aplica un look ya horneado). Conectar los dos caminos, si tiene sentido, queda para
+   otra sesión.
+6. Todo lo que ya estaba sin resolver de días anteriores y no se ha tocado hoy.

@@ -132,6 +132,7 @@ def test_las_escrituras_de_core_estan_todas_localizadas(paquete):
     esperado = {
         "core/color": {},
         "core/io": {
+            "biblioteca.py": {"mkdir"},
             "bundle.py": {"mkdir", "open"},
             "cdl_xml.py": {"mkdir", "open"},
             "cube.py": {"mkdir", "open"},
@@ -222,6 +223,15 @@ def test_escribirlo_todo_en_tmp_path_no_toca_ni_un_fichero_del_repo(tmp_path):
     )
     guardar_sesion(sesion, tmp_path / "s.sidebcolor")
     guardar_sesion(sesion, tmp_path / "otra" / "s.sidebcolor", crear_directorios=True)
+
+    from core.io.biblioteca import Preset, exportar_preset
+
+    preset = Preset(id="rev", nombre="Revision", tamano_rejilla=2, ruta_origen="/nada")
+    exportar_preset(preset, LUT3D.identity(2), tmp_path / "p.sidebcolor")
+    exportar_preset(
+        preset, LUT3D.identity(2), tmp_path / "otro" / "p.sidebcolor",
+        miniatura=np.zeros((4, 4, 3), dtype=np.float32), crear_directorios=True,
+    )
 
     fake = FakeResolve(n_clips=1, home=str(tmp_path / "casa_falsa"))
     still = fake.grab_still()

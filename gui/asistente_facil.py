@@ -37,12 +37,15 @@ cómo se presenta y qué se pregunta.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
 
 from core.colormgmt import agrupar_ambiguos, detectar_espacios_timeline, verificar_proyecto
 from core.contracts import LUT3D, AvisoGestionColor, GrupoAmbiguo
+from core.io.biblioteca import Preset
+from core.reverse.orden_repaso import CandidatoOrden, orden_de_repaso
 from gui.datos_demo import ClipDemo, EstadoDemo
 
 __all__ = [
@@ -232,19 +235,53 @@ class PasoLook:
     look: LUT3D | None
     aplicado_a: tuple[str, ...]
     frase: str
+    #: La biblioteca de presets disponible (día 6, tarea 4), para que la
+    #: pantalla pueda enseñar "elige entre estos" con nombre legible y
+    #: miniatura — nunca con el nombre de archivo. Vacío si no hay biblioteca
+    #: sembrada (p.ej. sin `tests/luts_reales/`, o en el estado de demo).
+    presets_disponibles: tuple[Preset, ...] = ()
+    #: Cuál de `presets_disponibles` es el que está aplicado ahora mismo.
+    #: `None` cuando `look` viene de `estado.look` directamente (sin pasar
+    #: por la biblioteca) o cuando no hay ninguno elegido todavía.
+    preset_elegido: Preset | None = None
 
 
-def ejecutar_look(estado: EstadoDemo) -> PasoLook:
-    if estado.look is None:
+def ejecutar_look(
+    estado: EstadoDemo,
+    *,
+    biblioteca: tuple[Preset, ...] = (),
+    preset_elegido_id: str | None = None,
+) -> PasoLook:
+    """Aplica un look. Si hay `biblioteca` (día 6: sembrada desde los LUTs
+    reales de Mario), elige de ahí — el primero por defecto, o el que diga
+    `preset_elegido_id`; si no, cae al `estado.look` fijo de siempre (el
+    camino que usa `estado_demo()`, sin biblioteca).
+    """
+    preset_elegido: Preset | None = None
+    look = estado.look
+    if biblioteca:
+        preset_elegido = next((p for p in biblioteca if p.id == preset_elegido_id), biblioteca[0])
+        from core.io.cube import leer_cube
+
+        look = leer_cube(preset_elegido.ruta_origen)
+
+    if look is None:
         return PasoLook(look=None, aplicado_a=(), frase="Todavía no hay ningún look elegido.")
-    nombre = estado.look.title or "look"
+
+    nombre = preset_elegido.nombre if preset_elegido is not None else (look.title or "look")
     clip_ids = tuple(c.clip_id for c in estado.clips)
     frase = (
         f"He aplicado el look «{nombre}» a los {len(clip_ids)} clips."
         if clip_ids
         else f"El look «{nombre}» está listo; todavía no hay clips a los que aplicarlo."
     )
-    return PasoLook(look=estado.look, aplicado_a=clip_ids, frase=frase)
+    return PasoLook(
+        look=look,
+        aplicado_a=clip_ids,
+        frase=frase,
+        presets_disponibles=biblioteca,
+        preset_elegido=preset_elegido,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -265,16 +302,51 @@ class PasoRepasar:
 
     Deliberadamente NO usa la confianza de `core.matching`/`core.reverse`:
     el día 4 midió que esa nota no predice el error (`CALIBRACION-CONFIANZA.md`).
-    Usa dos señales que SÍ están medidas y validadas: el desajuste de
-    contenido (§3.3 de ese mismo informe: predice bien "misma escena o no") y
-    los grupos de gestión de color que el paso 1 dejó sin resolver.
+    QUIÉN entra en la lista sigue decidido por dos señales que SÍ están
+    medidas y validadas: el desajuste de contenido (§3.3 de ese mismo
+    informe: predice bien "misma escena o no") y los grupos de gestión de
+    color que el paso 1 dejó sin resolver.
+
+    El ORDEN (día 6) es harina de otro costal: no certifica nada, sólo
+    prioriza. Ver `ejecutar_repasar` y `core.reverse.orden_repaso`.
     """
 
     candidatos: tuple[ClipParaRevisar, ...]
     frase: str
 
 
-def ejecutar_repasar(estado: EstadoDemo, paso_ordenar: PasoOrdenar) -> PasoRepasar:
+def ejecutar_repasar(
+    estado: EstadoDemo,
+    paso_ordenar: PasoOrdenar,
+    *,
+    candidatos_orden: Mapping[str, CandidatoOrden] | None = None,
+) -> PasoRepasar:
+    """Decide QUIÉN entra en la lista (sin cambios: día 5) y en qué ORDEN
+    enseñarla (día 6).
+
+    `candidatos_orden` es opcional y por clip: `core.reverse.orden_repaso`
+    necesita `FeaturesDestino` (cobertura del cubo contra el plano de destino
+    de ESE clip), que sólo existen cuando el look se extrajo por ingeniería
+    inversa (`core.reverse.invertir_grado`/`_lote`) con su `CoverageMap` a
+    mano. Hoy el modo fácil (`gui.datos_demo`) NO pasa por ahí — el paso 4
+    aplica un look ya horneado (`look_de_demostracion`/la biblioteca de
+    presets), sin extracción ni cobertura — así que en la práctica este
+    diccionario llega vacío y el paso cae al orden simple de abajo. Es la
+    misma regla que el resto del módulo: **sólo se automatiza lo que está
+    medido**, y para lo que no lo está, se declara así en vez de fingir.
+
+    Para los clips CON dato (`clip_id` en `candidatos_orden`), el orden que
+    decide `core.reverse.orden_repaso.orden_de_repaso` (calibrado por clase
+    de material; medido en `tests/calibracion_destino/ordenar.py`,
+    `CIFRAS.md` §18: precisión@5 0.40 y precisión@10 0.62-0.63, mejor que el
+    mismo cálculo sin normalizar por clase y que un orden al azar) va
+    PRIMERO, de peor a mejor. Los que no tengan dato van detrás, con el
+    **orden simple y declarado** (no una fórmula compuesta, tal y como pide
+    el encargo cuando no hay señal calibrada que usar): más motivos de
+    revisión primero, y a igualdad de motivos, el orden en que se
+    detectaron. Nunca se muestra ningún número de ninguno de los dos: sólo
+    cambia en qué posición sale cada `ClipParaRevisar`.
+    """
     # Un mismo clip puede caer en las dos señales a la vez (desajuste de
     # contenido Y falta de metadata de cámara): se cuenta una sola vez, con
     # los dos motivos juntos, para que "8 clips" no salga cuando en realidad
@@ -297,6 +369,8 @@ def ejecutar_repasar(estado: EstadoDemo, paso_ordenar: PasoOrdenar) -> PasoRepas
             if estado.por_id(clip_id) is not None:
                 _anadir(clip_id, "falta confirmar de qué cámara es")
 
+    orden = _ordenar_para_repaso(orden, motivos_por_clip, candidatos_orden or {})
+
     candidatos = tuple(
         ClipParaRevisar(clip_id=cid, nombre=estado.por_id(cid).nombre, motivo="; y ".join(motivos_por_clip[cid]))
         for cid in orden
@@ -307,3 +381,20 @@ def ejecutar_repasar(estado: EstadoDemo, paso_ordenar: PasoOrdenar) -> PasoRepas
     else:
         frase = f"Hay {len(candidatos)} clip{'s' if len(candidatos) != 1 else ''} que conviene que mires tú."
     return PasoRepasar(candidatos=candidatos, frase=frase)
+
+
+def _ordenar_para_repaso(
+    clip_ids: list[str],
+    motivos_por_clip: dict[str, list[str]],
+    candidatos_orden: Mapping[str, CandidatoOrden],
+) -> list[str]:
+    """El orden final de la lista de repaso: primero los clips con señal
+    calibrada (`orden_de_repaso`, de peor a mejor), después el resto con el
+    orden simple declarado (más motivos primero; a igualdad, el orden en que
+    `ejecutar_repasar` los fue detectando — `sorted` es estable, así que ese
+    empate no se reordena al azar)."""
+    con_dato = [cid for cid in clip_ids if cid in candidatos_orden]
+    sin_dato = [cid for cid in clip_ids if cid not in candidatos_orden]
+    calibrado = orden_de_repaso([candidatos_orden[cid] for cid in con_dato])
+    simple = sorted(sin_dato, key=lambda cid: -len(motivos_por_clip[cid]))
+    return calibrado + simple

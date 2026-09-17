@@ -379,3 +379,173 @@ extracción por lote con `planos_acumulados` de 1 a 8), 320×180, ΔE2000 de `co
 | ΔE máximo mediana con 1 plano acumulado vs. 8 | 5.07 → 3.56 (cumple 27.0% → 46.0%) | `[CALD tramos planos_acumulados]` | 16-09 |
 | «Alta» reusando `CONFIDENCE_ALTA = 0.75` para la nota candidata (sin `variance_zona`) | cumple **29.2%** de las veces — por eso no se conecta a `confidence_level()` | `[CALD umbral nota] todo, fuera de plano, cobertura+muestras_p10 rampa=200/4` fila `t=0.75` | 16-09 |
 | **Decisión** | **No se conecta a la GUI ni a `core.matching.confianza`.** `confianza_destino.py`, `core/umbrales.py`, `core/matching/confianza.py` y `core/contracts.py` sin tocar | — | 16-09 |
+
+---
+
+## 14 · El formato `.drx`, con material real (día 6)
+
+Diez `.drx` reales de Mario en `tests/powergrades_reales/` (solo lectura, no versionados).
+Detalle completo, con lo confirmado y lo supuesto separado, en
+[`core/io/FORMATO-DRX.md`](core/io/FORMATO-DRX.md). Comando de todas las filas:
+
+```bash
+.venv/bin/python -m pytest tests/test_io_drx.py -v -k reales
+```
+
+| Cifra | Valor | Montaje | Fecha |
+|---|---|---|---|
+| **¿Es XML plano, como suponían los foros?** | **Sí, confirmado en 10 de 10** — pero con nombres de etiqueta (`Gallery::GyStill`) que violan namespaces y que `ElementTree.fromstring()` rechaza | 10 archivos, `file(1)` + parseo con `expat` sin namespaces | 17-09 |
+| Byte de cabecera de `<Body>` | `0x81` en **20 de 20** `<Body>` (2 por archivo) | ídem | 17-09 |
+| ¿El resto de `<Body>` es un frame Zstandard válido? | **Sí, 20 de 20**, descomprime con `zstandard` | ídem | 17-09 |
+| ¿El contenido descomprimido es protobuf válido (wire format)? | **Sí, 20 de 20**, sin ningún campo con `wire_type` desconocido | `core/io/drx_protobuf.py::parsear_mensaje` | 17-09 |
+| Nodos por grado (`pClipFullVer`), los 10 archivos | 2, 2, 2, 3, 4, 4, 5, 5, 18, 22 | `core/io/FORMATO-DRX.md` §3.1 | 17-09 |
+| Archivos con al menos 1 LUT referenciado por ruta de texto | **10 de 10** | ídem | 17-09 |
+| Archivos con 2 LUTs en el mismo grado (conversión + look) | **2 de 10** (`_1.1.1`, `_1.2.1`) | ídem §3.2 | 17-09 |
+| Índice de nodo: ¿1-based por clip? | **No en los 2 archivos de trabajo real** (`_1.38.1`, `_1.52.1`): índices 260-281 consecutivos, no 1-N — SUPUESTO que es un contador global de proyecto | ídem §3.1 | 17-09 |
+| `pTrackVer`, nodos con contenido | **0 de 10** (todos plantilla vacía) | ídem §3.4 | 17-09 |
+| **Avisador de dependencias contra `tests/luts_reales/`** | **9 de 10 archivos: todas las rutas encontradas por nombre.** El único faltante es un LUT de fábrica de Sony (`Sony/SLog3SGamut3.CineToLC-709.cube`), no un LUT propio de Mario | `core/io/FORMATO-DRX.md` §4 | 17-09 |
+
+**Nada de esto estaba adivinado hasta hoy**: el `core/io/drx.py` del día 5 era, a
+propósito, un inspector que no asumía nada. Estas diez filas son lo primero que se
+confirma contra archivos reales.
+
+---
+
+## 15 · Capturas deterministas (día 6, tarea 5)
+
+```bash
+.venv/bin/python -m pytest tests/test_gui_capturas_deterministas.py -v -m ""
+```
+
+| Cifra | Valor | Montaje | Fecha |
+|---|---|---|---|
+| Diferencias entre 2 ejecuciones seguidas de `gui.capturas.generar()` | **0 de ~30 archivos**, comparado por SHA-256 | proceso único | 17-09 |
+| Diferencias con 3 procesos `yes` saturando la CPU en paralelo | **0 de ~30** | misma máquina, con carga | 17-09 |
+| Diferencias con 2 invocaciones de `generar()` corriendo EN PARALELO entre sí | **0 de 31** | dos procesos Python compitiendo por CPU de verdad | 17-09 |
+| Píxeles distintos fuera del carril de navegación, en las 26 capturas del modo avanzado vs. el commit del día 5 | **0 de 26** — toda la diferencia cae dentro de `x < ANCHO_CARRIL` (el botón "Modo fácil" nuevo) | comparación con Pillow, `ImageChops.difference` | 17-09 |
+| Conclusión | Ya era determinista: el "ruido" del día 5 era el botón "Modo fácil" añadido ese día, revertido por error sin comparar a nivel de píxel. No se tocó ni fuente ni antialiasing ni escala. Ver `gui/NOTAS.md` | — | 17-09 |
+
+---
+
+## 16 · Biblioteca de presets y bundle `.sidebcolor` de preset (día 6, tarea 4)
+
+```bash
+.venv/bin/python -m pytest tests/test_io_biblioteca.py -v -k reales
+```
+
+| Cifra | Valor | Montaje | Fecha |
+|---|---|---|---|
+| Presets sembrados desde `tests/luts_reales/` | **79** `.cube` recursivos | `sembrar_desde_carpeta` | 17-09 |
+| Tamaños de rejilla encontrados | 17, 33 y 65 — los tres soportados | ídem | 17-09 |
+| Ida y vuelta del `.cube` dentro de un bundle | **exacta, bit a bit** (`np.array_equal`) | `test_el_viaje_completo_con_un_lut_real` | 17-09 |
+| Preset sembrado desde un `.drx` real con 2 LUTs (`_1.1.1.drx`) | look = `5 (-) BALI GREEN V2`, 1 dependencia declarada (`Sony/SLog3SGamut3.CineToLC-709.cube`) | `sembrar_desde_drx` | 17-09 |
+| Aviso al abrir ese bundle en una "carpeta limpia" (otro equipo) | **1 aviso**, nombrando exactamente el LUT de conversión que no viaja | `test_bundle_desde_drx_real_avisa_al_abrir_en_otro_equipo` | 17-09 |
+
+**El viaje probado de verdad** (punto 3 de la tarea 4): se crea el bundle en un
+`tempfile.mkdtemp()` (una carpeta que no existía antes, "como si fuera otro Mac"), se
+abre desde ahí sin ningún acceso a `tests/luts_reales/`, y el LUT que sale es
+bit a bit idéntico al original. Con un preset que dependía de un segundo LUT no
+incluido, el aviso aparece — no se aplica a medias en silencio.
+
+---
+
+## 17 · `qc_lut()` contra LUT reales (día 6)
+
+Primera vez que el QC de `core/io/qc.py` —hasta hoy sólo probado contra los LUT
+sintéticos de `core/io/lut_malos.py`— se pasa contra material real: 79 `.cube` de
+Mario en `tests/luts_reales/` (carpeta ignorada por git, solo lectura, ~35 en la
+carpeta raíz más subcarpetas de `Osmo D-Log LUTs/`, `Osmo D-Log M LUTs/` y
+`SECRET SAUCE/`). El detalle completo, archivo por archivo, está en
+[`tests/test_io_qc_reales.py`](tests/test_io_qc_reales.py) — el docstring del
+módulo explica el criterio de clasificación conversión/look con el mismo detalle
+que aquí.
+
+```bash
+.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -rA   # 88 tests: 79 por archivo + 9 con cifras agregadas
+```
+
+**El tamaño de fichero supuesto en el encargo (~1,4 MB por archivo de 65³) no era
+exacto**: medido en disco, los `.cube` de 33³ pesan 0,5–0,8 MB y los de 65³,
+7,5–7,6 MB. La conclusión sí era la correcta — hay `.cube` de 65³ de verdad—, pero
+por el tamaño de rejilla que declara cada fichero (`LUT_3D_SIZE`, leído con
+`leer_cube`), no por el peso en disco.
+
+| Cifra | Valor | Comando | Fecha |
+|---|---|---|---|
+| **Tamaño de rejilla de los 79 archivos** | **43 de 33³, 36 de 65³** — ninguno de 17³ | `test_tamanos_de_rejilla_del_material_de_hoy` | 17-09 |
+| **¿`qc_lut()` lanza sobre alguno?** | **No, ninguno de los 79** | `test_qc_no_lanza_sobre_ningun_lut_real` (parametrizado ×79) | 17-09 |
+| **Clasificación conversión / look** (criterio: chroma máxima en una rampa de gris de 17 puntos ≤ 0,015 → conversión; hueco medido real entre 0,0072 y 0,0264, factor 3,7) | **8 conversión, 71 look** | `test_clasificacion_conversion_son_estos_8_y_solo_estos` | 17-09 |
+| **¿Se repite con material real el patrón «banding esperable en LUT de conversión» del día 3?** | **Sí: los 8 LUT de conversión disparan banding.** Y también los 71 «look» — el aviso es prácticamente universal en material real, lo que refuerza que siga sin bloquear | `test_los_8_lut_de_conversion_disparan_banding` | 17-09 |
+| **De los escalones de banding en los 8 LUT de conversión, ¿cuántos están pegados al negro (sombras) y cuántos no (medios)?** | **50 en sombras, 1182 en medios (96%)** — lo CONTRARIO de lo que el texto viejo de `EXPLICACION_MEDIOS` daba a entender (que fuera de sombras era lo raro) | `test_en_los_lut_de_conversion_la_mayoria_del_banding_esta_en_medios_no_en_sombras` | 17-09 |
+| Ejemplo concreto: `DJI Mavic 4 Pro D-Log to Rec.709 V1.cube`, 130 escalones de banding | **los 130 en medios, 0 en sombras** | `test_dji_mavic_4_pro_no_tiene_ni_un_escalon_en_sombras` | 17-09 |
+| **¿Algún LUT real con gamut fuera de rango, NaN/infinito o plano?** | **Ninguno de los 79** — lo único que sale limpio del todo | `test_ningun_lut_real_tiene_gamut_fuera_ni_nan_ni_esta_plano` | 17-09 |
+| **¿Algún LUT real no monótono?** | **76 de 79**, incluidos los 8 manuales de fábrica (DJI, GPLOG). En `core/io/qc.py`, `no_monotonia` es un **ERROR**, no un aviso | `test_no_monotonia_dispara_en_la_mayoria_del_material_real` | 17-09 |
+| Peor caída de monotonía de todo el material | **−0,230** (23% del recorrido 0..1), en las seis variantes de `SECRET SAUCE/A4 MONITOR LUTs V2/SONY Slog3 Monitor LUTs V2/…` | `test_los_peores_no_monotonos_son_estos_seis_archivos_sony` | 17-09 |
+| Caída de monotonía en un manual de fábrica (no un «look»): `DJI Mavic 4 Pro D-Log to Rec.709 V1.cube` | **−0,04249** (~11/255), en 12 celdas — cien veces mayor que el ruido de redondeo de los 6 decimales del fichero (~1e-6) | `test_dji_mavic_4_pro_tiene_una_caida_de_verdad_no_ruido_de_redondeo` | 17-09 |
+
+**Lo que esto cambió en `core/io/qc.py`:** el texto de `EXPLICACION_MEDIOS` (el
+aviso de banding cuando el escalón NO está pegado al negro). Antes daba a entender
+que estar fuera de sombras era señal de que algo iba mal; con material real de
+conversión de espacio de color eso resultó ser lo NORMAL (96% de los escalones),
+no la excepción. Cambio de **texto únicamente**: `UMBRAL_BANDING`,
+`SALTO_MINIMO_BANDING` y `UMBRAL_SOMBRAS` no se han tocado, y siguen marcando
+exactamente las mismas celdas que marcaban ayer (`EXPLICACION_SOMBRAS`, que ya
+decía lo correcto, tampoco se ha tocado).
+
+**Lo que esto NO cambió, y queda pendiente de una decisión que no es de hoy:**
+`no_monotonia` dispara en 76 de los 79 archivos reales, con caídas de hasta 0,230
+—no ruido de redondeo—, y es un **ERROR** en el diseño actual del QC, no un aviso.
+Ni `TOL_MONOTONIA` ni el detector se han tocado: no estaba en el encargo de hoy y
+no soy quien debe arbitrar si el criterio está mal o si son defectos de verdad en
+esos LUT. Se deja medido, con nombre de archivo, para que se decida aparte. Ver
+`BITACORA.md`, entrada del día 6.
+
+---
+
+## 18 · Orden de triaje del paso 5 (día 6): ranking, no calibración
+
+`CALIBRACION-CONFIANZA-DESTINO.md` (día 5) midió que `FeaturesDestino` no llega al 95%
+que hacía falta para CERTIFICAR. Mario decidió que el paso 5 del modo fácil no necesita
+certificar, necesita ORDENAR: de una lista de candidatos, enseñar primero los que más
+conviene mirar. Esto **no es una calibración nueva**: reutiliza las 1.700 filas "fuera de
+plano" que ya midió el día 5 (`tests/calibracion_destino/datos/simple_000_120.csv` +
+`lote_000_100.csv`, sin generar material nuevo) y las mide como un RANKING — precisión@5
+y precisión@10 sobre lotes simulados de 20 candidatos, no como un umbral de "alta".
+
+Montaje: cada fila "fuera de plano" es un candidato (un plano de destino con su
+`FeaturesDestino` y su clase de material real: rejilla × compresión × recorte). Se
+particiona el conjunto en lotes de 20 (20 particiones aleatorias distintas, semilla fija
+— 1.700 lotes en total), y dentro de cada lote se compara el orden que da cada variante
+contra el orden de verdad (ΔE2000 máximo real, de peor a mejor).
+
+```bash
+.venv/bin/python -m tests.calibracion_destino.ordenar               # tablas; filtrar con grep
+.venv/bin/python -m tests.calibracion_destino.ordenar | grep "CALD orden"
+.venv/bin/python -m pytest tests/test_reverse_orden_repaso.py -q    # aritmética del orden, a mano
+```
+
+| Cifra | Valor | Línea de la salida | Fecha |
+|---|---|---|---|
+| **Precisión@5 / @10, orden al azar (referencia)** | 0.250 / 0.500 | `[CALD orden baseline]` | 17-09 |
+| **Precisión@5 / @10, orden INGENUO** (mismas señales, sin normalizar por clase) | 0.373 (±0.185) / 0.609 (±0.110) | `[CALD orden precision] ingenuo` | 17-09 |
+| **Precisión@5 / @10, orden CALIBRADO por clase, informado** (compresión y recorte exactos, como los conoce el arnés de calibración) | **0.400 (±0.188) / 0.623 (±0.110)** | `[CALD orden precision] calibrado_informado` | 17-09 |
+| **Precisión@5 / @10, orden CALIBRADO por clase, desconocido** (sólo `tam_rejilla` — el escenario realista de producción, ver `CONTRATOS.md`/informe final) | **0.400 (±0.185) / 0.629 (±0.108)** — igual o mejor que el "informado" | `[CALD orden precision] calibrado_desconocido` | 17-09 |
+| Comparación PAREADA (mismos 1.700 lotes), calibrado_informado vs. ingenuo, precisión@5 | calibrado gana 451 lotes (26.5%), ingenuo gana 267 (15.7%), empate 982 — diferencia media +0.0261, no es ruido de agregado | `[CALD orden pareado] calibrado_informado vs ingenuo en precision@5]` | 17-09 |
+| Comparación PAREADA, calibrado_informado vs. ingenuo, precisión@10 | calibrado gana 457 (26.9%), ingenuo gana 259 (15.2%), empate 984 — diferencia media +0.0140 | `[CALD orden pareado] calibrado_informado vs ingenuo en precision@10]` | 17-09 |
+| Comparación PAREADA, calibrado_desconocido vs. ingenuo, precisión@5 | calibrado gana 304 (17.9%), ingenuo gana 96 (5.6%), empate 1300 — diferencia media +0.0261 | `[CALD orden pareado] calibrado_desconocido vs ingenuo en precision@5]` | 17-09 |
+| **Decisión** | **Funciona razonablemente para triaje** (muy por encima de azar; consistentemente mejor que el ingenuo, no sólo en el agregado) → se implementa de verdad: `core/reverse/orden_repaso.py` (nuevo), conectado a `gui/asistente_facil.py::ejecutar_repasar` (nuevo parámetro `candidatos_orden`, opcional; con la GUI de demo de hoy, que no extrae LUT por ingeniería inversa, cae al orden simple declarado — ver el módulo) | — | 17-09 |
+
+**Por qué "desconocido" (sólo rejilla) no es peor que "informado" (clase exacta):** no
+es un empate por casualidad — la rejilla explica la mayor parte de la diferencia de escala
+entre clases (medias de `cobertura_destino` de 0.82 en 17³ frente a 0.74 en 33³, ver las
+estadísticas completas en `core/reverse/orden_repaso.py`); compresión y recorte mueven la
+media dentro de esa rejilla, pero menos que la rejilla misma. Es una buena noticia para
+producción: `core.contracts.ClipRef` no lleva códec ni marca de recorte hoy (no se ha
+añadido: ver el informe final del encargo), y la calibración "desconocida" no necesita esa
+información para rendir igual.
+
+**Qué NO se implementó:** `variance_zona` se probó y se descartó de la fórmula de
+puntuación — su signo se invierte dentro de la clase comprimida incluso separando por
+clase (`CALIBRACION-CONFIANZA-DESTINO.md` §3.2/§6.1), así que meterla habría empeorado el
+orden justo en el material más difícil. No hizo falta medirlo aparte para este informe:
+es la misma medición que ya hizo el día 5.

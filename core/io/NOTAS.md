@@ -542,3 +542,109 @@ contra `tests/powergrades_reales/*.drx` (los PowerGrades de verdad de Mario),
 que se saltan solos con `pytest.mark.skipif` mientras esa carpeta —ignorada
 por git, solo lectura— esté vacía. Cuando Mario deje material ahí, ese
 segundo grupo es el que dice si la suposición de foro se sostiene o no.
+
+---
+
+## `drx.py` (día 6) — con material real, deja de ser un inspector a ciegas
+
+Mario dejó diez `.drx` reales. La suposición de foro del día 5 era correcta
+("es XML"), pero incompleta: cada `<Body>` es un blob binario (hex →
+Zstandard → Protocol Buffers sin `.proto` publicado) que el inspector del día
+5 no tocaba. El detalle completo, confirmado-vs-supuesto, vive en
+`core/io/FORMATO-DRX.md`, que es ahora la fuente de verdad de este módulo —
+si algo de aquí y de ese documento discrepa, el documento manda.
+
+**Dos hallazgos que obligaron a rediseñar, no sólo a extender:**
+
+1. **`Gallery::GyStill` no es un nombre XML válido** (dos puntos en un nombre
+   local viola "Namespaces in XML"). `ET.fromstring()` lo rechazaba con "not
+   well-formed", así que `InfoDRX.es_xml` daba `False` en material real que
+   SÍ era XML — un falso negativo que sólo se vio al probar con archivos de
+   verdad, nunca con el XML fabricado del día 5 (que no tenía `::` porque no
+   había ningún `.drx` real del que copiar el patrón). Arreglado con
+   `_parsear_xml_sin_namespaces` (`expat.ParserCreate()` + `TreeBuilder` a
+   mano, sin el `namespace_separator` que `ET.XMLParser` fija por dentro).
+2. **`buscar_rutas_referenciadas` del día 5 buscaba texto en el XML crudo, y
+   eso nunca iba a encontrar nada**: las rutas de LUT viven dentro del blob
+   comprimido de `<Body>`, no como texto plano en ningún sitio del archivo.
+   El módulo entero se reescribió alrededor de eso: `drx_protobuf.py` (wire
+   format genérico, sin `.proto`, reutilizable y probado con mensajes
+   fabricados a mano en `tests/test_io_drx_protobuf.py`) y `leer_grado()`
+   (nodos + rutas de LUT, buscando el texto en TODO el subárbol de cada
+   nodo, no en una ruta de campos fija — ver el porqué en
+   `FORMATO-DRX.md` §3.3).
+
+**Lo que NO se intentó**: escribir el `.proto` completo de Blackmagic
+recíprocamente (nombrar todos los campos, entender los valores de rueda de
+color). No hacía falta para las tareas del día 6 — nodos y rutas de LUT — y
+habría sido trabajo especulativo sobre campos que no se necesitan todavía. Si
+algún día hace falta leer el CDL numérico de un nodo, `drx_protobuf.py` ya
+da el árbol completo; sólo falta identificar qué IDs de parámetro son cuáles,
+con más material de comparación del que hay hoy.
+
+**Dependencia nueva**: `zstandard` (pyproject.toml). Se prefirió sobre
+invocar el binario `zstd` del sistema por subprocess porque es lo único que
+garantiza que el lector funcione igual en el Mac de Mario, en CI, y en
+cualquier máquina que no tenga `zstd` en el `PATH`.
+
+---
+
+## `biblioteca.py` (día 6) — un preset NO es una sesión
+
+Deliberadamente un módulo aparte de `core.io.bundle`, con su propio esquema
+de zip (`preset.json` + `look.cube` + `miniatura.png` opcional), aunque
+comparte la extensión `.sidebcolor`. La alternativa —forzar un preset suelto
+dentro de una `ColorSession` completa, con un solo `MatchResult` de mentira—
+habría sido más confuso: un preset no tiene clips, no tiene análisis, no
+tiene referencia. Es sólo un LUT con procedencia.
+
+**Sí reutiliza las defensas de `bundle.py`** (`_abrir_zip`, `_revisar_zip`,
+`_leer_entrada`, todas con `_` porque son privadas del módulo, importadas
+directamente porque `biblioteca.py` vive en el mismo paquete): zip-slip y
+zip-bomba no se reimplementan con las mismas garantías "a ojo" — es
+literalmente el mismo código probado, no una copia.
+
+**La miniatura nunca es material real.** `generar_miniatura()` aplica el LUT
+de Mario a una escena SINTÉTICA de `tests/media/generate.py` — el mismo
+generador que usa el resto de la app. Es real el LUT, no la imagen.
+
+**`sembrar_desde_drx()` es lo que conecta la tarea 1 (el lector de `.drx`) con
+la tarea 4 (la biblioteca).** Cuando un PowerGrade real trae dos LUTs (el
+caso confirmado en `FORMATO-DRX.md` §3.2: conversión + look), sólo el ÚLTIMO
+—el look— se empaqueta como `look.cube`; el resto queda como
+`dependencias_declaradas` y genera un aviso al abrir el bundle en otro
+equipo. Es una decisión de diseño, no un descubrimiento: se podría haber
+empaquetado la cadena completa (conversión + look) horneada en un solo LUT,
+pero eso sería mentir sobre qué es cada cosa — un look no es una conversión
+de cámara, y mezclarlos en el mismo `.cube` le quita a Mario la posibilidad
+de aplicar el look sobre OTRA cámara distinta.
+
+**Selector de presets en `gui/pantalla_facil.py`**: con los 79 presets reales
+de Mario, mostrar una miniatura renderizada por cada uno habría sido caro y
+no aportaba nada que el antes/después del paso ya no enseñara para el
+elegido — el selector es sólo de nombre.
+
+**Actualización, mismo día**: el agente de la tarea 2 midió y calibró el
+criterio conversión/look sobre las 79 (`core.io.qc.clasificar_lut`, movido de
+su test a producción — 8 conversión, 71 look, mismas cifras). El selector del
+paso 4 ya filtra: la biblioteca que se le pasa a `PantallaFacil` excluye los
+"conversion" ANTES de llegar a `ejecutar_look` (en `gui/__main__.py` y
+`gui/capturas.py`, no dentro de `ejecutar_look` — esa función sigue siendo
+genérica sobre cualquier biblioteca que le pasen, el filtro es cosa de quien
+decide qué biblioteca sembrar para el modo fácil).
+
+**Un bug real que se coló y que cazó el agente de la tarea 3 al ejecutar la
+suite completa (no el suyo — el mío):** la primera versión de
+`_miniatura_a_png`/`_png_a_array` usaba `tempfile.NamedTemporaryFile` para
+convertir entre PNG y array vía `QImage`, y encima importaba `gui.imagen`
+desde `core/io/`. Dos problemas de una vez: `tempfile` en `core/` viola el
+contrato 7 (`tests/revision/test_ola1_limites.py::test_core_no_usa_tempfile...`,
+que existe justo para cazar esto), y `core` importando `gui` invierte la
+dirección de dependencias del proyecto entero. Arreglado con `cv2.imencode`/
+`cv2.imdecode` (OpenCV, ya dependencia del proyecto): todo en memoria, sin
+tocar disco, sin Qt. `exportar_preset` ganó el mismo parámetro
+`crear_directorios=False` que ya tienen `escribir_cube`/`guardar_sesion`, por
+la misma razón (no fabricar carpetas sin que se pida). El inventario de
+`test_ola1_limites.py` se actualizó a propósito (es un test que existe para
+saltar cuando aparece una escritura nueva, no para prohibirla) y se añadió
+`exportar_preset` a la prueba dinámica que fotografía el repo antes/después.

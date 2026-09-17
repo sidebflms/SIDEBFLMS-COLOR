@@ -30,3 +30,4 @@ tests/powergrades_reales/
 # Worktrees y estado de sesion de Claude Code (agentes en background, cachés).
 # No es parte del proyecto.
 .claude/
+tests/luts_reales/

@@ -87,9 +87,11 @@ from .qc import (
     MAX_PROBLEMAS_POR_CODIGO,
     SALTO_MINIMO_BANDING,
     UMBRAL_BANDING,
+    UMBRAL_CHROMA_CONVERSION,
     UMBRAL_SOMBRAS,
     LUTQualityReport,
     ProblemaQC,
+    clasificar_lut,
     qc_lut,
 )
 from .remuestreo import (
@@ -122,6 +124,8 @@ __all__ = [
     "lado_hald",
     # QC
     "qc_lut",
+    "clasificar_lut",
+    "UMBRAL_CHROMA_CONVERSION",
     "LUTQualityReport",
     "ProblemaQC",
     "CODIGO_NO_FINITO",

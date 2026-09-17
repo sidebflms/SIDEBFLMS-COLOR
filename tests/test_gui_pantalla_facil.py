@@ -94,6 +94,60 @@ def test_la_frase_del_paso_1_coincide_con_el_calculo_puro():
     assert p._frase.text() == esperado.frase
 
 
+def test_paso_look_sin_biblioteca_no_muestra_selector():
+    app_qt()
+    p = PantallaFacil(dd.estado_demo())
+    p.siguiente()
+    p.siguiente()
+    p.siguiente()
+    assert p.paso_actual() == "look"
+    assert not p._selector_presets.isVisible()
+
+
+def test_paso_look_con_biblioteca_muestra_selector_y_permite_elegir(tmp_path):
+    from core.contracts import LUT3D
+    from core.io.biblioteca import sembrar_desde_carpeta
+    from core.io.cube import escribir_cube
+
+    lut = LUT3D.identity(3)
+    escribir_cube(lut, tmp_path / "Look Uno.cube")
+    escribir_cube(lut, tmp_path / "Look Dos.cube")
+    biblioteca = tuple(sembrar_desde_carpeta(tmp_path))
+
+    app_qt()
+    p = PantallaFacil(dd.estado_demo(), biblioteca=biblioteca)
+    p.show()
+    for _ in range(3):
+        p.siguiente()
+    assert p.paso_actual() == "look"
+    assert p._selector_presets.isVisible()
+    assert set(p._selector_presets._botones) == {b.id for b in biblioteca}
+
+    otro = next(b for b in biblioteca if b.nombre == "Look Dos")
+    p._elegir_preset(otro.id)
+    assert p._preset_elegido_id == otro.id
+    assert otro.nombre in p._frase.text()
+
+
+def test_selector_se_oculta_fuera_del_paso_look(tmp_path):
+    from core.contracts import LUT3D
+    from core.io.biblioteca import sembrar_desde_carpeta
+    from core.io.cube import escribir_cube
+
+    lut = LUT3D.identity(3)
+    escribir_cube(lut, tmp_path / "Look Uno.cube")
+    biblioteca = tuple(sembrar_desde_carpeta(tmp_path))
+
+    app_qt()
+    p = PantallaFacil(dd.estado_demo(), biblioteca=biblioteca)
+    p.show()
+    for _ in range(3):
+        p.siguiente()
+    assert p._selector_presets.isVisible()
+    p.siguiente()  # pasa a "repasar"
+    assert not p._selector_presets.isVisible()
+
+
 def test_paso_ordenar_no_muestra_ni_un_numero_de_confianza():
     """Regla del encargo: ni ΔE, ni CDL, ni cobertura, ni confianza en pantalla."""
     app_qt()

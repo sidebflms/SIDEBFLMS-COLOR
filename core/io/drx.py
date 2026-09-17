@@ -1,37 +1,35 @@
-"""Inspector de `.drx` (PowerGrades / stills de DaVinci Resolve).
+"""Lector de `.drx` (PowerGrades / stills de DaVinci Resolve).
 
-SIN VERIFICAR CONTRA UN .drx REAL. Blackmagic no publica el formato, y hasta
-hoy sólo hay suposiciones de foro (que es XML). Este módulo NO da por
-confirmada esa suposición: **lee lo que encuentre e informa de ello tal
-cual**, sin mapear a un esquema inventado. La confirmación de verdad —
-estructura exacta, qué nodos trae, qué referencia por ruta en vez de
-incrustar— es la tarea 4 del día 5 y depende de que Mario deje PowerGrades
-reales en `tests/powergrades_reales/` (ver `.gitignore`: esa carpeta nunca se
-versiona, nunca se sobrescribe, nunca se mueve).
+Día 6: con material real de Mario en `tests/powergrades_reales/`, la suposición
+de foro del día 5 ("es XML") se confirmó, y además se pudo desmontar la parte
+que antes era opaca. Todo lo que sigue está marcado como CONFIRMADO (en N de
+los 10 archivos de referencia) o SUPUESTO en `core/io/FORMATO-DRX.md` — léelo
+antes de tocar este módulo, es la fuente de verdad de lo que se sabe.
 
-Mientras esa carpeta esté vacía o no exista, `tests/test_io_drx.py` se salta
-solo (`pytest.mark.skipif`) en vez de fallar o de inventar una verdad.
+RESUMEN DEL FORMATO (detalle completo en FORMATO-DRX.md)
+-----------------------------------------------------------
+Un `.drx` es XML UTF-8 con un elemento raíz `<Gallery::GyStill>` (el `::` en
+el nombre de la etiqueta hace que NO sea XML válido para un parser con
+namespaces estrictos activados — `ElementTree`/`expat` con
+`namespace_separator=None`, que es el valor por defecto en Python, lo
+aceptan igual). Dentro hay metadata plana (`Width`, `Height`, `CreateTime`…)
+y dos elementos `<Body>` (uno en `pClipFullVer`, el grado del clip; otro en
+`pTrackVer`, el grado de pista/track) cuyo contenido es **texto hexadecimal**
+de un blob binario:
 
-QUÉ HACE HOY, EXACTAMENTE
---------------------------
-1. `inspeccionar_drx(ruta)`: intenta parsear el archivo como XML. Si lo es,
-   reporta la etiqueta raíz y, para cada tipo de etiqueta que aparece en el
-   árbol, cuántas veces aparece — un mapa del vocabulario del archivo, no una
-   interpretación de qué significa cada uno. Si NO es XML, lo dice y no
-   lanza: un `.drx` binario tumbaría esta suposición a la primera, y "no sé
-   leerlo" es una respuesta honesta.
-2. `buscar_rutas_referenciadas(ruta)`: sobre el texto crudo del archivo,
-   busca patrones que parezcan una ruta de archivo (algo con `/` o `\\` y una
-   extensión conocida de LUT: `.cube`, `.dctl`, `.3dl`, `.png`, `.tif`, etc.).
-   Es una búsqueda de texto, no una lectura de esquema — la finalidad es sólo
-   el avisador de dependencias (punto 3 de la tarea 4): decir qué archivos
-   externos parece necesitar el PowerGrade, para poder comprobar si existen
-   en la máquina donde se va a aplicar.
-3. `avisar_dependencias_faltantes(ruta, carpetas_busqueda)`: cruza lo que
-   encuentra (2) con el disco, y dice qué rutas referenciadas NO existen en
-   ninguna de las carpetas dadas. Un PowerGrade que referencia un LUT ausente
-   se aplica mal y en silencio (Resolve no avisa); esto es lo que hace que lo
-   diga antes.
+    byte 0            : constante 0x81 en los 10 archivos de referencia
+    bytes 1..         : un frame Zstandard válido
+
+Al descomprimir, el resultado es **Protocol Buffers** sin esquema publicado
+(`core/io/drx_protobuf.py` lo decodifica por wire format, sin `.proto`). Los
+nodos del grafo de color viven en `campo 1 → campo 7 (repetido)`; cada nodo
+lleva un índice (`campo 1` dentro del nodo) que NO es 1-based por clip — es
+un contador global del proyecto (confirmado: los dos `.drx` de un trabajo
+real traen índices 260-281, no 1-N). Las rutas de LUT referenciadas por un
+nodo se buscan como texto entre TODAS las hojas del subárbol de ese nodo
+(`drx_protobuf.hojas_bytes`), sin fijar la ruta de campos exacta hasta la
+ruta — eso es deliberado: es más robusto a que Blackmagic mueva un campo de
+sitio entre builds que fijar 7 niveles de campos anidados.
 """
 
 from __future__ import annotations
@@ -40,56 +38,122 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
+from xml.parsers import expat
+
+import zstandard
+
+from core.io.drx_protobuf import Campo, ErrorProtobuf, campos, hojas_bytes, parsear_mensaje
 
 __all__ = [
     "EXTENSIONES_DEPENDENCIA",
+    "BYTE_CABECERA_BODY",
     "InfoDRX",
+    "NodoDRX",
+    "GradoDRX",
     "inspeccionar_drx",
+    "descomprimir_body",
+    "leer_grado",
     "buscar_rutas_referenciadas",
     "avisar_dependencias_faltantes",
 ]
 
-#: Extensiones que, si aparecen al final de algo que parece una ruta dentro
-#: del `.drx`, cuentan como "posible dependencia externa". Lista abierta a
-#: proposito: mejor un falso positivo (una ruta que en realidad no importa)
-#: que callarse una dependencia real. `.dat` y `.look` se añaden porque
-#: aparecen citados en foros como formatos de PowerGrade auxiliares, SIN
-#: VERIFICAR.
+#: Extensiones que cuentan como "posible dependencia externa" al buscar texto
+#: en las hojas del protobuf. Lista abierta a propósito: mejor un falso
+#: positivo (un string que por casualidad termina en ".cube") que callarse
+#: una dependencia real. Sólo ".cube" y ".dctl" están CONFIRMADAS en material
+#: real (ver FORMATO-DRX.md); el resto son SUPUESTAS por analogía.
 EXTENSIONES_DEPENDENCIA: tuple[str, ...] = (
     ".cube",
-    ".3dl",
     ".dctl",
+    ".3dl",
     ".png",
     ".tif",
     ".tiff",
     ".dpx",
     ".exr",
-    ".dat",
-    ".look",
 )
 
-#: Un fragmento de texto que parece una ruta: al menos un separador de
-#: carpeta y termina en una de las extensiones de arriba. No exige que exista
-#: en disco (eso lo hace `avisar_dependencias_faltantes`).
-_PATRON_RUTA = re.compile(
-    r"[\w./\\ :-]+(?:" + "|".join(re.escape(e) for e in EXTENSIONES_DEPENDENCIA) + r")",
-    re.IGNORECASE,
+#: CONFIRMADO en 20 de 20 `<Body>` (los dos, clip y pista, de los 10 archivos
+#: de referencia): el primer byte del blob es siempre 0x81. No se sabe qué
+#: codifica (¿versión de formato? ¿flag de compresión?) — se documenta como
+#: constante porque de momento es indistinguible de un valor fijo, no porque
+#: se entienda su significado.
+BYTE_CABECERA_BODY: int = 0x81
+
+_PATRON_EXTENSION = re.compile(
+    "(?:" + "|".join(re.escape(e) for e in EXTENSIONES_DEPENDENCIA) + ")$", re.IGNORECASE
 )
 
 
 @dataclass(frozen=True)
 class InfoDRX:
-    """Lo que se ha podido leer de un `.drx`, SIN interpretar su significado."""
+    """Lo que se ha podido leer de la CAPA XML de un `.drx` (sin descomprimir
+    los `<Body>`). Sigue siendo útil para el primer vistazo: `es_xml`,
+    vocabulario de etiquetas, tamaño."""
 
     ruta: str
     es_xml: bool
     tag_raiz: str | None
-    #: Cuenta de cada nombre de etiqueta en todo el árbol (namespace incluido
-    #: tal cual lo da ElementTree), ordenado por frecuencia descendente.
     vocabulario: tuple[tuple[str, int], ...]
     profundidad_maxima: int
     tamano_bytes: int
     advertencias: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class NodoDRX:
+    """Un nodo del grafo de color, tal y como se ha podido leer del protobuf."""
+
+    #: El índice tal cual aparece en el campo 1 del nodo. CONFIRMADO: NO es
+    #: 1-based por clip, es un contador que parece global al proyecto — no lo
+    #: uses para decidir "es el nodo 1/2/3 del diseño de la app" sin más.
+    indice: int
+    #: Rutas de LUT encontradas en el subárbol de este nodo, en el orden en
+    #: que aparecen. Vacío si el nodo no referencia ningún LUT (p.ej. un nodo
+    #: con sólo un CDL numérico).
+    rutas_lut: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class GradoDRX:
+    """El grado de UN `<Body>` (normalmente `pClipFullVer`, el del clip)."""
+
+    nodos: tuple[NodoDRX, ...]
+
+    @property
+    def rutas_lut(self) -> tuple[str, ...]:
+        """Todas las rutas de LUT del grado, de todos los nodos, sin duplicar."""
+        vistas: list[str] = []
+        for nodo in self.nodos:
+            for r in nodo.rutas_lut:
+                if r not in vistas:
+                    vistas.append(r)
+        return tuple(vistas)
+
+
+def _parsear_xml_sin_namespaces(datos: bytes) -> ET.Element:
+    """Como `ET.fromstring(datos)`, pero sin procesar `:` como separador de
+    namespace.
+
+    CONFIRMADO en los 10 archivos de referencia: el `.drx` usa nombres de
+    etiqueta con DOS puntos, como `<Gallery::GyStill>` o
+    `<ListMgt::LmVersion>`. Eso viola las reglas de "Namespaces in XML" (un
+    nombre local no puede contener `:`), y `ET.fromstring()` lo rechaza como
+    "not well-formed" — no porque el archivo esté roto, sino porque
+    `ET.XMLParser` construye internamente su parser `expat` con
+    `namespace_separator` fijado (a diferencia de `expat.ParserCreate()` a
+    secas, cuyo valor por defecto es `None`, es decir, sin procesar
+    namespaces en absoluto). La solución es construir el árbol a mano con
+    `expat.ParserCreate()` + `ET.TreeBuilder`, que es exactamente lo que hace
+    `ET.XMLParser` por dentro salvo por ese único parámetro.
+    """
+    parser = expat.ParserCreate()
+    builder = ET.TreeBuilder()
+    parser.StartElementHandler = builder.start
+    parser.EndElementHandler = builder.end
+    parser.CharacterDataHandler = builder.data
+    parser.Parse(datos, True)
+    return builder.close()
 
 
 def _profundidad(elem: ET.Element) -> int:
@@ -106,19 +170,14 @@ def _contar_etiquetas(elem: ET.Element, contador: dict[str, int]) -> None:
 
 
 def inspeccionar_drx(ruta: str | Path) -> InfoDRX:
-    """Lee `ruta` y describe lo que hay, sin asumir que es un esquema conocido.
-
-    Nunca lanza por un archivo con forma inesperada: un `.drx` real puede no
-    ser XML en absoluto, y esta función existe precisamente para poder decir
-    eso con datos en vez de con una suposición de foro.
-    """
+    """Lee la capa XML de `ruta`. Nunca lanza por forma inesperada."""
     p = Path(ruta)
     datos = p.read_bytes()
     advertencias: list[str] = []
 
     try:
-        raiz = ET.fromstring(datos)
-    except ET.ParseError as exc:
+        raiz = _parsear_xml_sin_namespaces(datos)
+    except expat.ExpatError as exc:
         return InfoDRX(
             ruta=str(p),
             es_xml=False,
@@ -126,7 +185,7 @@ def inspeccionar_drx(ruta: str | Path) -> InfoDRX:
             vocabulario=(),
             profundidad_maxima=0,
             tamano_bytes=len(datos),
-            advertencias=(f"no parsea como XML: {exc}. La suposición de foro (que .drx es XML) no se cumple aquí.",),
+            advertencias=(f"no parsea como XML: {exc}.",),
         )
 
     contador: dict[str, int] = {}
@@ -147,22 +206,88 @@ def inspeccionar_drx(ruta: str | Path) -> InfoDRX:
     )
 
 
-def buscar_rutas_referenciadas(ruta: str | Path) -> tuple[str, ...]:
-    """Fragmentos de texto del archivo que PARECEN una ruta a un recurso externo.
+def descomprimir_body(hex_body: str) -> bytes | None:
+    """El contenido hexadecimal de un `<Body>` -> bytes descomprimidos.
 
-    Búsqueda de texto sobre el contenido crudo (funciona parseé o no como
-    XML): un atributo `path="../LUTs/mirar.cube"` se encuentra igual si el
-    XML tiene una estructura rara. Duplicados eliminados, orden estable.
+    `None` si no tiene la forma esperada (demasiado corto, cabecera distinta
+    de `BYTE_CABECERA_BODY`, o el resto no es un frame Zstandard válido) — se
+    devuelve `None` en vez de lanzar porque un `Body` vacío (`<Body/>`, que sí
+    aparece en material real cuando una versión no tiene grado propio) es un
+    caso normal, no un error.
+    """
+    try:
+        crudo = bytes.fromhex(hex_body)
+    except ValueError:
+        return None
+    if len(crudo) < 2 or crudo[0] != BYTE_CABECERA_BODY:
+        return None
+    try:
+        return zstandard.ZstdDecompressor().decompress(crudo[1:], max_output_size=256 * 1024 * 1024)
+    except zstandard.ZstdError:
+        return None
+
+
+def _rutas_lut_en(msg: tuple[Campo, ...]) -> tuple[str, ...]:
+    vistas: list[str] = []
+    for h in hojas_bytes(msg):
+        if not _PATRON_EXTENSION.search(h.decode("latin-1")):
+            continue
+        try:
+            txt = h.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if txt not in vistas:
+            vistas.append(txt)
+    return tuple(vistas)
+
+
+def leer_grado(datos_descomprimidos: bytes) -> GradoDRX | None:
+    """Bytes ya descomprimidos (ver `descomprimir_body`) -> `GradoDRX`.
+
+    `None` si no parsea como protobuf en absoluto (formato inesperado: dilo,
+    no inventes un grado vacío que parecería "no hay nodos" en vez de "no sé
+    leer esto").
+    """
+    try:
+        msg = parsear_mensaje(datos_descomprimidos)
+    except ErrorProtobuf:
+        return None
+    f1 = campos(msg, 1)
+    if not f1 or not f1[0].es_submensaje:
+        return GradoDRX(nodos=())
+    grafo = f1[0].valor
+    nodos = []
+    for nodo_campo in campos(grafo, 7):
+        if not nodo_campo.es_submensaje:
+            continue
+        nodo_msg = nodo_campo.valor
+        idx_campos = campos(nodo_msg, 1)
+        indice = idx_campos[0].valor if idx_campos and isinstance(idx_campos[0].valor, int) else -1
+        nodos.append(NodoDRX(indice=indice, rutas_lut=_rutas_lut_en(nodo_msg)))
+    return GradoDRX(nodos=tuple(nodos))
+
+
+def buscar_rutas_referenciadas(ruta: str | Path) -> tuple[str, ...]:
+    """Todas las rutas de LUT referenciadas por el `.drx`, del grado de CLIP
+    (`pClipFullVer`, el primer `<Body>`) — que es el que importa para "qué
+    hace falta para aplicar este PowerGrade".
+
+    Si el archivo no tiene la forma esperada (no es XML, no hay `<Body>`, no
+    descomprime, no parsea como protobuf) devuelve una tupla vacía: no lanza,
+    porque "no encontré nada" y "el archivo es raro" son, para quien sólo
+    quiere saber qué archivos hacen falta, la misma respuesta práctica.
     """
     texto = Path(ruta).read_text(encoding="utf-8", errors="replace")
-    vistos: list[str] = []
-    vistos_set: set[str] = set()
-    for m in _PATRON_RUTA.finditer(texto):
-        frag = m.group(0).strip()
-        if frag and frag not in vistos_set:
-            vistos_set.add(frag)
-            vistos.append(frag)
-    return tuple(vistos)
+    cuerpos = re.findall(r"<Body>([0-9a-f]*)</Body>", texto)
+    if not cuerpos:
+        return ()
+    dec = descomprimir_body(cuerpos[0])
+    if dec is None:
+        return ()
+    grado = leer_grado(dec)
+    if grado is None:
+        return ()
+    return grado.rutas_lut
 
 
 def avisar_dependencias_faltantes(
@@ -170,12 +295,13 @@ def avisar_dependencias_faltantes(
 ) -> tuple[str, ...]:
     """De `buscar_rutas_referenciadas`, cuáles no aparecen en ninguna carpeta dada.
 
-    Comprueba dos formas: la ruta tal cual (si es absoluta o relativa al
-    directorio actual) y el nombre de archivo solo, buscado dentro de cada
-    carpeta de `carpetas_busqueda` (recursivo). Un PowerGrade suele
-    referenciar LUTs por ruta relativa a la instalación de Resolve de quien
-    lo grabó, así que comparar sólo el nombre de archivo es lo único robusto
-    entre máquinas distintas.
+    Comprueba dos formas: la ruta tal cual (si es absoluta y existe) y el
+    nombre de archivo solo, buscado recursivamente en cada carpeta. Las rutas
+    que trae el `.drx` son relativas a la carpeta de LUTs de Resolve DE QUIEN
+    LO GRABÓ (CONFIRMADO en material real: `SIDEBFLMS/SECRET SAUCE/A1 SECRET
+    SAUCE LUTs V2/…`), que casi nunca coincide con la estructura de carpetas
+    en la máquina de destino — comparar sólo por nombre es lo único robusto
+    entre dos Mac distintos.
     """
     referencias = buscar_rutas_referenciadas(ruta)
     carpetas = [Path(c) for c in carpetas_busqueda]

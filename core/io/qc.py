@@ -113,6 +113,7 @@ sitio. Así que:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 
@@ -130,6 +131,8 @@ __all__ = [
     "ProblemaQC",
     "LUTQualityReport",
     "qc_lut",
+    "clasificar_lut",
+    "UMBRAL_CHROMA_CONVERSION",
     "CODIGO_NO_FINITO",
     "CODIGO_LUT_PLANO",
     "CODIGO_NO_MONOTONIA",
@@ -169,10 +172,23 @@ EXPLICACION_SOMBRAS = (
 )
 
 #: Y la de un escalón que NO está pegado al negro, que es la que sí pide mirar.
+#:
+#: **Matizada el día 6** contra los `.cube` reales de Mario (`tests/luts_reales/`,
+#: 79 archivos). De los 8 que clasifican como LUT de conversión de espacio de color
+#: (medido: preservan neutro en la rampa de gris, ver `tests/test_io_qc_reales.py`),
+#: los 8 disparan banding, y el 96% de sus escalones (1182 de 1232) caen aquí, en los
+#: medios, no pegados al negro — lo contrario de lo que el texto de antes daba a
+#: entender. O sea que "no está en sombras" no basta por sí solo para sospechar un
+#: defecto: sigue mereciendo un vistazo, pero no la alarma que tenía el texto viejo.
+#: Comando: `.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -k medios`.
 EXPLICACION_MEDIOS = (
     "Este escalón no está pegado al negro, así que no es el achatamiento normal de una gamma "
     "de salida: en los medios una rejilla uniforme suele seguir bien la curva. Merece un "
-    "vistazo a de dónde salió el LUT. Aun así es un aviso, no un error: no bloquea nada."
+    "vistazo a de dónde salió el LUT. Aun así, medido contra LUT reales de conversión de "
+    "espacio de color (tests/luts_reales/, día 6), esto también es frecuente ahí — la mayoría "
+    "de sus escalones caen en los medios, no pegados al negro — así que estar fuera de sombras "
+    "no basta por sí solo para sospechar un defecto. Sigue siendo un aviso, no un error: no "
+    "bloquea nada."
 )
 
 #: Suelo de la mediana de pasos, para no dividir por cero en un LUT plano.
@@ -535,6 +551,46 @@ def _canales_invertidos(table: np.ndarray) -> list[ProblemaQC]:
                 )
             )
     return problemas
+
+
+# ---------------------------------------------------------------------------
+# Clasificación conversión / look (día 6)
+# ---------------------------------------------------------------------------
+
+#: Fracción 0..1 (chroma máxima sobre una rampa de gris de 17 puntos). Por
+#: debajo, se clasifica como conversión de espacio de color; por encima, look.
+#:
+#: Medido el día 6 contra los 79 `.cube` reales de Mario
+#: (`tests/luts_reales/`, ver `tests/test_io_qc_reales.py` y `CIFRAS.md` §17):
+#: los 8 LUT que son manuales de fábrica o de monitor "CLEAN" caen TODOS por
+#: debajo de 0.0072; el siguiente salta a 0.0264 — un factor 3.7 de hueco
+#: real, no un corte a ciegas en mitad de una nube continua. Este valor cae
+#: justo en medio de ese hueco. NO es un criterio calibrado contra un
+#: conjunto de validación con verdad conocida (no la hay para "esto es una
+#: conversión" en el sentido en que sí la hay para ΔE2000): es una medida
+#: razonable, explícita, con el hueco real delante para quien quiera
+#: discutirla.
+UMBRAL_CHROMA_CONVERSION: float = 0.015
+
+_N_RAMPA_CLASIFICACION = 17
+_RAMPA_GRIS_CLASIFICACION = np.linspace(0.0, 1.0, _N_RAMPA_CLASIFICACION)
+_NEUTROS_CLASIFICACION = np.stack(
+    [_RAMPA_GRIS_CLASIFICACION] * 3, axis=-1
+)
+
+
+def clasificar_lut(lut: LUT3D) -> Literal["conversion", "look"]:
+    """¿Este LUT es una conversión de espacio de color, o un look?
+
+    Se mide, no se lee del nombre del archivo: se aplica `lut` a una rampa de
+    gris neutro y se ve cuánto se separan R, G y B a la salida. Un cambio de
+    curva de transferencia + primarios — que es lo que hace una conversión de
+    verdad — preserva el neutro: si entra gris, sale gris. Un "look" con
+    tinte deliberado en sombras o luces no.
+    """
+    salida = lut.apply(_NEUTROS_CLASIFICACION)
+    chroma_maxima = float((salida.max(axis=-1) - salida.min(axis=-1)).max())
+    return "conversion" if chroma_maxima <= UMBRAL_CHROMA_CONVERSION else "look"
 
 
 # ---------------------------------------------------------------------------

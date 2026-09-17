@@ -900,3 +900,43 @@ modo avanzado para el último paso.
   de «igualar» y sólo cambia la frase para hablar de exposición/balance en vez de igualado
   completo. Es honesto (no inventa un cálculo que no existe) pero es una simplificación real,
   documentada aquí para que no se lea como una función separada que no es.
+
+---
+
+## Capturas deterministas (día 6, tarea 5): el problema del día 5 no era el renderizado
+
+El encargo del día 6 daba por hecho que había ruido de renderizado que fijar (fuente,
+antialiasing, escala) porque el día 5 hubo que revertir 16 capturas del modo avanzado que
+"cambiaron sin que se tocara ese código". Antes de tocar nada de eso, se comprobó
+empíricamente — `tests/test_gui_capturas_deterministas.py` genera `capturas/` completa dos
+veces (en directorios temporales, sin tocar el repo) y compara SHA-256 byte a byte.
+
+**Resultado: cero diferencias**, en tres montajes distintos:
+
+1. Dos ejecuciones seguidas, sin nada más corriendo.
+2. Una ejecución con tres procesos `yes` saturando la CPU en paralelo.
+3. **Dos invocaciones de `generar()` corriendo genuinamente en paralelo entre sí**
+   (procesos Python distintos, compitiendo de verdad por CPU) — el escenario más parecido a
+   lo que pasó el día 5, cuando el agente de calibración de la confianza corría en background
+   mientras se regeneraban las capturas.
+
+**La causa real, confirmada a nivel de píxel: no era ruido, era un cambio de diseño real
+que se interpretó mal.** El día 5 se añadió el botón "Modo fácil" al carril de navegación
+(`gui/ventana.py::_carril`), un elemento visible nuevo en TODAS las pantallas del modo
+avanzado. Al comparar hoy, con Pillow, cada una de las 16 capturas «que cambiaron por
+ruido» contra la versión del commit: la diferencia cae siempre, en los 26 archivos del
+modo avanzado, DENTRO del carril (`x < ANCHO_CARRIL = 186`) y nunca fuera — 0 píxeles
+distintos fuera del carril, en los 26. Es decir: las capturas cambiaron exactamente donde
+tenían que cambiar (apareció un botón nuevo) y en ningún otro sitio.
+
+**Conclusión: el día 5 se revirtieron por error 16 capturas que en realidad ya estaban
+bien** — reflejaban correctamente el diseño nuevo — porque se las descartó como "ruido" sin
+comparar a nivel de píxel qué había cambiado. No hubo nunca un problema de renderizado que
+arreglar. Se han vuelto a regenerar hoy y se dejan en el commit del día 6 con el botón
+visible, que es el estado correcto del código actual.
+
+**Qué NO se tocó, y por qué**: no se fijó ninguna semilla de aleatoriedad (ya estaban fijas,
+`tests/media/generate.py` usa `np.random.default_rng(seed)` en todos los sitios), no se forzó
+ningún modo de antialiasing ni se cambió la fuente — no hacía falta, y tocar el renderizado sin
+que haya un problema medido habría sido la misma clase de invención que el resto del proyecto
+evita.

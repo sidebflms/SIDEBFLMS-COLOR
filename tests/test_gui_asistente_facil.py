@@ -7,15 +7,19 @@ paso lee resultados que ya calculó `core.matching`/`core.colormgmt` de verdad.
 
 from __future__ import annotations
 
-from core.contracts import ClipRef
+from core.contracts import CDL, LUT3D, ClipRef, Confidence, GrupoAmbiguo, MatchResult
+from core.resolve import FakeResolve
+from core.reverse.confianza_destino import FeaturesDestino
+from core.reverse.orden_repaso import CandidatoOrden, ClaseMaterial
 from gui.asistente_facil import (
+    PasoOrdenar,
     ejecutar_equilibrar,
     ejecutar_igualar,
     ejecutar_look,
     ejecutar_ordenar,
     ejecutar_repasar,
 )
-from gui.datos_demo import estado_demo, estado_desconectado, estado_vacio
+from gui.datos_demo import ClipDemo, EstadoDemo, estado_demo, estado_desconectado, estado_vacio
 
 # ---------------------------------------------------------------------------
 # Paso 1 — ordenar la casa
@@ -125,6 +129,49 @@ def test_look_sin_clips_no_lanza():
     assert paso.aplicado_a == ()
 
 
+def test_look_con_biblioteca_elige_el_primer_preset_por_defecto(tmp_path):
+    from core.io.biblioteca import sembrar_desde_carpeta
+    from core.io.cube import escribir_cube
+
+    lut = LUT3D.identity(3)
+    escribir_cube(lut, tmp_path / "Mi Preset Real.cube")
+    biblioteca = sembrar_desde_carpeta(tmp_path)
+    assert biblioteca
+
+    estado = estado_demo()
+    paso = ejecutar_look(estado, biblioteca=biblioteca)
+    assert paso.preset_elegido is not None
+    assert paso.preset_elegido.nombre == "Mi Preset Real"
+    assert "Mi Preset Real" in paso.frase
+    assert paso.presets_disponibles == biblioteca
+
+
+def test_look_con_biblioteca_respeta_el_id_elegido(tmp_path):
+    from core.io.biblioteca import sembrar_desde_carpeta
+    from core.io.cube import escribir_cube
+
+    lut = LUT3D.identity(3)
+    escribir_cube(lut, tmp_path / "Look A.cube")
+    escribir_cube(lut, tmp_path / "Look B.cube")
+    biblioteca = sembrar_desde_carpeta(tmp_path)
+    elegido = next(p for p in biblioteca if p.nombre == "Look B")
+
+    estado = estado_demo()
+    paso = ejecutar_look(estado, biblioteca=biblioteca, preset_elegido_id=elegido.id)
+    assert paso.preset_elegido == elegido
+    assert "Look B" in paso.frase
+
+
+def test_look_sin_biblioteca_usa_el_look_fijo_del_estado():
+    """Sin biblioteca (el camino de siempre, `estado_demo()`), el
+    comportamiento no cambia respecto al día 5."""
+    estado = estado_demo()
+    paso = ejecutar_look(estado)
+    assert paso.preset_elegido is None
+    assert paso.presets_disponibles == ()
+    assert paso.look is estado.look
+
+
 # ---------------------------------------------------------------------------
 # Paso 5 — repasar
 # ---------------------------------------------------------------------------
@@ -180,3 +227,149 @@ def test_repasar_vacio_cuando_no_hay_nada_que_mirar():
     paso = ejecutar_repasar(estado, paso_ordenar)
     assert paso.candidatos == ()
     assert "No hay nada" in paso.frase
+
+
+# ---------------------------------------------------------------------------
+# Paso 5 — el ORDEN (día 6): triaje, no certificación.
+#
+# `ejecutar_repasar` sigue decidiendo QUIÉN entra en la lista exactamente
+# igual que el día 5 (los tests de arriba no cambian). Lo que se prueba aquí
+# es el ORDEN: por defecto, el "orden simple declarado" (más motivos
+# primero); y, cuando se le pasan señales de `core.reverse.orden_repaso`
+# (que hoy no existen en `gui.datos_demo`: ver el docstring de
+# `ejecutar_repasar`), el orden calibrado por clase de material.
+# ---------------------------------------------------------------------------
+
+
+def _clip_minimo(clip_id: str, *, content_mismatch: bool, metadata_resuelta: bool) -> ClipDemo:
+    """Un `ClipDemo` barato (sin imagen ni generador de escenas) para probar
+    sólo el ORDEN de `ejecutar_repasar`, sin pagar el coste de `estado_demo()`."""
+    ref = ClipRef(
+        clip_id=clip_id, name=clip_id, track=1, index=1, start_frame=0, end_frame=119,
+        camera_manufacturer="Sony" if metadata_resuelta else None,
+        gamma_notes="S-Log3" if metadata_resuelta else None,
+    )
+    match = MatchResult(
+        cdl=CDL(), lut=None, confidence=Confidence(score=0.5, level="media"),
+        delta_e_before=0.0, delta_e_after=0.0, content_mismatch=content_mismatch,
+    )
+    return ClipDemo(ref=ref, match=match)
+
+
+def _estado_minimo(clips: list[ClipDemo]) -> EstadoDemo:
+    return EstadoDemo(clips=clips, puente=FakeResolve(clips=[c.ref for c in clips]))
+
+
+def _paso_ordenar_con_grupo(clip_ids_pendientes: tuple[str, ...]) -> PasoOrdenar:
+    grupo = GrupoAmbiguo(
+        grupo_id="g1", clip_ids=clip_ids_pendientes,
+        pregunta="¿de qué cámara son estos clips?", sugerencia_espacio=None,
+        frame_muestra_clip_id=None,
+    )
+    return PasoOrdenar(clips_resueltos=(), grupos_pendientes=(grupo,) if clip_ids_pendientes else (),
+                        avisos=(), frase="")
+
+
+def test_repasar_orden_simple_declarado_pone_primero_al_de_mas_motivos():
+    """Sin señal calibrada (el caso de hoy): el orden no es el de aparición,
+    es el de NÚMERO DE MOTIVOS, descendente. `a` tiene metadata resuelta (un
+    solo motivo: desajuste de contenido) y aparece primero en el timeline;
+    `b` no tiene metadata (dos motivos: desajuste Y grupo pendiente) y
+    aparece después. El orden de aparición pondría a `a` primero (se detecta
+    antes); el orden declarado tiene que poner a `b` primero, porque tiene
+    más pegas."""
+    a = _clip_minimo("a", content_mismatch=True, metadata_resuelta=True)
+    b = _clip_minimo("b", content_mismatch=True, metadata_resuelta=False)
+    estado = _estado_minimo([a, b])
+    paso_ordenar = _paso_ordenar_con_grupo(("b",))
+
+    paso = ejecutar_repasar(estado, paso_ordenar)
+
+    assert [c.clip_id for c in paso.candidatos] == ["b", "a"]
+    assert len(next(c for c in paso.candidatos if c.clip_id == "b").motivo.split("; y ")) == 2
+    assert len(next(c for c in paso.candidatos if c.clip_id == "a").motivo.split("; y ")) == 1
+
+
+def test_repasar_a_igualdad_de_motivos_respeta_el_orden_de_deteccion():
+    a = _clip_minimo("a", content_mismatch=True, metadata_resuelta=True)
+    b = _clip_minimo("b", content_mismatch=True, metadata_resuelta=True)
+    estado = _estado_minimo([a, b])
+    paso_ordenar = _paso_ordenar_con_grupo(())
+
+    paso = ejecutar_repasar(estado, paso_ordenar)
+
+    assert [c.clip_id for c in paso.candidatos] == ["a", "b"]
+
+
+def _candidato(clip_id: str, cobertura: float) -> CandidatoOrden:
+    features = FeaturesDestino(
+        cobertura_destino=cobertura, muestras_p10_zona=100.0, muestras_mediana_zona=100.0,
+        variance_zona=0.0, planos_acumulados=1, n_pixeles_destino=1000,
+    )
+    return CandidatoOrden(id=clip_id, features=features,
+                           clase=ClaseMaterial(tam_rejilla=33, compresion=False, recorte=False))
+
+
+def test_repasar_usa_el_orden_calibrado_cuando_hay_senales_de_reverse():
+    """`a` aparece primero en el timeline pero su cobertura es mucho mejor que
+    la de `b`: el orden calibrado tiene que poner a `b` primero (peor), al
+    reves del orden de deteccion, cuando se le pasan las senales."""
+    a = _clip_minimo("a", content_mismatch=True, metadata_resuelta=True)
+    b = _clip_minimo("b", content_mismatch=True, metadata_resuelta=True)
+    estado = _estado_minimo([a, b])
+    paso_ordenar = _paso_ordenar_con_grupo(())
+    candidatos_orden = {"a": _candidato("a", cobertura=0.99), "b": _candidato("b", cobertura=0.10)}
+
+    paso = ejecutar_repasar(estado, paso_ordenar, candidatos_orden=candidatos_orden)
+
+    assert [c.clip_id for c in paso.candidatos] == ["b", "a"]
+
+
+def test_repasar_clips_sin_senal_calibrada_van_detras_de_los_que_si_la_tienen():
+    """`b` no tiene ningun motivo declarado extra (un solo motivo, igual que
+    `a`), pero SI tiene senal calibrada; `c` tiene dos motivos pero ninguna
+    senal calibrada. La senal medida manda sobre el conteo de motivos: `b`
+    va antes que `c`, aunque `c` "parezca" mas urgente por tener mas pegas
+    declaradas."""
+    a = _clip_minimo("a", content_mismatch=True, metadata_resuelta=True)
+    b = _clip_minimo("b", content_mismatch=True, metadata_resuelta=True)
+    c = _clip_minimo("c", content_mismatch=True, metadata_resuelta=False)
+    estado = _estado_minimo([a, b, c])
+    paso_ordenar = _paso_ordenar_con_grupo(("c",))
+    candidatos_orden = {"a": _candidato("a", cobertura=0.99), "b": _candidato("b", cobertura=0.10)}
+
+    paso = ejecutar_repasar(estado, paso_ordenar, candidatos_orden=candidatos_orden)
+
+    ids = [c.clip_id for c in paso.candidatos]
+    assert ids.index("b") < ids.index("c")  # con dato calibrado, antes que cualquiera sin dato
+    assert ids.index("a") < ids.index("c")
+    assert ids == ["b", "a", "c"]
+
+
+def test_repasar_orden_por_defecto_no_cambia_el_caso_de_demostracion():
+    """`candidatos_orden=None` (el valor por defecto, y lo que usa hoy toda la
+    GUI) tiene que dar exactamente lo mismo que no pasar el parametro: no es
+    una migracion silenciosa de comportamiento para quien ya llama a esta
+    funcion sin el parametro nuevo."""
+    estado = estado_demo()
+    paso_ordenar = ejecutar_ordenar(estado)
+    con_valor_explicito = ejecutar_repasar(estado, paso_ordenar, candidatos_orden=None)
+    con_valor_por_defecto = ejecutar_repasar(estado, paso_ordenar)
+    assert con_valor_explicito == con_valor_por_defecto
+
+
+def test_repasar_orden_calibrado_tampoco_menciona_confianza_ni_numeros():
+    """La misma salvaguarda que el resto del paso 5, pero ejercitando el
+    camino CALIBRADO (con `candidatos_orden`), no sólo el simple."""
+    a = _clip_minimo("a", content_mismatch=True, metadata_resuelta=True)
+    b = _clip_minimo("b", content_mismatch=True, metadata_resuelta=True)
+    estado = _estado_minimo([a, b])
+    paso_ordenar = _paso_ordenar_con_grupo(())
+    candidatos_orden = {"a": _candidato("a", cobertura=0.99), "b": _candidato("b", cobertura=0.10)}
+
+    paso = ejecutar_repasar(estado, paso_ordenar, candidatos_orden=candidatos_orden)
+
+    for c in paso.candidatos:
+        assert "confianza" not in c.motivo.lower()
+        assert "%" not in c.motivo
+    assert "confianza" not in paso.frase.lower()

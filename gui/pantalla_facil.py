@@ -26,8 +26,9 @@ ha decidido algo que no se sabe.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
+from core.io.biblioteca import Preset
 from gui import identidad as idn
 from gui.asistente_facil import (
     ID_PASOS,
@@ -67,12 +68,62 @@ class _IndicadorPasos(QWidget):
             r.style().polish(r)
 
 
+class _SelectorPresets(QWidget):
+    """Fila horizontal, con scroll, de chips «Nombre legible» — nunca un
+    nombre de archivo. Uno por preset de la biblioteca (día 6, tarea 4). La
+    miniatura GRANDE del elegido ya la enseña el visor cortinilla del paso
+    (antes/después); aquí sólo hace falta poder ELEGIR entre varios, así que
+    no se renderiza una miniatura por cada chip — con 79 presets reales eso
+    sería mucho coste de render para un selector de texto."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._area = QScrollArea()
+        self._area.setWidgetResizable(True)
+        self._area.setFixedHeight(48)
+        self._area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        contenido = QWidget()
+        self._fila = QHBoxLayout(contenido)
+        self._fila.setContentsMargins(0, 0, 0, 0)
+        self._fila.setSpacing(6)
+        self._fila.addStretch(1)
+        self._area.setWidget(contenido)
+        capa = QVBoxLayout(self)
+        capa.setContentsMargins(0, 0, 0, 0)
+        capa.addWidget(self._area)
+        self._botones: dict[str, QPushButton] = {}
+
+    def poner(self, presets: tuple[Preset, ...], elegido_id: str | None, al_elegir) -> None:
+        for b in self._botones.values():
+            b.setParent(None)
+        self._botones.clear()
+        for preset in presets:
+            b = QPushButton(preset.nombre)
+            b.setObjectName("navegacion")
+            b.setCheckable(True)
+            b.setChecked(preset.id == elegido_id)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(lambda _checked, pid=preset.id: al_elegir(pid))
+            self._fila.insertWidget(self._fila.count() - 1, b)
+            self._botones[preset.id] = b
+        self.setVisible(bool(presets))
+
+
 class PantallaFacil(QWidget):
     """El asistente completo. Se construye una vez por `EstadoDemo`."""
 
-    def __init__(self, estado: EstadoDemo, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        estado: EstadoDemo,
+        parent: QWidget | None = None,
+        *,
+        biblioteca: tuple[Preset, ...] = (),
+    ) -> None:
         super().__init__(parent)
         self._estado = estado
+        self._biblioteca = biblioteca
+        self._preset_elegido_id: str | None = biblioteca[0].id if biblioteca else None
         self._indice = 0
         self._paso_ordenar = None  # cacheado: el paso 5 lo necesita
 
@@ -82,6 +133,10 @@ class PantallaFacil(QWidget):
 
         self._indicador = _IndicadorPasos()
         raiz.addWidget(self._indicador)
+
+        self._selector_presets = _SelectorPresets()
+        self._selector_presets.hide()
+        raiz.addWidget(self._selector_presets)
 
         self._visor = VisorCortinilla()
         raiz.addWidget(self._visor, 1)
@@ -128,6 +183,10 @@ class PantallaFacil(QWidget):
             self._indice -= 1
             self._mostrar_paso(self._indice)
 
+    def _elegir_preset(self, preset_id: str) -> None:
+        self._preset_elegido_id = preset_id
+        self._mostrar_paso(self._indice)
+
     # -- por paso --------------------------------------------------------------
 
     def _clip_con_imagen(self, *, evitar_referencia: bool = False) -> ClipDemo | None:
@@ -156,6 +215,8 @@ class PantallaFacil(QWidget):
         )
         self.boton_siguiente.setEnabled(indice < len(ID_PASOS) - 1)
         self._pregunta.hide()
+        if ID_PASOS[indice] != "look":
+            self._selector_presets.hide()
 
         pid = ID_PASOS[indice]
         if pid == "ordenar":
@@ -191,8 +252,11 @@ class PantallaFacil(QWidget):
                 a_qimage(clip.despues()) if clip else None,
             )
         elif pid == "look":
-            paso = ejecutar_look(self._estado)
+            paso = ejecutar_look(
+                self._estado, biblioteca=self._biblioteca, preset_elegido_id=self._preset_elegido_id
+            )
             self._frase.setText(paso.frase)
+            self._selector_presets.poner(paso.presets_disponibles, self._preset_elegido_id, self._elegir_preset)
             clip = self._clip_con_imagen(evitar_referencia=True)
             despues_look = None
             antes_look = None

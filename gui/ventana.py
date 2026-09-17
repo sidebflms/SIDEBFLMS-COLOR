@@ -60,9 +60,10 @@ ANCHO_CARRIL = 186
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, estado: EstadoDemo | None = None, *,
-                 par_inverso: tuple | None = None, parent=None) -> None:
+                 par_inverso: tuple | None = None, biblioteca: tuple = (), parent=None) -> None:
         super().__init__(parent)
         self._estado = estado if estado is not None else estado_demo()
+        self._biblioteca = biblioteca
         self.setWindowTitle(TITULO)
 
         raiz = QWidget()
@@ -88,7 +89,7 @@ class VentanaPrincipal(QMainWindow):
         self.p_comparar = PantallaComparar(self._estado)
         self.p_aplicar = PantallaAplicar(self._estado)
         self.p_reverse = PantallaReverse(original, coloreado, parches=parches_carta())
-        self.p_facil = PantallaFacil(self._estado)
+        self.p_facil = PantallaFacil(self._estado, biblioteca=self._biblioteca)
         for w in (self.p_clips, self.p_comparar, self.p_aplicar, self.p_reverse, self.p_facil):
             self.pila.addWidget(w)
 

@@ -62,8 +62,8 @@ def _disparar(app: QApplication, ventana: VentanaPrincipal, ruta: Path,
         raise RuntimeError(f"no se ha podido guardar {ruta}")
 
 
-def _ventana(app: QApplication, estado, indice: int, *, par=None) -> VentanaPrincipal:
-    ventana = VentanaPrincipal(estado, par_inverso=par)
+def _ventana(app: QApplication, estado, indice: int, *, par=None, biblioteca=()) -> VentanaPrincipal:
+    ventana = VentanaPrincipal(estado, par_inverso=par, biblioteca=biblioteca)
     ventana.resize(1440, ALTO_NOMINAL)
     ventana.show()
     ventana.ir_a(indice)
@@ -142,6 +142,34 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
     _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
     hechas.append(Captura(fichero.name, "modo fácil sin clips: cada paso lo dice en vez de quedarse en blanco · 1024×900"))
     ventana.close()
+
+    # --- biblioteca de presets (día 6, tarea 4): sólo si hay LUTs reales de
+    # Mario para sembrarla. Si la carpeta no existe (otra máquina, CI), esta
+    # captura concreta se salta en silencio — el resto de `capturas/` no
+    # depende de material real.
+    from core.io.biblioteca import sembrar_desde_carpeta
+
+    carpeta_luts_real = RAIZ / "tests" / "luts_reales"
+    biblioteca_real = (
+        tuple(p for p in sembrar_desde_carpeta(carpeta_luts_real) if p.clasificacion != "conversion")
+        if carpeta_luts_real.is_dir()
+        else ()
+    )
+    if biblioteca_real:
+        ventana = _ventana(app, dd.estado_demo(), 0, biblioteca=biblioteca_real)
+        ventana.boton_modo_facil.setChecked(True)
+        for _ in range(3):  # avanza hasta el paso 4 (look)
+            ventana.p_facil.siguiente()
+        _asentar(app, ventana)
+        fichero = destino / "05-facil-look-biblioteca-1024.png"
+        _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
+        hechas.append(
+            Captura(
+                fichero.name,
+                f"modo fácil, paso 4 (look), biblioteca real de Mario ({len(biblioteca_real)} presets) · 1024×900",
+            )
+        )
+        ventana.close()
 
     # --- casos frontera -------------------------------------------------
     frontera: list[tuple[str, str, int, object, int, int]] = []
