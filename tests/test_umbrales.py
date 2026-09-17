@@ -107,13 +107,26 @@ def test_las_rampas_de_confianza_no_se_movieron():
     assert umbrales.RAMPAS_DE_CONFIANZA == RAMPAS_DE_ORIGEN
 
 
+#: Constantes que NO tienen valor de origen que anotar, cada una por una razón
+#: distinta a "se me olvidó":
+#: - `RAMPAS_DE_CONFIANZA`: es un dict, tiene su propia tabla y su propio test
+#:   (`RAMPAS_DE_ORIGEN`, `test_las_rampas_de_confianza_no_se_movieron`).
+#: - `TOL_MONOTONIA_LOOK` (día 7): nació directamente en `core/umbrales.py`,
+#:   calibrada contra material real — no vino de ningún módulo disperso, así
+#:   que no hay "valor de antes de mudarse" que comprobar. Añadirla a
+#:   `VALORES_DE_ORIGEN` con su propio valor actual no afirmaría nada (sería
+#:   comparar el número consigo mismo); lo honesto es excluirla aquí, con el
+#:   motivo dicho, no fingir una migración que no ocurrió.
+SIN_ORIGEN_QUE_ANOTAR: frozenset[str] = frozenset({"RAMPAS_DE_CONFIANZA", "TOL_MONOTONIA_LOOK"})
+
+
 def test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo():
     """Para que no se pueda añadir un umbral a `core.umbrales` sin anotarlo aquí."""
     assert umbrales.__all__, (
         "no hay nada que comprobar: `core.umbrales.__all__` esta vacio y la resta de abajo "
         "saldria vacia sin mirar nada"
     )
-    faltan = set(umbrales.__all__) - set(VALORES_DE_ORIGEN) - {"RAMPAS_DE_CONFIANZA"}
+    faltan = set(umbrales.__all__) - set(VALORES_DE_ORIGEN) - SIN_ORIGEN_QUE_ANOTAR
     assert not faltan, f"umbrales sin valor de origen anotado: {sorted(faltan)}"
 
 

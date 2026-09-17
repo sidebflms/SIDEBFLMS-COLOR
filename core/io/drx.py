@@ -47,6 +47,7 @@ from core.io.drx_protobuf import Campo, ErrorProtobuf, campos, hojas_bytes, pars
 __all__ = [
     "EXTENSIONES_DEPENDENCIA",
     "BYTE_CABECERA_BODY",
+    "VERSIONES_RESOLVE_CONFIRMADAS",
     "InfoDRX",
     "NodoDRX",
     "GradoDRX",
@@ -55,6 +56,8 @@ __all__ = [
     "leer_grado",
     "buscar_rutas_referenciadas",
     "avisar_dependencias_faltantes",
+    "version_resolve",
+    "advertencia_version_desconocida",
 ]
 
 #: Extensiones que cuentan como "posible dependencia externa" al buscar texto
@@ -80,9 +83,72 @@ EXTENSIONES_DEPENDENCIA: tuple[str, ...] = (
 #: se entienda su significado.
 BYTE_CABECERA_BODY: int = 0x81
 
+#: CONFIRMADO en 10 de 10 archivos de referencia: la segunda línea del
+#: archivo es un comentario XML `<!--DbAppVer="X.Y.Z.NNNN" DbPrjVer="N"-->`
+#: con la versión de Resolve que lo escribió. Los diez son de la misma
+#: versión — no hay ningún archivo de referencia de otra versión con el que
+#: comprobar si el protobuf cambia de forma entre versiones.
+_PATRON_VERSION_RESOLVE = re.compile(r'<!--DbAppVer="([^"]*)"')
+
+#: Versiones de Resolve para las que este lector se ha comprobado contra
+#: material real (los 10 archivos de `tests/powergrades_reales/`, ver
+#: FORMATO-DRX.md). El formato del `<Body>` es protobuf SIN esquema
+#: publicado (`core/io/drx_protobuf.py`) — los números de campo son estables
+#: dentro de una build pero Blackmagic no promete que lo sigan siendo entre
+#: versiones. Cualquier versión fuera de este conjunto es una incógnita: el
+#: lector puede seguir funcionando bien (protobuf suele ser aditivo) o puede
+#: estar leyendo campos que ya no significan lo mismo, en silencio. Añade
+#: una versión aquí sólo después de confirmarla contra un `.drx` real de esa
+#: versión, nunca por suposición.
+VERSIONES_RESOLVE_CONFIRMADAS: frozenset[str] = frozenset({"21.1.0.0017"})
+
 _PATRON_EXTENSION = re.compile(
     "(?:" + "|".join(re.escape(e) for e in EXTENSIONES_DEPENDENCIA) + ")$", re.IGNORECASE
 )
+
+
+def version_resolve(ruta: str | Path) -> str | None:
+    """La versión de Resolve (`DbAppVer`) que escribió `ruta`, leída del
+    comentario de cabecera del XML. `None` si no se encuentra — no lanza:
+    no encontrarlo no es un archivo roto, es simplemente "no se sabe qué lo
+    escribió", y quien llama decide qué hacer con esa incertidumbre.
+    """
+    try:
+        cabecera = Path(ruta).read_text(encoding="utf-8", errors="replace")[:512]
+    except OSError:
+        return None
+    m = _PATRON_VERSION_RESOLVE.search(cabecera)
+    return m.group(1) if m else None
+
+
+def advertencia_version_desconocida(version: str | None) -> str | None:
+    """El aviso a mostrar para `version` (de `version_resolve`), o `None` si
+    no hace falta avisar.
+
+    Avisa, no bloquea (regla de `CONTRATOS.md`, día 7): un `.drx` de una
+    versión nunca vista puede seguir leyéndose bien, pero si Resolve movió
+    algún número de campo del protobuf entre versiones, el resultado sería
+    un dato con FORMA plausible y VALOR incorrecto — leer mal en silencio,
+    el peor fallo posible aquí. Que decida con esta información quien use el
+    dato, no este módulo.
+    """
+    if version is None:
+        return (
+            "no se ha podido leer qué versión de Resolve escribió este archivo "
+            "(falta el comentario de cabecera con DbAppVer) — se interpreta con "
+            "el mismo lector que el resto, sin garantía de que la estructura del "
+            "grado coincida."
+        )
+    if version not in VERSIONES_RESOLVE_CONFIRMADAS:
+        confirmadas = ", ".join(sorted(VERSIONES_RESOLVE_CONFIRMADAS))
+        return (
+            f"escrito por Resolve {version}, una versión nunca comprobada contra "
+            f"material real (sólo está confirmada {confirmadas}) — el formato del "
+            "grado es protobuf sin esquema publicado y los campos podrían haberse "
+            "movido entre versiones; los datos leídos podrían ser plausibles y "
+            "estar equivocados."
+        )
+    return None
 
 
 @dataclass(frozen=True)
@@ -97,6 +163,9 @@ class InfoDRX:
     vocabulario: tuple[tuple[str, int], ...]
     profundidad_maxima: int
     tamano_bytes: int
+    #: Versión de Resolve (`DbAppVer`) que escribió el archivo, o `None` si
+    #: no se encontró el comentario de cabecera. Ver `version_resolve`.
+    version_resolve: str | None = None
     advertencias: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -195,6 +264,11 @@ def inspeccionar_drx(ruta: str | Path) -> InfoDRX:
     if len(datos) == 0:
         advertencias.append("el archivo está vacío.")
 
+    version = version_resolve(p)
+    aviso_version = advertencia_version_desconocida(version)
+    if aviso_version is not None:
+        advertencias.append(aviso_version)
+
     return InfoDRX(
         ruta=str(p),
         es_xml=True,
@@ -202,6 +276,7 @@ def inspeccionar_drx(ruta: str | Path) -> InfoDRX:
         vocabulario=vocabulario,
         profundidad_maxima=_profundidad(raiz),
         tamano_bytes=len(datos),
+        version_resolve=version,
         advertencias=tuple(advertencias),
     )
 

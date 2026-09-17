@@ -188,6 +188,60 @@ Lo cazó una auditoría independiente al día siguiente, no el que lo escribió.
 
 ---
 
+## Ningún umbral nuevo sin verlo contra material real — añadida el día 7
+
+**Ningún umbral se da por bueno hasta verlo contra material real. Hasta entonces, avisa,
+pero no bloquea.**
+
+«Verlo contra material real» quiere decir exactamente eso: pasarlo por LUTs, PowerGrades,
+fotogramas o clips que sean de un trabajo de verdad de Mario — nunca por
+`core/io/lut_malos.py`, `tests/media/generate.py` ni `tests/calibracion*`, que son
+ejemplos fabricados **a propósito para fallar**. Un umbral calibrado sólo contra eso ha
+pasado el examen que él mismo se puso.
+
+### De dónde sale esta regla
+
+Es la lección de tres hallazgos seguidos, todos con la misma forma:
+
+1. **Día 2 — la MAD del detector de viñeta.** El estimador robusto se tragaba la viñeta
+   como si fuera línea base, porque una MAD está pensada para ignorar valores atípicos y
+   una viñeta afecta a casi todos los píxeles del cuadro: era el estadístico equivocado
+   para ese campo, no un número mal puesto.
+2. **Día 3/6 — el umbral de banding.** Medido contra los 79 `.cube` reales de Mario el
+   día 6 (y re-verificado el día 7): dispara en **79 de 79**. Estaba decidido a conciencia
+   desde el día 1 (marca la gamma de salida como banding porque es verdad que se desvía
+   11/255 de la curva que dice representar), así que no era una sorpresa — pero confirma
+   que "calibrado sólo contra ejemplos sintéticos" y "dispara siempre en material real"
+   van juntos más de lo que parecía casualidad.
+3. **Día 6 — la monotonía.** `TOL_MONOTONIA` (un ERROR, no un aviso) dispara en **76 de
+   79** LUTs reales, incluidos manuales de fábrica de DJI. Ahí sí sorprendió, y sigue sin
+   arreglarse: es una decisión que no le toca a quien sólo mide.
+
+**Tres veces, no dos.** La auditoría completa del día 7 sobre las 44 constantes de
+`core/umbrales.py` confirma el patrón para todo lo que se pudo poner delante de material
+real: de 8 umbrales medibles hoy (los de `core/io/qc.py`, el tamaño de rejilla, y
+`TOL_MONOTONIA_LOOK` calibrada desde cero contra la misma distribución real), los 3 que
+son criterios de "esto está mal" dispararon sistemáticamente contra material limpio y
+profesional; los que sólo comprueban "esto no está roto del todo" (gamut, LUT plano) no —
+y ni siquiera calibrar `TOL_MONOTONIA_LOOK` desde cero contra la distribución real (en vez
+de heredar un valor viejo) logró que la mayoría del material real pasara limpio, ver
+`CIFRAS.md` §19. Los otros 36 —`core/matching`, `core/reverse`, `core/analysis`— siguen
+sin poderse ver contra material real porque necesitan metraje de vídeo (brutos + máster),
+que no existe todavía. Ver `CIFRAS.md` §19-20 y `BITACORA.md`, entrada del día 7.
+
+### Por qué «avisa, pero no bloquea»
+
+Un umbral sin verificar puede estar bien. La regla no dice "no lo uses": dice "no dejes
+que decida solo, en silencio, sin que nadie sepa que nunca se ha visto contra un caso
+real". Por eso los tres hallazgos de arriba se han dejado medidos y con nombre, no
+arreglados de un plumazo por quien los mide — arreglar y medir en el mismo movimiento es
+exactamente cómo se cuela un número que no es (ver la regla de las cifras, arriba). La
+decisión de qué hacer con un umbral que dispara siempre contra material real —cambiarlo,
+dejarlo como aviso legítimo, o rediseñar el detector— es aparte, y no la toma quien sólo
+audita.
+
+---
+
 ## Tests que pasan en vacío — añadido el día 4
 
 **Un test que no comprueba nada da verde, y el verde miente.** Van tres en este proyecto:

@@ -404,3 +404,112 @@ def test_cambiar_el_umbral_de_sombras_no_cambia_lo_que_se_detecta():
         informe = qc_lut(_gamma_de_salida(size))
         assert informe.metricas["escalones_de_banding"] == 3.0, size
         assert informe.metricas["celdas_con_banding"] == 3.0 * size * size, size
+
+
+# ---------------------------------------------------------------------------
+# `clasificacion=` (día 7): monotonía por clase. Sólo mecánica — el VALOR de
+# `TOL_MONOTONIA_LOOK` se calibra aparte contra material real, ver
+# `CIFRAS.md` y `BITACORA.md` del día 7.
+# ---------------------------------------------------------------------------
+
+
+def test_sin_clasificacion_el_comportamiento_no_cambia():
+    """`clasificacion=None` (el valor por defecto) tiene que dar EXACTAMENTE
+    lo mismo que antes de que existiera el parámetro: nadie que ya llamaba a
+    `qc_lut(lut)` puede ver cambiar el resultado por esto."""
+    roto = lut_no_monotono(17, caida=0.02)
+    con_none = qc_lut(roto, clasificacion=None)
+    sin_parametro = qc_lut(roto)
+    assert con_none.problemas == sin_parametro.problemas
+    assert CODIGO_NO_MONOTONIA in con_none.codigos()
+
+
+def test_clasificacion_conversion_es_igual_de_estricta_que_sin_clasificacion():
+    roto = lut_no_monotono(17, caida=0.02)
+    con_conversion = qc_lut(roto, clasificacion="conversion")
+    sin_parametro = qc_lut(roto)
+    assert con_conversion.problemas == sin_parametro.problemas
+
+
+def test_clasificacion_look_usa_una_tolerancia_distinta_y_parametrizable():
+    """No se fija el valor calibrado de TOL_MONOTONIA_LOOK aquí — sólo que el
+    parámetro `tol_monotonia_look` de `qc_lut` es el que de verdad decide,
+    para un LUT clasificado como "look". Con una tolerancia mayor que la
+    caída real, el defecto deja de marcarse; con una menor, sigue marcado."""
+    roto = lut_no_monotono(17, caida=0.02)
+    informe_laxo = qc_lut(roto, clasificacion="look", tol_monotonia_look=0.05)
+    assert CODIGO_NO_MONOTONIA not in informe_laxo.codigos()
+
+    informe_estricto = qc_lut(roto, clasificacion="look", tol_monotonia_look=0.005)
+    assert CODIGO_NO_MONOTONIA in informe_estricto.codigos()
+
+
+def test_clasificacion_look_no_toca_los_demas_detectores():
+    """El parámetro sólo mueve la tolerancia de monotonía: un LUT con banding
+    o gamut fuera de rango los sigue disparando igual, esté clasificado como
+    sea."""
+    con_banding = lut_con_banding(17)
+    informe_conversion = qc_lut(con_banding, clasificacion="conversion")
+    informe_look = qc_lut(con_banding, clasificacion="look")
+    assert CODIGO_BANDING in informe_conversion.codigos()
+    assert CODIGO_BANDING in informe_look.codigos()
+
+
+# ---------------------------------------------------------------------------
+# Segunda ronda de tests de mecánica, escrita por el agente que calibró el
+# valor real de `TOL_MONOTONIA_LOOK` (día 7) — cobertura independiente del
+# mismo mecanismo, no duplicado: usa `lut_no_monotono(eje=...)` explícito y
+# comprueba además que `clasificacion` no se cuela en el aviso de banding
+# cuando los dos defectos conviven en el mismo LUT, en canales distintos.
+#
+# Las cifras de aquí (0.03 de caída, tol_monotonia=0.02, tol_monotonia_look=
+# 0.05/0.005) son ejemplos ARBITRARIOS elegidos sólo para que el mecanismo se
+# vea con margen a los dos lados: no son el valor real calibrado. Ese vive en
+# `core.umbrales.TOL_MONOTONIA_LOOK`, medido contra material real y explicado
+# en `tests/test_io_qc_reales.py` y `CIFRAS.md` §19.
+# ---------------------------------------------------------------------------
+
+
+def test_sin_clasificacion_o_conversion_se_comporta_igual_que_antes():
+    """`clasificacion=None` (el valor por defecto, el de siempre) y
+    `clasificacion="conversion"` usan `tol_monotonia`, ni un poco de
+    `tol_monotonia_look`. Los tres informes -sin pasar `clasificacion`,
+    pasando `None` a propósito y pasando "conversion"- salen IDÉNTICOS."""
+    lut = lut_no_monotono(17, eje=0, caida=0.03)
+    sin_clasificar = qc_lut(lut, tol_monotonia=0.02)
+    con_none = qc_lut(lut, clasificacion=None, tol_monotonia=0.02)
+    con_conversion = qc_lut(lut, clasificacion="conversion", tol_monotonia=0.02)
+    assert CODIGO_NO_MONOTONIA in sin_clasificar.codigos()
+    assert sin_clasificar.problemas == con_none.problemas
+    assert sin_clasificar.problemas == con_conversion.problemas
+
+
+def test_clasificacion_look_usa_tol_monotonia_look_y_no_tol_monotonia():
+    """El mismo LUT (una caída de 0.03) sólo con `clasificacion="look"`:
+    con `tol_monotonia_look=0.05` (más ancho que la caída) NO se caza, y con
+    `tol_monotonia_look=0.005` (más estrecho) SÍ. `tol_monotonia=0.02` viaja
+    en las dos llamadas y no cambia nada: en la rama "look" no se usa."""
+    lut = lut_no_monotono(17, eje=0, caida=0.03)
+    relajado = qc_lut(lut, clasificacion="look", tol_monotonia=0.02, tol_monotonia_look=0.05)
+    estricto = qc_lut(lut, clasificacion="look", tol_monotonia=0.02, tol_monotonia_look=0.005)
+    assert CODIGO_NO_MONOTONIA not in relajado.codigos(), relajado.resumen()
+    assert CODIGO_NO_MONOTONIA in estricto.codigos()
+
+
+def test_clasificacion_solo_toca_monotonia_y_ningun_otro_detector():
+    """Un LUT con banding Y una caída de monotonía a la vez (en canales
+    distintos, para que no se pisen): cambiar `clasificacion` no mueve ni una
+    coma del aviso de banding, sólo decide si aparece `no_monotonia`."""
+    tabla = np.asarray(lut_con_banding(17, eje=1, salto=0.3).table, dtype=np.float64).copy()
+    # Hundimiento de 0.03 en el canal rojo (eje 0), que `lut_con_banding` deja
+    # intacto porque su escalón vive en el eje 1 (verde): los dos defectos no
+    # se pisan.
+    tabla[8:, :, :, 0] = np.minimum(tabla[8:, :, :, 0], tabla[7, :, :, 0] - 0.03)
+    lut = LUT3D(table=np.clip(tabla, 0.0, 1.0).astype(np.float32))
+
+    estricto = qc_lut(lut, tol_monotonia=0.02)
+    relajado = qc_lut(lut, clasificacion="look", tol_monotonia=0.02, tol_monotonia_look=0.05)
+
+    assert estricto.por_codigo(CODIGO_BANDING) == relajado.por_codigo(CODIGO_BANDING)
+    assert CODIGO_NO_MONOTONIA in estricto.codigos()
+    assert CODIGO_NO_MONOTONIA not in relajado.codigos()

@@ -214,3 +214,78 @@ def test_bundle_desde_drx_real_avisa_al_abrir_en_otro_equipo(tmp_path: Path):
     abierto = abrir_preset(destino)
     assert len(abierto.avisos) == 1
     assert "SLog3SGamut3" in abierto.avisos[0]
+
+
+@pytestmark_luts
+@pytestmark_drx
+def test_siembra_desde_drx_real_version_confirmada_no_avisa():
+    """Día 7, tarea 4: los .drx de referencia son de una versión de Resolve
+    ya comprobada, así que sembrar de ellos no debe llevar aviso de versión."""
+    ruta_drx = _CARPETA_DRX / "Still 2026-09-17 102835_1.1.1.drx"
+    if not ruta_drx.exists():
+        pytest.skip("no está el .drx de referencia con doble LUT")
+    resultado = sembrar_desde_drx(ruta_drx, _CARPETA_LUTS)
+    assert resultado is not None
+    preset, _lut = resultado
+    assert preset.advertencias == ()
+
+
+def test_siembra_desde_drx_de_version_desconocida_avisa(tmp_path: Path):
+    """Día 7, tarea 4: un `.drx` fabricado con un `DbAppVer` que el lector
+    nunca ha visto contra material real tiene que sembrar un `Preset` con el
+    aviso puesto, no leer las rutas de LUT como si nada."""
+    import zstandard
+
+    from core.io.cube import escribir_cube
+    from core.io.drx import BYTE_CABECERA_BODY
+
+    def _varint(v: int) -> bytes:
+        out = bytearray()
+        while True:
+            byte = v & 0x7F
+            v >>= 7
+            if v:
+                out.append(byte | 0x80)
+            else:
+                out.append(byte)
+                return bytes(out)
+
+    def _campo_bytes(numero: int, datos: bytes) -> bytes:
+        return _varint((numero << 3) | 2) + _varint(len(datos)) + datos
+
+    def _campo_varint(numero: int, valor: int) -> bytes:
+        return _varint((numero << 3) | 0) + _varint(valor)
+
+    ruta_lut = "mi_look.cube"
+    nodo = _campo_varint(1, 1) + _campo_bytes(9, _campo_bytes(1, ruta_lut.encode()))
+    grafo = _campo_bytes(7, nodo)
+    protobuf = _campo_bytes(1, grafo)
+    comprimido = zstandard.ZstdCompressor().compress(protobuf)
+    body_hex = (bytes([BYTE_CABECERA_BODY]) + comprimido).hex()
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!--DbAppVer="99.9.9.9999" DbPrjVer="17"-->
+<Gallery::GyStill DbId="00000000-0000-0000-0000-000000000000">
+ <pClipFullVer>
+  <ListMgt::LmVersion DbId="00000000-0000-0000-0000-000000000001">
+   <Body>{body_hex}</Body>
+  </ListMgt::LmVersion>
+ </pClipFullVer>
+ <pTrackVer>
+  <ListMgt::LmVersion DbId="00000000-0000-0000-0000-000000000002">
+   <Body></Body>
+  </ListMgt::LmVersion>
+ </pTrackVer>
+</Gallery::GyStill>
+"""
+    ruta_drx = tmp_path / "prueba.drx"
+    ruta_drx.write_text(xml, encoding="utf-8")
+
+    carpeta_luts = tmp_path / "luts"
+    carpeta_luts.mkdir()
+    escribir_cube(_lut_de_prueba(), carpeta_luts / ruta_lut)
+
+    resultado = sembrar_desde_drx(ruta_drx, carpeta_luts)
+    assert resultado is not None
+    preset, _lut = resultado
+    assert len(preset.advertencias) == 1
+    assert "99.9.9.9999" in preset.advertencias[0]

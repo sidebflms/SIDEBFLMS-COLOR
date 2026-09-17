@@ -480,7 +480,7 @@ por el tamaño de rejilla que declara cada fichero (`LUT_3D_SIZE`, leído con
 | Ejemplo concreto: `DJI Mavic 4 Pro D-Log to Rec.709 V1.cube`, 130 escalones de banding | **los 130 en medios, 0 en sombras** | `test_dji_mavic_4_pro_no_tiene_ni_un_escalon_en_sombras` | 17-09 |
 | **¿Algún LUT real con gamut fuera de rango, NaN/infinito o plano?** | **Ninguno de los 79** — lo único que sale limpio del todo | `test_ningun_lut_real_tiene_gamut_fuera_ni_nan_ni_esta_plano` | 17-09 |
 | **¿Algún LUT real no monótono?** | **76 de 79**, incluidos los 8 manuales de fábrica (DJI, GPLOG). En `core/io/qc.py`, `no_monotonia` es un **ERROR**, no un aviso | `test_no_monotonia_dispara_en_la_mayoria_del_material_real` | 17-09 |
-| Peor caída de monotonía de todo el material | **−0,230** (23% del recorrido 0..1), en las seis variantes de `SECRET SAUCE/A4 MONITOR LUTs V2/SONY Slog3 Monitor LUTs V2/…` | `test_los_peores_no_monotonos_son_estos_seis_archivos_sony` | 17-09 |
+| Peor caída de monotonía de todo el material | **−0,315** (31,5% del recorrido 0..1), en `Jota_lut_fitz.cube`; las siguientes cinco peores (hasta −0,220) son variantes de `SECRET SAUCE/A4 MONITOR LUTs V2/SONY Slog3 Monitor LUTs V2/…`. Cifra corregida el día de la sesión de seguimiento — ver el bug del `break` en §19 | `test_los_peores_no_monotonos_son_jota_lut_fitz_y_cinco_sony` | 17-09, corregida después |
 | Caída de monotonía en un manual de fábrica (no un «look»): `DJI Mavic 4 Pro D-Log to Rec.709 V1.cube` | **−0,04249** (~11/255), en 12 celdas — cien veces mayor que el ruido de redondeo de los 6 decimales del fichero (~1e-6) | `test_dji_mavic_4_pro_tiene_una_caida_de_verdad_no_ruido_de_redondeo` | 17-09 |
 
 **Lo que esto cambió en `core/io/qc.py`:** el texto de `EXPLICACION_MEDIOS` (el
@@ -493,12 +493,13 @@ exactamente las mismas celdas que marcaban ayer (`EXPLICACION_SOMBRAS`, que ya
 decía lo correcto, tampoco se ha tocado).
 
 **Lo que esto NO cambió, y queda pendiente de una decisión que no es de hoy:**
-`no_monotonia` dispara en 76 de los 79 archivos reales, con caídas de hasta 0,230
-—no ruido de redondeo—, y es un **ERROR** en el diseño actual del QC, no un aviso.
-Ni `TOL_MONOTONIA` ni el detector se han tocado: no estaba en el encargo de hoy y
-no soy quien debe arbitrar si el criterio está mal o si son defectos de verdad en
-esos LUT. Se deja medido, con nombre de archivo, para que se decida aparte. Ver
-`BITACORA.md`, entrada del día 6.
+`no_monotonia` dispara en 76 de los 79 archivos reales, con caídas de hasta 0,315
+(cifra corregida — ver el bug del `break` en §19) —no ruido de redondeo—, y es un
+**ERROR** en el diseño actual del QC, no un aviso. Ni `TOL_MONOTONIA` ni el
+detector se han tocado: no estaba en el encargo de hoy y no soy quien debe
+arbitrar si el criterio está mal o si son defectos de verdad en esos LUT. Se deja
+medido, con nombre de archivo, para que se decida aparte. Ver `BITACORA.md`,
+entrada del día 6.
 
 ---
 
@@ -549,3 +550,156 @@ puntuación — su signo se invierte dentro de la clase comprimida incluso separ
 clase (`CALIBRACION-CONFIANZA-DESTINO.md` §3.2/§6.1), así que meterla habría empeorado el
 orden justo en el material más difícil. No hizo falta medirlo aparte para este informe:
 es la misma medición que ya hizo el día 5.
+
+---
+
+## 19 · `TOL_MONOTONIA_LOOK` — monotonía relajada para LUT de "look" (día 7)
+
+El hallazgo sin resolver de §17: `no_monotonia` (un ERROR) dispara en 76 de los 79 `.cube`
+reales, incluidos manuales de fábrica DJI. Mario decidió la causa: la monotonía diagonal
+estricta es correcta para un LUT de **conversión** de espacio de color (tiene que subir
+siempre en la dirección tonal), pero no para un **look** (una emulación de película
+retrocede un canal a propósito: eso es el look, no un fallo). Encargo de hoy: medir la
+distribución real de reversiones en los 71 LUT "look" y fijar `TOL_MONOTONIA_LOOK` con esa
+medida — sin dejar de cazar los LUT rotos a propósito de T4.
+
+```bash
+.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -rA   # incluye la sección 4, día 7
+```
+
+| Cifra | Valor | Comando | Fecha |
+|---|---|---|---|
+| **Distribución de reversiones en los 71 LUT "look"** (magnitud de cada caída de monotonía diagonal, TODOS los ejes, sin recorte) — percentiles sobre las 2.270.401 reversiones individuales medidas | mediana 0,000183 · p90 0,00499 · p95 0,0111 · p99 0,0417 · máximo 0,315 | `test_distribucion_de_reversiones_en_luts_look` | 17-09 |
+| **Peor reversión POR ARCHIVO** (71 LUT look, el salto más grande de cada uno) | mediana **0,028** · sólo 2 de 71 sin ninguna reversión | `test_distribucion_de_reversiones_en_luts_look` | 17-09 |
+| **El techo duro que no se cruza**: `lut_no_monotono` (catálogo de T4) usa `caida=0.01` por defecto; el test T4 real (`test_T4_caza_un_lut_no_monotono`) construye el suyo con `caida=0.02` | `TOL_MONOTONIA_LOOK = 0.005` deja **2x de margen** bajo 0,01 y **4x** bajo 0,02; el punto exacto donde deja de cazar está en 0,005 (no caza) → 0,006 (sí caza) | `test_tol_monotonia_look_sigue_cazando_los_luts_rotos_de_t4_con_margen` | 17-09 |
+| **¿Cuántos de los 71 LUT "look" reales quedan limpios de `no_monotonia` con `TOL_MONOTONIA_LOOK`?** | **Sólo 8 de 71 (11%)**. Los otros 63 (89%) SIGUEN disparando: su peor caída real (mediana 0,028/archivo) es mayor que el techo que protege a T4 (0,01) | `test_tol_monotonia_look_limpia_solo_8_de_71_luts_look` | 17-09 |
+| **`no_monotonia` en los 79 archivos, con clasificación automática** (`clasificar_lut()` decide conversión/look y esa clasificación se usa en `qc_lut()`) — comparado con 76/79 de §17 (regla de ayer, estricta para todos) | **70 de 79** (antes 76 de 79): 7/8 conversión (sin cambio, tolerancia estricta) + 63/71 look (antes 69/71 con la misma tolerancia estricta) | `test_no_monotonia_con_clasificacion_automatica_baja_de_76_a_70_de_79` | 17-09 |
+| LUT real "look" con la reversión más grande de TODO el material (conversión + look) | **`Jota_lut_fitz.cube`, −0,315** (31,5% del recorrido 0..1, eje azul) — ahora reflejado también en §17, tras corregir el bug de abajo | `test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz` | 17-09 |
+
+**El valor fijado, y por qué no es más alto.** `TOL_MONOTONIA_LOOK = 0.005` en
+`core/umbrales.py`. Cae cerca del p90 de la distribución pooled (0,00499) y dentro del
+margen exigido frente al LUT roto de T4 (2x/4x). **No se puede subir más sin dejar de cazar
+`lut_no_monotono(caida=0.01)`**, que es el techo duro del encargo. Comprobado a mano y con
+test (`test_tol_monotonia_look_sigue_cazando_los_luts_rotos_de_t4_con_margen`): con
+`caida=0.01` y `caida=0.02` `CODIGO_NO_MONOTONIA` sigue apareciendo con clasificación
+"look"; el punto exacto donde deja de cazar es 0,005.
+
+**La tensión, sin disimular: la hipótesis de Mario es conceptualmente correcta pero no
+resuelve el problema en material real.** El hueco entre "reversión normal de un look" (la
+mitad de los 71 archivos tiene su peor salto por ENCIMA de 0,028, casi tres veces el techo
+de 0,01) y "techo que protege el LUT roto de T4" (0,01) **no es un hueco limpio** como el de
+`UMBRAL_CHROMA_CONVERSION` (factor 3,7 sin solape): es una zona gris de verdad, donde
+cualquier tolerancia que no rompa T4 sólo limpia un 11% de los LUT look reales (8 de 71). Ir
+más allá de 0,01 arreglaría más archivos pero dejaría de cazar `lut_no_monotono(caida=0.01)`
+— es decir, relajaría de más, exactamente lo que el encargo prohibía. **No hay un umbral
+único que absorba la monotonía "normal de un look" real Y siga protegiendo el LUT roto de
+T4.** Esto no es una decisión que corresponda arbitrar aquí: se deja medido, con la tensión
+explícita, para que Mario decida si hace falta un criterio más fino que una sola tolerancia
+global (por ejemplo, algo sensible a CUÁNTAS celdas o qué fracción del LUT retrocede, no
+sólo a la magnitud de la peor).
+
+**Bug real encontrado al medir el día 7, CORREGIDO en la sesión de seguimiento:**
+`core/io/qc.py::_monotonia()` cortaba el bucle de los tres ejes en cuanto la lista de
+problemas llegaba a `MAX_PROBLEMAS_POR_CODIGO` (20). En un LUT con miles de reversiones ya
+en el primer eje procesado —la mayoría del material real de hoy— los ejes siguientes NUNCA
+se examinaban, y `metricas["celdas_no_monotonas"]` / `metricas["peor_caida_monotonia"]`
+salían más pequeños que la realidad: **67 de los 79 archivos reales estaban afectados**.
+Nunca cambió QUÉ se detecta (`no_monotonia` sale en `codigos()` en cuanto el primer eje con
+problemas se procesa, antes del corte) — sólo la magnitud que se enseña. **Consecuencia
+concreta: la cifra "peor caída de monotonía de todo el material: −0,230, en las seis
+variantes SONY" de §17 (día 6) no era la peor real.** `Jota_lut_fitz.cube` (clasificado
+"look") tiene una reversión real de −0,315 en el eje azul; antes del fix, `qc_lut()` cortaba
+antes de llegar a ese eje y reportaba −0,180 (el peor del eje rojo, que se procesa primero)
+— por eso no aparecía entre "los 6 peores" de §17.
+
+**El fix, de una línea:** borrar el `break` redundante al final del bucle de
+`_monotonia()`. La línea anterior (`idx = np.argwhere(mal)[: MAX_PROBLEMAS_POR_CODIGO -
+len(problemas)]`) ya acota cuántos `ProblemaQC` se añaden a la lista pública por presupuesto
+restante, así que quitar el `break` no cambia qué problemas se enseñan ni si `no_monotonia`
+se detecta — sólo hace que `total` y `peor` se acumulen sobre los tres ejes en vez de cortar
+en el primero que llena el cupo. §17 se actualizó con la cifra corregida (−0,315), y
+`test_los_peores_no_monotonos_son_estos_seis_archivos_sony` (día 6) se renombró a
+`test_los_peores_no_monotonos_son_jota_lut_fitz_y_cinco_sony` para reflejarla; ver
+`BITACORA.md`, entrada D7-7.
+
+**LUT real "look" que vale la pena nombrar a Mario aparte de la estadística:**
+`Jota_lut_fitz.cube` (65³, en la raíz de `tests/luts_reales/`). Su peor reversión real
+(−0,315, 31,5% del recorrido 0..1) es la mayor de TODO el material, muy por encima de las
+seis variantes SONY que hasta hoy parecían "las peores". Puede ser una elección de diseño
+del look (un viraje de tono muy fuerte) o puede ser un archivo con un problema real —esta
+medición no puede distinguir las dos cosas, y es justo el tipo de caso donde el clasificador
+conversión/look (que tiene un hueco medido, no una certeza) puede estar ocultando un LUT que
+de verdad está roto detrás de la etiqueta "look".
+
+---
+
+## 20 · Auditoría completa de `core/umbrales.py` contra material real (día 7)
+
+Mario venía viendo el mismo patrón repetirse tres veces —la MAD del detector de viñeta
+(día 2), el umbral de banding (día 3/6) y la monotonía (día 6)— y pidió una auditoría
+**de las 43 constantes** de `core/umbrales.py`, una por una: ¿se ha visto alguna vez
+contra material real, o sólo contra ejemplos sintéticos fabricados para fallar? El
+detalle de cada constante, con su etiqueta, vive ahora en el propio comentario de
+`core/umbrales.py` (buscar `AUDITORÍA DÍA 7`). Esto es el resumen con cifras.
+
+**No se ha tocado `TOL_MONOTONIA_LOOK` ni `core/io/qc.py::_monotonia`**: otro agente
+trabajaba eso en paralelo hoy mismo. Tampoco se ha tocado ningún valor — sólo comentarios,
+`CIFRAS.md`, `CONTRATOS.md` y `BITACORA.md`.
+
+### El resumen
+
+| Categoría | Cuántas | Cuáles |
+|---|---|---|
+| **VALIDADO CON MATERIAL REAL** | **7** | `UMBRAL_BANDING`, `SALTO_MINIMO_BANDING`, `UMBRAL_SOMBRAS`, `TOL_GAMUT`, `UMBRAL_RECORRIDO_LUT_PLANO`, `TOL_MONOTONIA`, `LUT_SIZE_DEFAULT` (parcial) |
+| **SOLO SINTÉTICO** | **0** | — todo lo que era de `core/io` y sólo se había visto contra `core/io/lut_malos.py` se pasó hoy por los 79 `.cube` reales y se movió a validado |
+| **NO VALIDABLE TODAVÍA** | **36** | el resto: `core/matching`, `core/reverse`, `core/analysis`, `DELTA_E_INDISTINGUIBLE` y los dos límites de entrega (T1/T3) |
+
+**Por qué la línea se traza justo ahí**: los 7 validados son, literalmente, los únicos
+umbrales de `core/umbrales.py` que deciden algo sobre un `.cube` o un `.drx` en sí mismos
+(`core/io/qc.py` y el tamaño de rejilla de `core/io/cube.py`). Los 36 restantes deciden
+sobre PARES DE FOTOGRAMAS o CLIPS reales —ingeniería inversa, emparejamiento, huella,
+piel—, y eso necesita metraje de vídeo (brutos + máster) que no existe en el material de
+hoy. Pasarlos por los 79 `.cube` o los 10 `.drx` no demostraría nada sobre lo que deciden;
+inventar un montaje sintético nuevo para colarlos como "validados" sería justo el error
+que este encargo pide evitar.
+
+### Los 7 movidos o confirmados hoy, con su cifra
+
+Todos re-verificados hoy, 17-09, con el mismo comando (79 archivos, carpeta ignorada por
+git, sólo lectura):
+
+```bash
+.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -rA
+```
+
+| Umbral | Cifra sobre los 79 `.cube` reales | Fecha |
+|---|---|---|
+| `UMBRAL_BANDING` + `SALTO_MINIMO_BANDING` | **dispara en 79 de 79** (8 LUT de conversión + 71 "look") — el mismo patrón que viñeta/monotonía | 17-09 |
+| `UMBRAL_SOMBRAS` | de los escalones de los 8 LUT de conversión: **50 en sombras, 1182 en medios (96%)** — cambió el TEXTO del aviso en `core/io/qc.py`, no este número | 17-09 |
+| `TOL_GAMUT` | **0 de 79** con valores fuera de gamut — cero falsos positivos | 17-09 |
+| `UMBRAL_RECORRIDO_LUT_PLANO` | **0 de 79** marcados como `lut_plano` — cero falsos positivos | 17-09 |
+| `TOL_MONOTONIA` | `no_monotonia` (ERROR) **dispara en 76 de 79**, incluidos 8 manuales de fábrica DJI; peor caída real **−0.230**. Mismo patrón que banding/viñeta. **No tocado**: es la tarea del agente en paralelo | 17-09 |
+| `LUT_SIZE_DEFAULT` | **43 de 79 son 33³, 36 son 65³**, ninguno 17³ — 33³ es tan habitual en LUTs reales como 65³. **No valida** el argumento de cobertura del cubo al invertir un grado (eso necesita footage real) | 17-09 |
+
+**El patrón de Mario, puesto a prueba con el barrido completo:** de los 7 umbrales que SÍ
+se pudieron poner delante de material real, los 3 que son "esto está mal" (banding,
+monotonía, y antes la MAD de viñeta del día 2) **disparan de forma sistemática contra
+material real limpio y profesional**. Los otros 4 (gamut, plano, y parcialmente el tamaño
+de rejilla) resistieron intactos. **Se confirma el patrón para lo que se pudo medir**, pero
+no se ha podido extender a los 36 restantes por falta de metraje de vídeo — sigue siendo
+una sospecha razonable para ellos, no una medida.
+
+### Por qué los 36 restantes no se pudieron mover (ejemplos, no lista completa — está en
+### `core/umbrales.py`)
+
+| Módulo | Umbrales (ejemplos) | Qué haría falta |
+|---|---|---|
+| `core/reverse` (diagnóstico, invertir, lote, alineado) | `UMBRAL_REPRODUCIBLE_PURO`, `UMBRAL_R2_RADIAL`, `UMBRAL_TEXTURA`, `MUESTRAS_MINIMAS_CELDA`, `UMBRAL_DISCREPANCIA_LOTE`… (21 en total) | Brutos + máster reales de un trabajo de Mario, para poder invertir un grado de verdad y comparar contra el original — no existe hoy: sólo hay LUTs y `.drx` ya terminados, no las imágenes de origen |
+| `core/matching` (contenido, confianza) | `CONFIDENCE_ALTA`, `CONFIDENCE_MEDIA`, `UMBRAL_HUELLA`, `UMBRAL_DESAJUSTE`… (9 en total) | Pares de clips reales de Mario (mismo plano en cámaras distintas, o el mismo trabajo emparejado) |
+| `core/analysis` (stats) | `FRACCION_PIEL_MINIMA`, `PIXELES_PIEL_MINIMOS`, `UMBRAL_NEUTRA_TOTAL` | Fotogramas reales con piel y reparto de color, es decir vídeo |
+| Base perceptual | `DELTA_E_INDISTINGUIBLE` | La MÉTRICA ya está validada contra Sharma et al. (§2); el umbral perceptual en sí necesitaría grado real aplicado a footage de Mario bajo su compresión/monitor |
+| Criterios de entrega | `LIMITE_T1_DELTA_E_MAXIMO`, `LIMITE_T3_DELTA_E_PEOR_PAR` | Son objetivos del encargo del día 1, no medidas; comprobarlos necesita ejecutar T1/T3 sobre footage real, y hoy sólo se han medido con escenas sintéticas (días 1-4) |
+
+**Decisión explícita, para no arbitrar de más:** ninguno de estos 36 se ha "dado por
+bueno" ni se ha tocado. Quedan como estaban, marcados `NO VALIDABLE TODAVÍA` con la razón
+concreta en su propio comentario de `core/umbrales.py`.

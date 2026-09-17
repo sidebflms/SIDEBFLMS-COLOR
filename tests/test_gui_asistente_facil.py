@@ -110,6 +110,24 @@ def test_equilibrar_frase_cambia_segun_el_cdl():
     assert len(frases) > 1
 
 
+def test_equilibrar_frase_bien_formada_cuando_solo_corrige_balance():
+    """Día 7, tarea 5: leído el paso 3 seguido se ve que con offset ~0 pero
+    slope desviado la frase se quedaba en "En «X» corregido el balance de
+    color." — sin el "he" conjugado, no es pasado concreto, es un fragmento
+    sin verbo. El "he" tiene que estar delante SIEMPRE, salte lo que salte."""
+    ref = ClipRef(clip_id="c1", name="Clip Balance", track=1, index=1, start_frame=0, end_frame=119)
+    cdl = CDL(slope=(1.05, 0.98, 0.97), offset=(0.0, 0.0, 0.0), power=(1.0, 1.0, 1.0))
+    match = MatchResult(
+        cdl=cdl, lut=None, confidence=Confidence(score=0.5, level="media"),
+        delta_e_before=0.0, delta_e_after=0.0, content_mismatch=False,
+    )
+    clip = ClipDemo(ref=ref, match=match)
+    paso = ejecutar_equilibrar(clip)
+    assert abs(paso.exposicion_ev_aprox) <= 0.05
+    assert paso.balance_desviacion > 0.01
+    assert paso.frase == "En «Clip Balance» he corregido el balance de color."
+
+
 # ---------------------------------------------------------------------------
 # Paso 4 — look
 # ---------------------------------------------------------------------------
@@ -210,6 +228,21 @@ def test_repasar_no_usa_la_palabra_confianza_en_sus_motivos():
         assert "%" not in c.motivo
 
 
+def test_repasar_frase_no_promete_mas_de_lo_medido():
+    """Día 7, tarea 3: precisión@5 = 0.40 frente a 0.25 de azar (CIFRAS.md
+    §18) es una mejora sobre el azar, no una certificación. La frase no
+    puede decir "son los peores" ni "tienen problemas" (eso afirmaría que se
+    sabe cuáles son malos), sino algo del tipo "estos los miraría yo"."""
+    estado = estado_demo()
+    paso_ordenar = ejecutar_ordenar(estado)
+    paso = ejecutar_repasar(estado, paso_ordenar)
+    assert paso.candidatos  # el caso de demo tiene candidatos de sobra
+    frase_min = paso.frase.lower()
+    for prohibido in ("los peores", "tienen problemas", "están mal", "son malos"):
+        assert prohibido not in frase_min, f"la frase promete de más: {paso.frase!r}"
+    assert "miraría" in frase_min
+
+
 def test_repasar_no_duplica_un_clip_con_dos_motivos():
     """El exterior de `estado_demo()` tiene desajuste de contenido Y (al no
     llevar metadata de cámara) también cae en un grupo pendiente del paso 1:
@@ -226,7 +259,9 @@ def test_repasar_vacio_cuando_no_hay_nada_que_mirar():
     paso_ordenar = ejecutar_ordenar(estado)
     paso = ejecutar_repasar(estado, paso_ordenar)
     assert paso.candidatos == ()
-    assert "No hay nada" in paso.frase
+    # NO "todo está medido": sólo se han comprobado dos señales concretas.
+    assert "medido" not in paso.frase.lower()
+    assert "todo" not in paso.frase.lower()
 
 
 # ---------------------------------------------------------------------------

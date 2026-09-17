@@ -1196,3 +1196,296 @@ de verdad si algún día aparece.
    (aplica un look ya horneado). Conectar los dos caminos, si tiene sentido, queda para
    otra sesión.
 6. Todo lo que ya estaba sin resolver de días anteriores y no se ha tocado hoy.
+
+---
+---
+
+# DÍA 7 — 17 de septiembre de 2026
+
+No llegó el resultado del probe (F0-7/F0-8), así que la tarea A (gestión de color de
+verdad contra Resolve) se saltó entera, sin simular nada — el encargo lo pedía así.
+Empezó por la tarea 1, decidida por Mario: `no_monotonia` dispara en 76 de 79 LUT reales
+porque la comprobación estaba mal para un look, no el material — partirla por clase de
+LUT (conversión/look) delegando en un agente limpio la calibración de la tolerancia
+relajada, mientras un segundo agente auditaba en paralelo el resto de `core/umbrales.py`
+contra el mismo material real (Mario venía viendo el mismo patrón repetirse tres veces:
+la MAD de viñeta del día 2, el banding del día 3/6, la monotonía del día 6). Las tareas 3,
+4 y 5 (confianza como triaje, versiones de `.drx`, recorrido completo del modo fácil) se
+hicieron en la sesión principal.
+
+## D7-1 · `TOL_MONOTONIA_LOOK`: medido, y la hipótesis no resuelve lo que parecía
+
+El hallazgo sin resolver de D6-2: `no_monotonia` (un ERROR) dispara en 76 de los 79 `.cube`
+reales. Mario decidió la causa ayer: la monotonía diagonal estricta es correcta para un LUT
+de **conversión** de espacio de color, pero no para un **look** (una emulación de película
+retrocede un canal a propósito — eso es el look, no un fallo). Encargo de hoy: medir la
+distribución real de reversiones en los 71 LUT "look" (`clasificar_lut`, medido D6-2) y
+fijar una tolerancia relajada sin dejar de cazar los LUT rotos a propósito de T4. Cifras
+completas en `CIFRAS.md` §19.
+
+**El valor fijado**: `TOL_MONOTONIA_LOOK = 0.005` en `core/umbrales.py`, usado por
+`core.io.qc.qc_lut(lut, clasificacion="look")` (parámetro `clasificacion`, mismo
+detector `_monotonia` para las dos clases, sólo cambia qué tolerancia se le pasa). Deja 2x
+de margen bajo el techo duro de T4 (`lut_no_monotono(caida=0.01)` por defecto) y 4x bajo la
+caída real del test T4 (0.02) — comprobado a mano y con test
+(`tests/test_io_qc_reales.py::test_tol_monotonia_look_sigue_cazando_los_luts_rotos_de_t4_con_margen`),
+sin tocar el criterio de si algo se detecta como error, sólo cuánto se le perdona.
+
+**La tensión, sin disimular**: con ese valor, sólo **8 de los 71 LUT "look" reales (11%)**
+quedan limpios de `no_monotonia`. Los otros 63 (89%) siguen disparando, porque su peor
+caída real (mediana **0,028 por archivo**, casi tres veces el techo de 0,01 que protege a
+T4) es mayor que cualquier tolerancia que no rompa T4. Con clasificación automática
+(`clasificar_lut()` decide conversión/look y esa clasificación se usa en `qc_lut()`), el
+material real pasa de **76/79 a 70/79** disparando `no_monotonia` — una mejora real, pero
+pequeña. **La hipótesis de Mario es conceptualmente correcta y no se puede relajar más sin
+dejar de proteger T4: el hueco entre "reversión normal de un look" y "techo que protege el
+LUT roto de T4" no es un hueco limpio como el de `UMBRAL_CHROMA_CONVERSION` (factor 3,7 sin
+solape), es una zona gris de verdad.** No es una decisión que corresponda arbitrar aquí — se
+deja medido, con la tensión explícita: si hace falta arreglar esto de verdad, probablemente
+no sea con una sola tolerancia global, sino con algo sensible a cuánto o cuánta fracción del
+LUT retrocede.
+
+**Un bug real encontrado al medir, y NO corregido**: `core/io/qc.py::_monotonia()` corta el
+bucle de los tres ejes en cuanto la lista de problemas llega a `MAX_PROBLEMAS_POR_CODIGO`
+(20). En 67 de los 79 archivos reales eso significa que los ejes siguientes de esa LUT nunca
+se examinan, y `celdas_no_monotonas`/`peor_caida_monotonia` salen más pequeños que la
+realidad (no cambia QUÉ se detecta, sólo la magnitud que se enseña). Consecuencia concreta:
+la cifra de D6-2/`CIFRAS.md` §17 "peor caída de todo el material: −0,230, en las seis
+variantes SONY" **no es la peor real** — `Jota_lut_fitz.cube` (clasificado "look") tiene una
+reversión real de −0,315 (31,5% del recorrido 0..1, eje azul), oculta porque `qc_lut()`
+corta antes de llegar a ese eje. No se ha tocado `_monotonia()`: es la función que las
+restricciones de hoy piden no tocar salvo bug real, y corregirla cambiaría el resultado de
+un test de día 6 ajeno a este encargo (`test_los_peores_no_monotonos_son_estos_seis_archivos_sony`).
+Se deja medido y con nombre de archivo
+(`tests/test_io_qc_reales.py::test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz`).
+
+**Nombre para Mario, aparte de la estadística**: `Jota_lut_fitz.cube` tiene la reversión más
+grande de TODO el material real (−0,315), por delante de las seis variantes SONY que hasta
+hoy parecían las peores. Puede ser una elección de diseño del look o puede ser un archivo
+con un problema real de verdad — esta medición no distingue las dos cosas, y es justo el
+caso donde el clasificador conversión/look (que tiene un hueco medido, no una certeza) puede
+estar escondiendo un LUT roto detrás de la etiqueta "look".
+
+Tests: mecánica del parámetro nuevo en `tests/test_io_qc.py` (valores arbitrarios de
+ejemplo, no la cifra calibrada); cifras reales y el bug en `tests/test_io_qc_reales.py`
+(sección 4). `tests/test_io_qc.py`, `tests/test_io_qc_reales.py` y `tests/test_entregables.py`
+pasan enteros.
+
+Al fusionar con D7-2 (la suite completa, no sólo la parte de esta tarea), `TOL_MONOTONIA_LOOK`
+puso roja `tests/test_umbrales.py::test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo`: ese
+test exige que TODA constante de `core/umbrales.py` tenga un "valor de origen" anotado (el
+valor que tenía en su módulo disperso ANTES de centralizarse). `TOL_MONOTONIA_LOOK` nació
+directamente aquí, calibrada hoy — no vino de ningún sitio disperso, así que no hay
+migración que comprobar. Arreglado añadiéndola a `SIN_ORIGEN_QUE_ANOTAR` con el motivo
+dicho, no inventando un "valor de origen" que sería comparar el número consigo mismo.
+
+## D7-2 · Auditoría completa de `core/umbrales.py`: 8 validadas, 0 sólo-sintéticas, 36 sin poder verse todavía
+
+En paralelo a D7-1, un segundo agente auditó las 43 constantes que había ANTES de fusionar
+D7-1 (44 con `TOL_MONOTONIA_LOOK` sumada al fusionar los dos trabajos, ver abajo) contra
+los dos montones de material real de hoy (79 `.cube`, 10 `.drx`, los dos de sólo lectura),
+sin tocar `TOL_MONOTONIA_LOOK` ni `core/io/qc.py::_monotonia` — eso era D7-1, en paralelo.
+Cada constante lleva ahora una etiqueta `AUDITORÍA DÍA 7` en su propio comentario de
+`core/umbrales.py`, visible sin tener que leer nada más. Resumen y cifras en `CIFRAS.md`
+§20; la regla que deja esto escrita, en `CONTRATOS.md`.
+
+**7 se pudieron mover a VALIDADO CON MATERIAL REAL** (u confirmar, si ya lo estaban de
+facto por el trabajo del día 6): los seis umbrales de `core/io/qc.py` (`UMBRAL_BANDING`,
+`SALTO_MINIMO_BANDING`, `UMBRAL_SOMBRAS`, `TOL_GAMUT`, `UMBRAL_RECORRIDO_LUT_PLANO`,
+`TOL_MONOTONIA`) y `LUT_SIZE_DEFAULT` (parcial: sólo se validó que 33³ es un tamaño de
+entrega tan real como 65³, no el argumento de cobertura del cubo). Sumando
+`TOL_MONOTONIA_LOOK` de D7-1 (calibrada desde cero contra material real, no descubierta
+disparando contra un valor antiguo), quedan **8 de 44 VALIDADO** tras fusionar los dos
+trabajos.
+
+**0 quedan en SOLO SINTÉTICO.** Cualquier umbral de `core/io` que sólo se había visto
+contra `core/io/lut_malos.py` se pudo pasar hoy por los 79 `.cube` reales con el código que
+ya existe (`qc_lut`, `leer_cube`), así que ese bucket se vació del todo.
+
+**36 quedan como NO VALIDABLE TODAVÍA**, y con razón: son de `core/matching`,
+`core/reverse` y `core/analysis`, deciden sobre PARES DE FOTOGRAMAS o CLIPS reales
+(ingeniería inversa, emparejamiento, huella, piel), y el material de hoy es LUTs
+terminados y metadatos de PowerGrade, no vídeo. `DELTA_E_INDISTINGUIBLE` y los dos
+límites de entrega (T1/T3) también caen aquí. No se ha inventado ningún montaje sintético
+nuevo para colar ninguno de los 36 como validado.
+
+**¿Se confirma el patrón que sospechaba Mario? Sí, para lo que se pudo medir — y con
+matices.** De los 8 umbrales que se pudieron poner delante de material real, los 3 que
+son criterios de «esto está mal» (banding, monotonía, y antes la MAD de viñeta del día 2)
+**disparan de forma sistemática contra material real limpio y profesional**: banding en
+79 de 79, monotonía en 76 de 79 sin clasificar (70 de 79 con la clasificación de D7-1).
+`TOL_MONOTONIA_LOOK` confirma el patrón desde el OTRO lado: ni calibrándola desde cero
+contra la distribución real (no heredando un valor viejo) se puede limpiar más del 11% de
+los LUT "look" sin dejar de proteger T4 — no es que nadie hubiera mirado la monotonía
+contra material real antes de hoy, es que el hueco entre "look legítimo" y "LUT roto" no
+tiene un umbral único que lo resuelva. **El matiz que no hay que perder:** los otros 4
+umbrales medibles hoy (gamut, LUT plano, y parcialmente el tamaño de rejilla)
+**resistieron intactos** — 0 de 79 falsos positivos. El patrón no es «todo umbral
+sintético falla»: los que fallan son los que deciden algo FINO sobre material real
+profesional; los que comprueban algo GRUESO («¿esto está roto del todo?») pasan limpios.
+
+**Lo que queda sin contestar, y es la pregunta más grande que deja hoy:** no se ha podido
+extender el barrido a los 36 restantes por falta de metraje de vídeo real. Sigue siendo
+una sospecha razonable —no una medida— que el mismo patrón se repetiría en
+`core/reverse` o `core/matching` si hubiera brutos y máster reales de Mario delante.
+
+**`main` se puso rojo al fusionar D7-1 y D7-2** (`test_umbrales_literales.py::test_ningun_umbral_suelto_en_los_paquetes_vigilados`,
+literal `9` en `core/io/drx_protobuf.py:60`, el tope de bytes de un varint protobuf) — un
+hallazgo real del segundo agente, presente ya en `main` desde el commit del día 6, sin
+excepción declarada. No es un umbral de decisión (es un límite del formato de cable de
+protobuf, igual que el tope de lado de un HALD en `core/io/cube.py`), así que se añadió a
+`EXCEPCIONES` en vez de mudarlo a `core/umbrales.py` — arreglado en la sesión principal al
+fusionar los dos trabajos, para que `main` siga verde como pide el límite duro de hoy.
+
+## D7-3 · Confianza como triaje: la precisión@10 ya estaba publicada, y el paso 5 no mostraba lo que decía
+
+Dos huecos que el encargo daba por hechos resultaron ser uno solo. **Precisión@10 NO
+faltaba**: ya estaba en `CIFRAS.md` §18 desde el trabajo de orden_repaso del día 6
+(0,623/0,629 para las variantes informada/clase-desconocida) — se comprobó antes de volver
+a medir nada, y se evitó repetir un trabajo ya hecho.
+
+**Lo que sí hacía falta revisar era la redacción del paso 5** y, al mirarla de cerca, un
+problema de fondo debajo de la redacción. La frase de `gui/asistente_facil.py::ejecutar_repasar`
+decía "estos los miraría yo, empezando por el que más lo necesita" (con precisión@5 = 0,40
+frente a 0,25 de azar, CIFRAS.md §18 — una sugerencia razonable, no un veredicto: "estos son
+los peores" o "estos tienen problemas" habría afirmado más de lo medido). Y el caso vacío ya
+no decía "todo está medido" — sólo se comprueban dos señales concretas (desajuste de
+contenido y metadata de cámara sin resolver), no todo el material.
+
+Pero la pantalla (`gui/pantalla_facil.py`) sólo pintaba el PRIMER candidato de la lista,
+nunca los demás — una promesa de "por orden" sin ningún orden visible en pantalla. Arreglado
+con un widget nuevo, `_ListaRepaso`, que enseña los `MAX_CANDIDATOS_REPASO = 10` candidatos
+completos (el límite es el que dice `CIFRAS.md` §18: no hay cifra publicada de precisión más
+allá de 10, así que enseñar más sería una promesa sin medir detrás), con el elegido
+resaltado y clicable para cambiar cuál se compara en el antes/después.
+
+Al construir esa lista apareció un bug real de Qt, sólo visible mirando la captura a la
+anchura mínima (973px), no en los tests: el motivo de un candidato salía cortado a media
+palabra, sin ningún "…" que avisara de que faltaba texto. La causa no era el texto en sí
+—eso sí se recortaba— sino que `QPushButton.sizeHint()`/`minimumSizeHint()` de Qt se
+calculan a partir del texto que el botón tiene puesto, así que un botón con el texto
+COMPLETO le pedía a su layout más ancho que la ventana entera, y la `QScrollArea` (sin
+barra horizontal) se lo daba igual, dejando el sobrante fuera de la vista sin recortar y
+sin avisar. Arreglado desacoplando el tamaño que pide el widget del texto que se ve —igual
+que ya hace `gui.widgets.EtiquetaElidida` para las etiquetas normales—: `sizeHint()` mira el
+texto completo (para que una ventana holgada lo enseñe entero), `minimumSizeHint()` es un
+mínimo fijo pequeño, y la política horizontal pasa de `Minimum` (que en Qt fija `sizeHint()`
+como suelo también) a `Preferred` (que sí deja que el mínimo de verdad sea
+`minimumSizeHint()`). Visto en dos vueltas: la primera sólo arreglaba el texto y el botón
+seguía sin encogerse; la segunda, con las capturas de D7-5, confirmó el `…` donde toca.
+
+## D7-4 · El lector de `.drx` avisa ante versiones de Resolve desconocidas
+
+El formato del `<Body>` es protobuf sin esquema publicado (`FORMATO-DRX.md` §2), y los diez
+`.drx` de referencia son todos de la MISMA versión de Resolve — no hay ningún archivo de
+otra versión con el que comprobar si los campos se mueven entre builds. `core/io/drx.py`
+gana dos funciones nuevas: `version_resolve(ruta)` lee el `DbAppVer` del comentario de
+cabecera del XML (confirmado en 10 de 10: `<!--DbAppVer="21.1.0.0017" DbPrjVer="17"-->`, la
+segunda línea del archivo), y `advertencia_version_desconocida(version)` decide si avisar —
+avisa si la versión no está en `VERSIONES_RESOLVE_CONFIRMADAS` (hoy sólo `"21.1.0.0017"`) o
+si no se encontró el comentario en absoluto, y no avisa si coincide.
+
+`inspeccionar_drx()` lleva el aviso en `InfoDRX.advertencias` (el canal que ya existía para
+esto). Pero el camino que de verdad se usa en producción es
+`core.io.biblioteca.sembrar_desde_drx` → `buscar_rutas_referenciadas`, así que `Preset` gana
+un campo `advertencias` que `sembrar_desde_drx` rellena con el mismo aviso: un preset
+sembrado de un `.drx` de versión desconocida lo lleva marcado, no se lee como si nada.
+**Avisa, no bloquea** (regla de `CONTRATOS.md`, D7-2): el archivo se sigue leyendo con el
+mismo código —protobuf suele ser aditivo entre versiones de un mismo producto—, pero quien
+usa el resultado sabe que no está comprobado, en vez de recibir una ruta de LUT con forma
+plausible y contenido posiblemente equivocado sin ninguna señal.
+
+`FORMATO-DRX.md` gana la sección §4b con la tabla de versiones confirmadas (hoy, sólo una)
+y la regla de cómo añadir una nueva: sólo tras comprobarla contra un `.drx` real de esa
+versión, nunca por suposición.
+
+## D7-5 · Leído el modo fácil de un tirón, contra `FakeResolve`
+
+Los cinco pasos, seguidos, con capturas a 1440 y a la anchura mínima real (973px) —
+`gui/capturas.py` gana un bloque `05-facil-recorrido-{1..5}-{paso}-{ancho}.png`, diez
+capturas en una sola ventana sin cerrar entre pasos. Comprobado y mirado a mano, no sólo con
+tests:
+
+* **Sin jerga colada**: ni ΔE, ni CDL, ni gamut, ni cobertura, ni «confianza» en ninguna
+  frase que ve el usuario (sí aparecen en docstrings de desarrollador, que no cuentan). Los
+  nombres de clip son códigos de cámara (`A001_C001_maestro_referencia`) porque eso ES el
+  nombre real del clip en el material de Mario, no un nombre de archivo colado donde debería
+  ir un nombre de look — el look sí sale siempre por su nombre legible
+  (`nombre_legible()`), nunca por archivo.
+* **Cada paso dice qué hizo, en pasado y en concreto** — con una excepción real encontrada
+  leyendo el paso 3 seguido: `_frase_equilibrar()` podía devolver "En «Clip X» corregido el
+  balance de color." (sin el "he" conjugado, un fragmento sin verbo) cuando sólo se corregía
+  el balance y no la exposición. Arreglado moviendo el "he" delante del compuesto entero en
+  vez de dentro de cada parte — se detectó leyendo la frase completa, no en un test (el test
+  que sí lo hubiera cazado se añadió después, `test_equilibrar_frase_bien_formada_cuando_solo_corrige_balance`).
+* **Deshacer funciona en los cinco pasos** por diseño, no por casualidad: `PantallaFacil` es
+  pura previsualización (no escribe en Resolve — aplicar de verdad vive en el modo avanzado,
+  `PantallaAplicar`), así que "deshacer" aquí es sólo mover el índice de paso hacia atrás,
+  trivialmente seguro, y ya estaba cubierto por los tests de día 5
+  (`test_navega_los_cinco_pasos_en_orden`, `test_deshacer_no_baja_de_cero`).
+* **Un fallo a media pantalla no deja la timeline a medias**, por el mismo motivo: no hay
+  timeline que dejar a medias desde esta pantalla, porque no escribe nada — el caso real de
+  "avería a mitad de aplicar" ya está cubierto donde SÍ se escribe (modo avanzado,
+  `PantallaAplicar`, capturas 12/13 de `gui/capturas.py`).
+* El bug de la lista del paso 5 sin `…` (D7-3) se encontró precisamente aquí, mirando la
+  captura a la anchura mínima, no leyendo el código ni con un test — es el motivo concreto
+  por el que el encargo pide mirar las capturas antes de darlas por buenas.
+
+## D7-6 · Sin resolver
+
+1. **La zona gris de `TOL_MONOTONIA_LOOK`** (D7-1): sólo 8 de 71 LUT "look" reales quedan
+   limpios. Si hace falta que la mayoría del material real pase sin error, una tolerancia
+   global no basta — haría falta un criterio distinto (¿fracción del LUT que retrocede?
+   ¿tamaño del retroceso relativo al paso de la rejilla, no absoluto?), y eso es rediseñar
+   el detector, no calibrar un número. No es una decisión de hoy.
+2. ~~**El bug del `break` en `_monotonia()`** (D7-1)~~ — **corregido, ver D7-7.**
+3. `Jota_lut_fitz.cube` (D7-1): la reversión real más grande de todo el material (−0,315).
+   Vale la pena que Mario lo mire con sus propios ojos antes de decidir si es diseño o
+   defecto.
+4. **Decidir qué hacer con `UMBRAL_BANDING`/`TOL_MONOTONIA`** (D7-2) ahora que están
+   confirmados contra 79 archivos reales y no sólo contra ejemplos fabricados: ¿se
+   mantiene el diseño actual, se ajusta el criterio, o se decide caso por caso? No es una
+   decisión de quien sólo audita.
+5. **Los 36 umbrales de `core/matching`/`core/reverse`/`core/analysis`** (D7-2) siguen sin
+   poder verse contra material real: hace falta un trabajo real de Mario con su máster y
+   sus brutos (lo mismo que pide `pruebas/primera_real.py` desde el día 4).
+6. **`LUT_SIZE_DEFAULT`** (D7-2) sólo se validó a medias: 33³ es un tamaño real y habitual,
+   pero el argumento de cobertura del cubo sigue sin metraje real que lo confirme.
+7. El probe (tarea A) sigue sin llegar — nada que resolver hoy.
+8. El selector de presets del paso 4 (`_SelectorPresets`) tiene el mismo riesgo de texto
+   sin elidir que se encontró y arregló en `_ListaRepaso` (D7-3) — hoy no se ha tocado
+   porque su `QScrollArea` SÍ permite scroll horizontal (a diferencia de la de
+   `_ListaRepaso`, que lo tenía desactivado), así que el texto nunca queda inalcanzable,
+   sólo requiere desplazarse — pero convendría el mismo tratamiento por consistencia.
+9. Todo lo que ya estaba sin resolver de días anteriores y no se ha tocado hoy.
+
+## D7-7 · El bug del `break` en `_monotonia()`, corregido
+
+Sesión de seguimiento dedicada, tal y como pedía D7-1/D7-6: decidir si se corrige el bug del
+`break` en `core/io/qc.py::_monotonia()` (cortaba el bucle de los tres ejes en cuanto la
+lista de `problemas` llegaba a `MAX_PROBLEMAS_POR_CODIGO`, así que en 67 de los 79 `.cube`
+reales `celdas_no_monotonas`/`peor_caida_monotonia` infracontaban).
+
+**Decisión: se corrige.** El `break` era estrictamente redundante — la línea de arriba
+(`idx = np.argwhere(mal)[: MAX_PROBLEMAS_POR_CODIGO - len(problemas)]`) ya limita cuántos
+`ProblemaQC` se añaden por presupuesto restante, así que borrar el `break` no cambia NADA de
+lo que `informe.codigos()` o `informe.problemas` enseñan — sólo hace que `total` y `peor` se
+acumulen sobre los tres ejes en vez de cortar en el primero que llena el cupo. Fix de una
+línea, sin ambigüedad de diseño, y una app de QC no puede enseñar una cifra de "peor caída"
+que sabe que es mentira en la mayoría del material real.
+
+**Lo que cambió:**
+- `core/io/qc.py::_monotonia()`: borrado el `break` final del bucle.
+- `tests/test_io_qc_reales.py::test_los_peores_no_monotonos_son_estos_seis_archivos_sony`
+  (día 6) renombrado a `test_los_peores_no_monotonos_son_jota_lut_fitz_y_cinco_sony`: la peor
+  caída real de todo el material es `Jota_lut_fitz.cube` (−0,315, eje azul), no una de las
+  seis variantes Sony — las otras cinco peores SÍ siguen siendo Sony.
+- `tests/test_io_qc_reales.py::test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz`
+  reescrito como test de regresión: ya no espera que `qc_lut()` infracuente, espera que
+  coincida con el cálculo directo sin recorte.
+- `CIFRAS.md` §17: "−0,230, seis variantes SONY" → "−0,315, `Jota_lut_fitz.cube`" (con las
+  cinco Sony como siguientes peores). §19 actualizada para decir "corregido", no "no
+  corregido".
+
+Comprobado: `.venv/bin/python -m pytest tests/test_io_qc.py tests/test_io_qc_reales.py
+tests/test_entregables.py -q` en verde entero tras el cambio (ver la salida en el commit).

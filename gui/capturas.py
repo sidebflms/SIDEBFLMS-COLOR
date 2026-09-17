@@ -26,6 +26,7 @@ from PySide6.QtWidgets import QApplication
 
 from gui import datos_demo as dd
 from gui import reverse_puente as rp
+from gui.asistente_facil import ID_PASOS
 from gui.ventana import VentanaPrincipal, crear_app
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -141,6 +142,30 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
     fichero = destino / "05-facil-vacio-1024.png"
     _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
     hechas.append(Captura(fichero.name, "modo fácil sin clips: cada paso lo dice en vez de quedarse en blanco · 1024×900"))
+    ventana.close()
+
+    # --- día 7, tarea 5: recorrido completo del modo fácil, los 5 pasos
+    # SEGUIDOS en una sola ventana (nunca se ha cerrado y reabierto entre
+    # pasos), a 1440 y a la anchura mínima. El objetivo es poder leer las
+    # diez capturas en orden como una sola experiencia, no pantalla a
+    # pantalla — el estado de demo trae candidatos de sobra para el paso 5.
+    ventana = _ventana(app, dd.estado_demo(), 0)
+    ventana.boton_modo_facil.setChecked(True)
+    _asentar(app, ventana)
+    for paso_idx, paso_id in enumerate(ID_PASOS):
+        if paso_idx > 0:
+            ventana.p_facil.siguiente()
+            _asentar(app, ventana)
+        for ancho in (1440, minimo):
+            alto = ALTO_NOMINAL if ancho != minimo else alto_minimo
+            fichero = destino / f"05-facil-recorrido-{paso_idx + 1}-{paso_id}-{ancho}.png"
+            _disparar(app, ventana, fichero, ancho, alto)
+            hechas.append(
+                Captura(
+                    fichero.name,
+                    f"día 7, recorrido completo: paso {paso_idx + 1}/5 ({paso_id}) · {ancho}×{alto}",
+                )
+            )
     ventana.close()
 
     # --- biblioteca de presets (día 6, tarea 4): sólo si hay LUTs reales de

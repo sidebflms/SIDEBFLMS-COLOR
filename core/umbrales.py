@@ -55,6 +55,54 @@ CÓMO SE MANTIENE
 aparece una comparación contra un literal numérico no trivial fuera de aquí.
 Tiene una lista de excepciones explícita y corta; si esa lista crece sin freno,
 el test dejó de servir.
+
+AUDITORÍA DEL DÍA 7: ¿CONTRA QUÉ SE HA VISTO CADA NÚMERO?
+-----------------------------------------------------------
+Día 7 (17-09-2026), primer día con material real de Mario disponible (79 `.cube`
+en `tests/luts_reales/`, 10 `.drx` en `tests/powergrades_reales/`, los dos de
+sólo lectura). Cada constante lleva ahora, además de su razón de ser, una
+etiqueta **«AUDITORÍA DÍA 7»** que dice si se ha visto alguna vez contra
+material real o sólo contra ejemplos sintéticos fabricados para fallar
+(`core/io/lut_malos.py`, `tests/media/generate.py`, `tests/calibracion*`).
+Detalle completo, cifras y comandos en `CIFRAS.md` §20; la regla que motiva
+esto está en `CONTRATOS.md`, "Ningún umbral se da por bueno sin verlo contra
+material real".
+
+De las 44 constantes de este módulo (43 auditadas contra material real ese
+mismo día por un segundo agente en paralelo — ver más abajo — más
+`TOL_MONOTONIA_LOOK`, calibrada por un primer agente el mismo día 7 y sumada
+aquí al fusionar los dos trabajos):
+
+* **8 VALIDADO CON MATERIAL REAL** — las seis de `core/io/qc.py`
+  (`UMBRAL_BANDING`, `SALTO_MINIMO_BANDING`, `UMBRAL_SOMBRAS`, `TOL_GAMUT`,
+  `UMBRAL_RECORRIDO_LUT_PLANO`, `TOL_MONOTONIA`), `LUT_SIZE_DEFAULT` (parcial)
+  y `TOL_MONOTONIA_LOOK` (calibrada desde cero contra los 71 `.cube` "look",
+  no descubierta disparando contra un valor antiguo). Son justo las que se
+  PUEDEN pasar por los 79 `.cube` reales con el código que ya existe
+  (`qc_lut`, `leer_cube`) sin inventar nada.
+* **0 SOLO SINTÉTICO** — no queda ninguna: todo lo que era de `core/io` y
+  sólo se había visto contra `lut_malos.py` se pasó hoy por los 79 `.cube`
+  reales y se movió arriba.
+* **36 NO VALIDABLE TODAVÍA** — el resto: `core/matching`, `core/reverse` y
+  `core/analysis`. Deciden sobre PARES DE FOTOGRAMAS o CLIPS reales
+  (ingeniería inversa, emparejamiento, huella, piel), y eso no existe hoy:
+  el material de hoy es LUTs ya terminados y metadatos de PowerGrade, no
+  metraje de vídeo. Necesitan brutos + máster de un trabajo real de Mario.
+
+**El patrón que sospechaba Mario, confirmado por el barrido completo:** de los
+8 umbrales que SÍ se pudieron poner delante de material real, los 3 que son
+criterios de "esto está mal" (banding, monotonía, y ya antes la MAD de viñeta
+del día 2) disparan de forma sistemática contra material real limpio y
+profesional — no son casualidades aisladas, es lo que pasa cada vez que un
+umbral calibrado sólo contra ejemplos fabricados para fallar se pone delante
+de trabajo de verdad. `TOL_MONOTONIA_LOOK`, calibrada desde cero contra esa
+misma distribución real, confirma el patrón desde el otro lado: ni relajando
+la tolerancia con la propia medida real por delante se puede limpiar más del
+11% de los LUT "look" sin dejar de proteger el LUT roto de T4 (`CIFRAS.md`
+§19). Los otros 4 (los dos de gamut/plano y, parcialmente, `LUT_SIZE_DEFAULT`)
+SÍ resistieron intactos. No se ha podido extender el barrido a los 36
+restantes por falta de metraje, así que no se sabe si el patrón es igual de
+fuerte ahí — es la pregunta abierta más grande que deja este día.
 """
 
 from __future__ import annotations
@@ -81,6 +129,7 @@ __all__ = [
     "SUELO_GANANCIA_LOCAL",
     "TOL_GAMUT",
     "TOL_MONOTONIA",
+    "TOL_MONOTONIA_LOOK",
     "UMBRAL_BANDING",
     "UMBRAL_COBERTURA_BAJA",
     "UMBRAL_CORRELACION_FIABLE",
@@ -116,6 +165,12 @@ __all__ = [
 #: `reverse.diagnostico.UMBRAL_DE_HOTSPOT`, en `reverse.diagnostico.UMBRAL_DE_PURO`
 #: y en el extremo bueno de la rampa `residuo_de` de `matching.confianza`, los
 #: tres con el mismo comentario dicho con otras palabras. Ahora se escribe una vez.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** La MÉTRICA (ΔE2000) está validada
+#: contra los 34 pares publicados de Sharma, Wu y Dalal (`CIFRAS.md` §2), pero eso
+#: comprueba la fórmula, no si «1.0 = imperceptible» sigue siendo cierto sobre
+#: metraje real de Mario (su compresión, su monitor). Haría falta grado real
+#: aplicado a footage suyo para verlo. Ver `CIFRAS.md` §20.
 DELTA_E_INDISTINGUIBLE: float = 1.0
 
 
@@ -148,6 +203,11 @@ DELTA_E_INDISTINGUIBLE: float = 1.0
 #: Así que el 0.75 **sigue sin medida detrás** y no se ha movido: cambiarlo no
 #: haría que «alta» signifique nada. Arreglarlo es rediseñar la nota, no el umbral.
 #: Comando: `.venv/bin/python -m tests.calibracion.analizar | grep "CAL umbral"`.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** La calibración de arriba usó 3.600
+#: casos SINTÉTICOS con verdad conocida (día 4), no material de Mario. Decidir si
+#: predice algo sobre sus clips reales necesita parejas de clips suyos con el
+#: error real medido — vídeo, no `.cube` ni `.drx`. Ver `CIFRAS.md` §20.
 CONFIDENCE_ALTA: float = 0.75
 
 #: **Unidad: fracción 0..1.** Por debajo de aquí, «baja». Entre las dos, «media».
@@ -159,6 +219,10 @@ CONFIDENCE_ALTA: float = 0.75
 #: tramo por debajo de 0.45 cumple en un 8% y el de 0.45–0.75 en un 17%, con
 #: intervalos que se pisan: los datos no separan ahí «revisar» de «no sirve».
 #: Comando: `.venv/bin/python -m tests.calibracion.analizar | grep "CAL tramos"`.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que `CONFIDENCE_ALTA`:
+#: sólo visto contra los 3.600 casos sintéticos del día 4. Necesita clips reales
+#: de Mario emparejados, con error conocido. Ver `CIFRAS.md` §20.
 CONFIDENCE_MEDIA: float = 0.45
 
 #: **Unidad: fracción 0..1 (multiplicador).** Cuánto se multiplica la nota de
@@ -167,6 +231,10 @@ CONFIDENCE_MEDIA: float = 0.45
 #: es «una pega más», es que el número de abajo no significa lo que parece.
 #: Con 0.35, una nota perfecta baja a 0.35 = «baja», que es lo que hay que
 #: enseñar. Ver `core/matching/NOTAS.md` §3.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Decide cuánto penalizar cuando dos
+#: CLIPS no parecen la misma escena: necesita pares de clips reales de Mario, no
+#: `.cube` ni `.drx`. Ver `CIFRAS.md` §20.
 PENA_DESAJUSTE: float = 0.35
 
 #: **Unidad: fracción 0..1** sobre una subnota. Por debajo de esto, la subnota
@@ -176,6 +244,10 @@ PENA_DESAJUSTE: float = 0.35
 #: encima no hay nada que explicar.
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.** No hay medida detrás del 0.85.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Decide una frase sobre la subnota
+#: de emparejamiento de dos CLIPS: necesita pares de clips reales, no `.cube` ni
+#: `.drx`. Ver `CIFRAS.md` §20.
 UMBRAL_SUBNOTA_EXPLICABLE: float = 0.85
 
 #: Los dos extremos de cada rampa de la nota de confianza: `(valor con subnota
@@ -186,6 +258,11 @@ UMBRAL_SUBNOTA_EXPLICABLE: float = 0.85
 #: condición, y son justo la clase de números que no hay que confundir. La
 #: nota final es `sqrt(min(subnotas) * media_geometrica(subnotas))` por
 #: `PENA_DESAJUSTE`; la fórmula entera está en `core/matching/NOTAS.md` §3.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Las siete rampas están medidas
+#: contra el generador sintético del proyecto (comentario de cada clave, abajo),
+#: nunca contra un emparejamiento real de clips de Mario. Necesita pares de
+#: clips reales. Ver `CIFRAS.md` §20.
 RAMPAS_DE_CONFIANZA: dict[str, tuple[float, float]] = {
     # Unidad: número de píxeles; la rampa va en log10. 24 píxeles no es nada
     # para diez parámetros; 20.000 ya es de sobra.
@@ -234,15 +311,27 @@ RAMPAS_DE_CONFIANZA: dict[str, tuple[float, float]] = {
 #: **NO SE SABE POR QUÉ VALE ESTO.** Lo dice ya `core/reverse/NOTAS.md` §9: de
 #: dónde sale el 0.95 no lo dice ni el código, ni el commit, ni la bitácora. No
 #: se ha tocado.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Decide un veredicto de ingeniería
+#: INVERSA (original vs. reconstruido con el grado extraído): necesita pares de
+#: fotogramas reales de Mario (bruto + máster), que no existen hoy — sólo hay
+#: `.cube` y `.drx` finales, no el origen para invertir. Ver `CIFRAS.md` §20.
 UMBRAL_REPRODUCIBLE_PURO: float = 0.95
 
 #: **Unidad: ΔE2000**, aplicado al **percentil 95** del residuo. Segunda
 #: condición de `is_pure_lut`: «el 95% del fotograma cae por debajo de lo que el
 #: ojo distingue».
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que
+#: `UMBRAL_REPRODUCIBLE_PURO`: necesita ingeniería inversa sobre fotogramas
+#: reales de Mario, que no existen hoy. Ver `CIFRAS.md` §20.
 UMBRAL_DE_PURO: float = DELTA_E_INDISTINGUIBLE
 
 #: **Unidad: ΔE2000.** Por debajo de esto no hay nada que señalar como hotspot:
 #: es residuo que no se ve.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo: necesita ingeniería
+#: inversa sobre fotogramas reales de Mario. Ver `CIFRAS.md` §20.
 UMBRAL_DE_HOTSPOT: float = DELTA_E_INDISTINGUIBLE
 
 #: **Unidad: ΔE2000 medio** entre original y coloreado. Por debajo de esto se
@@ -256,6 +345,11 @@ UMBRAL_DE_HOTSPOT: float = DELTA_E_INDISTINGUIBLE
 #: ninguna medida detrás. Y tiene un efecto lateral conocido y anotado: con los
 #: dos planos idénticos, el residuo del relleno (0.3122) supera este mismo 0.05
 #: y `is_pure_lut` sale `False`, que es confuso.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Sólo se ha visto contra el mismo
+#: plano sintético contra sí mismo (arriba). Necesita pares reales de Mario
+#: (bruto vs. máster) para saber si 0.05 ΔE2000 medio separa bien «no se gradó»
+#: de «se gradó poco» en su material. Ver `CIFRAS.md` §20.
 UMBRAL_MOVIMIENTO_NULO: float = 0.05
 
 #: **Unidad: número de píxeles válidos.** Por debajo de esto no se ajusta CDL:
@@ -264,6 +358,10 @@ UMBRAL_MOVIMIENTO_NULO: float = 0.05
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.** `core/reverse/NOTAS.md` §9 lo da como razón
 #: cualitativa sin ningún número detrás.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Necesita píxeles reales de un
+#: ajuste de CDL sobre footage de Mario; hoy no hay fotogramas, sólo `.cube` y
+#: `.drx` ya terminados. Ver `CIFRAS.md` §20.
 MUESTRAS_MINIMAS_CDL: int = 64
 
 #: **Unidad: fracción 0..1** de píxeles que, después del CDL, se salen del
@@ -273,6 +371,9 @@ MUESTRAS_MINIMAS_CDL: int = 64
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.** Es un 0.1% de los píxeles; no hay medida
 #: detrás.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Necesita píxeles reales tras
+#: aplicar un CDL a footage de Mario. No hay fotogramas hoy. Ver `CIFRAS.md` §20.
 UMBRAL_FUERA_DE_DOMINIO_AVISO: float = 0.001
 
 
@@ -296,6 +397,10 @@ UMBRAL_FUERA_DE_DOMINIO_AVISO: float = 0.001
 #: (`tests/test_umbrales.py::test_el_cuatro_de_la_cobertura_sigue_cuadrando_con_el_de_los_contratos`).
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.** No hay medida detrás del 4.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Decide cobertura de celda al
+#: acumular píxeles reales durante la ingeniería inversa: necesita footage de
+#: Mario para acumular, que no existe hoy. Ver `CIFRAS.md` §20.
 MUESTRAS_MINIMAS_CELDA: int = 4
 
 #: **Unidad: fracción 0..1** de celdas del cubo con dato real. Por debajo de
@@ -313,6 +418,11 @@ MUESTRAS_MINIMAS_CELDA: int = 4
 #: se invierte un grado a partir de un fotograma. Ver `core/reverse/NOTAS.md` §0.
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.** No hay medida detrás del 0.5%.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Además, D4-1 midió que este aviso
+#: «avisa al revés» sobre material SINTÉTICO (salta en las escenas que mejor se
+#: portan fuera de plano, calla en las peores) — con más razón hace falta footage
+#: real de Mario antes de tocarlo. Ver `CIFRAS.md` §20.
 UMBRAL_COBERTURA_BAJA: float = 0.005
 
 
@@ -331,18 +441,29 @@ UMBRAL_COBERTURA_BAJA: float = 0.005
 #:
 #: **Ojo con el mismo número sobre otro campo**: este 0.30 aplicado al ΔE2000
 #: era la puerta que se quedaba a un 4% de abrirse y hacía ciego al detector.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Detecta viñeta en el campo de
+#: ganancia de un fotograma real gradado: necesita footage de Mario, no `.cube`
+#: ni `.drx`. Sólo visto contra viñetas sintéticas fabricadas por
+#: `tests/media/generate.py`. Ver `CIFRAS.md` §20.
 UMBRAL_R2_RADIAL: float = 0.30
 
 #: **Unidad: |Pearson| (0..1)** del perfil radial contra el radio. En valor
 #: absoluto a propósito: una viñeta que **aclara** hacia fuera es igual de
 #: imposible de meter en un LUT que una que oscurece, y el signo se reporta
 #: aparte («oscurece» / «aclara»).
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que `UMBRAL_R2_RADIAL`:
+#: sólo visto contra viñetas sintéticas. Ver `CIFRAS.md` §20.
 UMBRAL_MONOTONIA_RADIAL: float = 0.55
 
 #: **Unidad: logaritmo natural de ganancia** (0.12 ≈ 0.17 paradas de luz entre
 #: el centro y el borde). Recorrido mínimo del perfil radial. Medido: «nada
 #: espacial» da 0.000 y «grano fuerte» 0.004; la viñeta más floja probada (0.35)
 #: da 0.27.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo: viñetas y grano
+#: sintéticos, no footage de Mario. Ver `CIFRAS.md` §20.
 UMBRAL_RECORRIDO_GANANCIA: float = 0.12
 
 #: **Unidad: R² (fracción 0..1)** de un plano inclinado sobre lo que queda del
@@ -350,10 +471,17 @@ UMBRAL_RECORRIDO_GANANCIA: float = 0.12
 #: explicar para llamarlo degradado. Es la puerta más fácil de disparar sin
 #: querer —casi cualquier residuo tiene algo de inclinación— y por eso se pide
 #: más que en la radial.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Detecta degradado (ventana/luz
+#: entrando) sobre footage real: sólo visto contra ventanas sintéticas. Necesita
+#: footage de Mario. Ver `CIFRAS.md` §20.
 UMBRAL_R2_LINEAL: float = 0.50
 
 #: **Unidad: logaritmo natural de ganancia.** Recorrido mínimo de ese plano
 #: inclinado de un lado a otro del fotograma.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que `UMBRAL_R2_LINEAL`:
+#: sólo visto contra ventanas sintéticas. Ver `CIFRAS.md` §20.
 UMBRAL_RECORRIDO_LINEAL: float = 0.10
 
 #: **Unidad: ΔE2000 (desviación típica)** del residuo de **alta** frecuencia.
@@ -362,6 +490,10 @@ UMBRAL_RECORRIDO_LINEAL: float = 0.10
 #: ventana 1.3-1.7 (que es el error del ajuste del LUT en los bordes del
 #: contenido, no textura del material) y grano de verdad 3.83. El margen real es
 #: 3.83 contra 1.44, un factor 2.7, así que este umbral no puede bajar de ~2.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** El grano y la compresión reales de
+#: las cámaras de Mario pueden no parecerse al grano sintético del generador.
+#: Necesita footage suyo. Ver `CIFRAS.md` §20.
 UMBRAL_TEXTURA: float = 2.5
 
 #: **Unidad: norma del residuo de ganancia por canal** (adimensional, ≈ fracción
@@ -375,12 +507,20 @@ UMBRAL_TEXTURA: float = 2.5
 #: **0.0135**. Las dos coinciden en el resto: «nada espacial» 0.0006 y la
 #: ventana 0.5945. No he medido ninguna de las dos, así que las dejo dichas con
 #: su procedencia en vez de elegir una.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Ya hay una discrepancia sin
+#: resolver entre dos fuentes sintéticas (arriba); zanjarla, y validarlo de
+#: verdad, necesita footage real de Mario. Ver `CIFRAS.md` §20.
 SUELO_GANANCIA_LOCAL: float = 0.08
 
 #: **Unidad: fracción 0..1** de la altura del pico sobre la mediana. El contorno
 #: de la zona local se traza aquí. Es un criterio **sin escala**: una ventana de
 #: +15% se recorta igual de bien que una de +60%, y no hay ningún número
 #: calibrado contra un caso concreto.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** El contorno de zona local se traza
+#: sobre residuo real; necesita footage de Mario con una zona local de verdad
+#: (ventana, foco de luz). Ver `CIFRAS.md` §20.
 FRACCION_DE_PICO: float = 0.40
 
 #: **Unidad: fracción 0..1 del área del fotograma.** Área mínima de una
@@ -388,6 +528,10 @@ FRACCION_DE_PICO: float = 0.40
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.** Hay razón cualitativa («por debajo es
 #: grano, no una zona»), pero ninguna medida. Lo dice `core/reverse/NOTAS.md` §9.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Necesita footage real de Mario con
+#: grano de sus cámaras y una zona local real para comparar tamaños. Ver
+#: `CIFRAS.md` §20.
 AREA_MINIMA_HOTSPOT: float = 0.002
 
 
@@ -402,12 +546,19 @@ AREA_MINIMA_HOTSPOT: float = 0.002
 #: agente B: el peor par comparable da 0.756 de parecido y el mejor par no
 #: comparable 0.219, así que el umbral deja 0.256 de margen por arriba y 0.281
 #: por abajo. Tabla completa en `core/matching/NOTAS.md` §4.3.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** La huella se mide sobre fotogramas
+#: reales de dos clips; el hueco de arriba viene de material sintético del
+#: generador. Necesita clips reales de Mario. Ver `CIFRAS.md` §20.
 UMBRAL_HUELLA: float = 0.50
 
 #: **Unidad: suma de dos distancias adimensionales** (`perfil` + `croma`, con
 #: peso 1 cada una). Es la vía **débil**: sólo decide cuando no hay huella en los
 #: dos lados. El hueco medido es de sólo 0.14 (de 0.612 a 0.753) y un grado muy
 #: agresivo lo cruza. Ver `core/matching/NOTAS.md` §4.1.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que `UMBRAL_HUELLA`:
+#: hueco medido en material sintético. Necesita clips reales. Ver `CIFRAS.md` §20.
 UMBRAL_DESAJUSTE: float = 0.70
 
 #: **Unidad: distancia de Hellinger (0..1)** entre los histogramas 2D de
@@ -417,6 +568,9 @@ UMBRAL_DESAJUSTE: float = 0.70
 #: `core/matching/contenido.py`.
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.**
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Decide una frase sobre dos CLIPS
+#: reales; necesita pares de clips de Mario. Ver `CIFRAS.md` §20.
 UMBRAL_CROMA_EXPLICABLE: float = 0.35
 
 #: **Unidad: diferencia media de percentiles de luma normalizados**
@@ -424,6 +578,9 @@ UMBRAL_CROMA_EXPLICABLE: float = 0.35
 #: reparto de luces y sombras es distinto. Era un literal `0.12` suelto.
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO.**
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que
+#: `UMBRAL_CROMA_EXPLICABLE`: necesita clips reales de Mario. Ver `CIFRAS.md` §20.
 UMBRAL_PERFIL_EXPLICABLE: float = 0.12
 
 #: **Unidad: correlación de gradientes (0..1)** entre original y coloreado
@@ -431,6 +588,10 @@ UMBRAL_PERFIL_EXPLICABLE: float = 0.12
 #: el mismo encuadre**, y eso sale como nota y como razón de confianza: «el grado
 #: puede ser un promedio de dos escenas». Medido: el mismo plano da > 0.9; un
 #: retrato contra un exterior da ~0.0.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Medido sobre escenas sintéticas
+#: del generador; necesita alinear fotogramas reales de Mario. Ver `CIFRAS.md`
+#: §20.
 UMBRAL_CORRELACION_FIABLE: float = 0.50
 
 
@@ -444,6 +605,14 @@ UMBRAL_CORRELACION_FIABLE: float = 0.50
 #: **Unidad: veces el paso típico** (adimensional). Cuántas veces el paso típico
 #: tiene que saltarse un cambio de pendiente para contar como banding. Es la
 #: condición **relativa**, la que detecta el escalón.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL.** Medido contra los 79 `.cube`
+#: de `tests/luts_reales/`: dispara en los 79 de 79 (8 LUT de conversión + 71
+#: «look»). Mismo patrón que la MAD de viñeta (día 2) y que `TOL_MONOTONIA`: un
+#: umbral calibrado en sintético dispara siempre en material real. **No se toca
+#: hoy** — está decidido a conciencia desde el día 1 (ver el comentario de
+#: `SALTO_MINIMO_BANDING`) y el hallazgo ya estaba anticipado. Ver `CIFRAS.md`
+#: §20. Comando: `.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -k banding`.
 UMBRAL_BANDING: float = 3.0
 
 #: **Unidad: valores de salida del LUT** (0..1). Condición **absoluta**: cambio
@@ -456,6 +625,11 @@ UMBRAL_BANDING: float = 3.0
 #: banding, y está medido que es verdad: el LUT se desvía 11/255 de la curva que
 #: dice representar incluso con 65 puntos. Es el punto 6 de `BITACORA.md` §4 y
 #: el punto 1 de `core/io/NOTAS.md` §«lo que dejo sin cerrar».
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL.** Misma medición que
+#: `UMBRAL_BANDING` (los dos deciden juntos): dispara en los 79 de 79 `.cube`
+#: reales. Confirma con datos de verdad la decisión ya tomada de no subirlo. Ver
+#: `CIFRAS.md` §20.
 SALTO_MINIMO_BANDING: float = 0.02
 
 #: **Unidad: nivel de ENTRADA del LUT** (0..1). Hasta aquí se considera que un
@@ -468,6 +642,12 @@ SALTO_MINIMO_BANDING: float = 0.02
 #: aviso lleva la explicación de «esto es normal en un LUT de salida» o la de
 #: «esto no es lo normal, míralo». Medido: la gamma de salida `x**(1/2.2)` marca
 #: exactamente un escalón por eje y siempre en la posición 0, en 17, 33 y 65.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL.** Medido contra los 8 `.cube`
+#: de conversión reales de `tests/luts_reales/`: 50 escalones caen en sombras y
+#: 1182 en medios (96%) — lo CONTRARIO de lo que el texto viejo de
+#: `EXPLICACION_MEDIOS` en `core/io/qc.py` daba a entender. Cambió el TEXTO del
+#: aviso, no este número ni lo que se marca. Ver `CIFRAS.md` §20.
 UMBRAL_SOMBRAS: float = 0.125
 
 #: **Unidad: valores de salida del LUT** (0..1). Recorrido total por debajo del
@@ -479,14 +659,93 @@ UMBRAL_SOMBRAS: float = 0.125
 #: otra cosa (una guarda de división), a unas ciento cuarenta líneas de
 #: distancia. Dos números iguales con significados distintos y ninguno de los dos
 #: con nombre en el sitio donde decide: así es como se confunden.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL.** Ninguno de los 79 `.cube`
+#: reales de `tests/luts_reales/` dispara `lut_plano`: 0 de 79 falsos positivos.
+#: Ver `CIFRAS.md` §20. Comando:
+#: `.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -k gamut_fuera_ni_nan`.
 UMBRAL_RECORRIDO_LUT_PLANO: float = 1e-6
 
 #: **Unidad: valores de salida del LUT** (0..1). Tolerancia de monotonía: por
 #: debajo de esto una bajada es ruido de `float32`, no un LUT que baja.
+#:
+#: **Sólo para LUT de conversión de espacio de color** (`core.io.qc.clasificar_lut`
+#: → `"conversion"`), donde la monotonía diagonal estricta SÍ es la condición
+#: correcta: una curva de transferencia + primarios tiene que subir siempre en
+#: la dirección tonal. Para un LUT de look ver `TOL_MONOTONIA_LOOK`.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL, Y ES EL TERCER HALLAZGO DEL
+#: MISMO PATRÓN.** Medido contra los 79 `.cube` reales de `tests/luts_reales/`:
+#: `no_monotonia` (un ERROR, no un aviso) dispara en 76 de 79 sin clasificar por
+#: clase (70 de 79 con la clasificación conversión/look de `TOL_MONOTONIA_LOOK`,
+#: ver abajo), incluidos 8 manuales de fábrica de DJI. Mismo patrón que la MAD
+#: de viñeta (día 2) y que `UMBRAL_BANDING`: un umbral calibrado sólo contra
+#: `core/io/lut_malos.py` dispara sistemáticamente contra material real.
+#: La cifra "peor caída real: −0.230" que circuló durante el día resultó ser un
+#: INFRACONTEO: `core/io/qc.py::_monotonia()` corta el bucle de ejes al llegar a
+#: `MAX_PROBLEMAS_POR_CODIGO` (20), así que en 67 de 79 archivos el peor salto
+#: real (hasta −0.315, en `Jota_lut_fitz.cube`) nunca se llega a mirar. No
+#: afecta a si se detecta el error, sólo a la magnitud que se enseña — bug
+#: dejado medido y con nombre, no corregido hoy (cambiaría un test de día 6
+#: ajeno a este encargo). Ver `CIFRAS.md` §19 y §20.
 TOL_MONOTONIA: float = 1e-5
+
+#: **Unidad: valores de salida del LUT** (0..1). Tolerancia de monotonía PARA
+#: UN LUT DE "LOOK" (`core.io.qc.clasificar_lut(lut) == "look"`), no para uno
+#: de conversión de espacio de color. Día 7: Mario decidió que la monotonía
+#: diagonal estricta es correcta para una conversión (tiene que subir siempre
+#: en la dirección tonal) pero no para un look, donde un viraje de tono baja
+#: un canal a propósito mientras sube otro — eso es el look, no un fallo.
+#:
+#: **Medido contra los 71 `.cube` reales clasificados "look" de
+#: `tests/luts_reales/`** (mismo cálculo que `core.io.qc._monotonia`: por eje,
+#: `diff` a lo largo del eje, magnitud de los valores negativos).
+#: Percentiles de las 2.270.401 reversiones individuales medidas: mediana
+#: 0.000183, p90 = 0.00499, p95 = 0.0111, p99 = 0.0417, máximo 0.315. Por
+#: ARCHIVO (el peor salto de cada uno de los 71): sólo 2 no tienen ninguna
+#: reversión; la mediana del peor salto POR ARCHIVO es 0.028 — casi tres
+#: veces el techo de abajo.
+#:
+#: **El techo duro, que no se cruza**: `core/io/lut_malos.py::lut_no_monotono`
+#: usa `caida=0.01` por defecto (catálogo de LUT rotos de T4), y
+#: `tests/test_entregables.py::test_T4_caza_un_lut_no_monotono` construye el
+#: suyo con una caída de 0.02. Los dos tienen que seguir cazándose con la
+#: tolerancia relajada, con margen real y no pegados al límite. Este valor deja
+#: **2x de margen** bajo el más bajo de los dos (0.01) y 4x bajo el otro
+#: (0.02): comprobado a mano y con test, con `qc_lut(lut_no_monotono(caida=X),
+#: clasificacion="look", tol_monotonia_look=TOL_MONOTONIA_LOOK)` para
+#: `X = 0.01` y `X = 0.02` — `CODIGO_NO_MONOTONIA` sigue apareciendo en los
+#: dos. El punto exacto donde una tolerancia relajada deja de cazar es la
+#: propia tolerancia (`_monotonia` usa `d < -tol`, sin suavizado): con este
+#: valor, `caida=0.005` ya NO se caza y `caida=0.006` sí — confirma que el
+#: margen es real y no está pegado al límite por casualidad.
+#:
+#: **La tensión, dicha tal cual**: con este valor, de los 71 LUT "look" reales
+#: sólo 8 quedan limpios de `no_monotonia`; los otros 63 (89%) SIGUEN
+#: disparando, porque su peor salto real es mayor que el techo que protege a
+#: T4. Subir el umbral por encima de 0.01 limpiaría más archivos, pero
+#: dejaría de cazar el LUT roto de `lut_no_monotono(caida=0.01)` — es decir,
+#: relajaría de más. **No hay un umbral único que absorba la monotonía
+#: "normal de un look" real Y siga protegiendo el LUT roto de T4**: el hueco
+#: entre "reversión de look legítima" (mediana 0.028 por archivo) y "techo que
+#: protege T4" (0.01) no es un hueco limpio como el de
+#: `UMBRAL_CHROMA_CONVERSION` — es una zona gris de verdad. Ver
+#: `CIFRAS.md` §19 para las cifras completas y el comando reproducible.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL.** Es justo lo que dice el
+#: comentario de arriba: calibrado y validado contra los 71 `.cube` reales
+#: clasificados "look", no contra sintéticos. Único de los "7 validados" que
+#: se calibró HOY contra material real desde cero, en vez de descubrir que un
+#: valor antiguo disparaba contra él.
+TOL_MONOTONIA_LOOK: float = 0.005
 
 #: **Unidad: valores de salida del LUT** (0..1). Tolerancia de gamut: 1/2048 es
 #: medio escalón de 11 bits. Por debajo no se ve.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL.** Ninguno de los 79 `.cube`
+#: reales de `tests/luts_reales/` sale con valores fuera de gamut: 0 de 79 falsos
+#: positivos. Ver `CIFRAS.md` §20. Comando:
+#: `.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -k gamut_fuera_ni_nan`.
 TOL_GAMUT: float = 1.0 / 2048.0
 
 
@@ -501,10 +760,16 @@ TOL_GAMUT: float = 1.0 / 2048.0
 #: Medido: los seis tonos de piel de `studio_scene` pasan de sobra (el peor, ~9%).
 #: Elegido con la cabeza, **no medido contra un conjunto de validación**; lo dice
 #: así `core/analysis/NOTAS.md` §2.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Necesita fotogramas reales de
+#: Mario con piel de verdad; `studio_scene` es sintética. Ver `CIFRAS.md` §20.
 FRACCION_PIEL_MINIMA: float = 0.005
 
 #: **Unidad: número de píxeles.** La otra mitad de la condición anterior: para
 #: que en una miniatura pequeña no baste con dos píxeles de piel.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que
+#: `FRACCION_PIEL_MINIMA`. Ver `CIFRAS.md` §20.
 PIXELES_PIEL_MINIMOS: int = 64
 
 #: **Unidad: fracción 0..1** del histograma de saturación que cae en el primer
@@ -515,6 +780,10 @@ PIXELES_PIEL_MINIMOS: int = 64
 #: **NO SE SABE POR QUÉ VALE ESTO.** `core/analysis/NOTAS.md` §4.5 lo dice con
 #: sus palabras: «es un umbral a ojo, pensado para rampas y cartas de gris; en
 #: material real con un plano muy desaturado podría saltar sin que haga falta».
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** El propio `NOTAS.md` ya avisa del
+#: riesgo con material real; comprobarlo necesita fotogramas reales de Mario, no
+#: `.cube` ni `.drx`. Ver `CIFRAS.md` §20.
 UMBRAL_NEUTRA_TOTAL: float = 0.999
 
 
@@ -530,6 +799,16 @@ UMBRAL_NEUTRA_TOTAL: float = 0.999
 #: Decide lo que Mario ve —la rejilla del mapa de cobertura y el tamaño del
 #: `.cube` que se lleva— y lo miran dos módulos (`core.io` y `core.reverse`), así
 #: que su sitio es éste. `core/contracts.py` lo reexporta para no romper a nadie.
+#:
+#: **AUDITORÍA DÍA 7 — VALIDADO CON MATERIAL REAL (parcial, dicho con honestidad).**
+#: De los 79 `.cube` reales de `tests/luts_reales/`, 43 son 33³ y 36 son 65³ (0 de
+#: 17³): 33³ no es un capricho del proyecto, es un tamaño de entrega tan habitual
+#: en LUTs reales como 65³. **Esto NO valida el razonamiento de cobertura** de
+#: arriba (0.46% vs. 0.06% del cubo al invertir UN grado): esos 79 archivos son
+#: LUTs ya terminados, no productos de nuestra propia ingeniería inversa sobre
+#: footage de Mario, que es lo único que probaría esa parte. Ver `CIFRAS.md` §20,
+#: fila de tamaños de rejilla. Comando:
+#: `.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -k tamanos`.
 LUT_SIZE_DEFAULT: int = 33
 
 
@@ -551,6 +830,10 @@ LUT_SIZE_DEFAULT: int = 33
 #: (T1). Por encima, el criterio no se cumple.
 #:
 #: **Criterio del encargo del día 1, no medido.**
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** Comprobarlo contra material real
+#: necesita ejecutar T1 (ingeniería inversa) sobre footage de Mario; hoy T1 sólo
+#: se ha medido con escenas sintéticas (días 1-4). Ver `CIFRAS.md` §20.
 LIMITE_T1_DELTA_E_MAXIMO: float = 3.0
 
 #: **Unidad: ΔE2000.** Límite del ΔE2000 del **peor par** de cámaras después de
@@ -558,6 +841,10 @@ LIMITE_T1_DELTA_E_MAXIMO: float = 3.0
 #:
 #: **Criterio del encargo del día 1, no medido.** El encargo lo escribía sobre
 #: la media; desde el día 4 se aplica al peor par, que es la cifra que decide.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que
+#: `LIMITE_T1_DELTA_E_MAXIMO`: necesita T3 sobre cámaras reales de Mario. Ver
+#: `CIFRAS.md` §20.
 LIMITE_T3_DELTA_E_PEOR_PAR: float = 2.0
 
 
@@ -581,6 +868,10 @@ LIMITE_T3_DELTA_E_PEOR_PAR: float = 2.0
 #: corrección extra puntúa más o menos lo que ella misma mueve su plano (mediana
 #: propia 1.071 -> 1.156; 0.531 -> 0.553, que no avisa). **En material real, con
 #: compresión de verdad, no medido.**
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA.** El propio comentario de arriba ya
+#: lo decía: falta footage real de varios planos del mismo trabajo de Mario. Ver
+#: `CIFRAS.md` §20.
 UMBRAL_DISCREPANCIA_LOTE: float = DELTA_E_INDISTINGUIBLE
 
 #: **Unidad: píxeles** de la submuestra de un plano (20.000 como mucho) cuyos
@@ -589,6 +880,10 @@ UMBRAL_DISCREPANCIA_LOTE: float = DELTA_E_INDISTINGUIBLE
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO** más allá de «una mediana de menos de 200
 #: valores se mueve con poco». Es el 1% de la submuestra.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que
+#: `UMBRAL_DISCREPANCIA_LOTE`: necesita varios planos reales del mismo trabajo.
+#: Ver `CIFRAS.md` §20.
 PIXELES_COMPARTIDOS_MINIMOS_LOTE: int = 200
 
 #: **Unidad: fracción 0..1 (multiplicador)** de `Confidence.score` cuando el lote
@@ -599,4 +894,8 @@ PIXELES_COMPARTIDOS_MINIMOS_LOTE: int = 200
 #:
 #: **NO SE SABE POR QUÉ VALE ESTO** aparte de copiar el criterio de
 #: `PENA_DESAJUSTE`, que tampoco tiene medida detrás.
+#:
+#: **AUDITORÍA DÍA 7 — NO VALIDABLE TODAVÍA**, por lo mismo que `PENA_DESAJUSTE`
+#: y `UMBRAL_DISCREPANCIA_LOTE`: necesita varios planos reales. Ver `CIFRAS.md`
+#: §20.
 PENA_LOTE_INCOHERENTE: float = PENA_DESAJUSTE

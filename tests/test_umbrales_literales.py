@@ -92,6 +92,7 @@ EXCEPCIONES: dict[tuple[str, float], str] = {
     ("core/reverse/diagnostico.py", 16.0): "minimo de puntos finitos para ajustar un plano o una parabola",
     ("core/reverse/invertir.py", 4.0): "minimo de puntos para una covarianza 3x3: por debajo es singular",
     ("core/reverse/relleno.py", 8.0): "minimo de filas para unos minimos cuadrados de la base afin",
+    ("core/io/drx_protobuf.py", 9.0): "tope de bytes de un varint protobuf: limite del formato de cable, no un criterio de calidad",
 }
 
 

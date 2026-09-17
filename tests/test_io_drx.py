@@ -22,11 +22,14 @@ import zstandard
 
 from core.io.drx import (
     BYTE_CABECERA_BODY,
+    VERSIONES_RESOLVE_CONFIRMADAS,
+    advertencia_version_desconocida,
     avisar_dependencias_faltantes,
     buscar_rutas_referenciadas,
     descomprimir_body,
     inspeccionar_drx,
     leer_grado,
+    version_resolve,
 )
 
 # ---------------------------------------------------------------------------
@@ -79,11 +82,17 @@ def _body_hex(nodos: list[bytes]) -> str:
     return crudo.hex()
 
 
-def _drx_sintetico(nodos_clip: list[bytes], nodos_track: list[bytes] | None = None) -> str:
+def _drx_sintetico(
+    nodos_clip: list[bytes],
+    nodos_track: list[bytes] | None = None,
+    *,
+    comentario_version: str | None = '<!--DbAppVer="21.1.0.0017" DbPrjVer="17"-->',
+) -> str:
     body_clip = _body_hex(nodos_clip)
     body_track = _body_hex(nodos_track or [])
+    linea_version = f"{comentario_version}\n" if comentario_version is not None else ""
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<Gallery::GyStill DbId="00000000-0000-0000-0000-000000000000">
+{linea_version}<Gallery::GyStill DbId="00000000-0000-0000-0000-000000000000">
  <Label>prueba</Label>
  <pClipFullVer>
   <ListMgt::LmVersion DbId="00000000-0000-0000-0000-000000000001">
@@ -133,6 +142,67 @@ def test_inspeccionar_binario_de_verdad_no_lanza(tmp_path: Path):
     ruta.write_bytes(b"\x00\x01\x02BLACKMAGIC\xff\xfe")
     info = inspeccionar_drx(ruta)
     assert not info.es_xml
+    assert info.advertencias
+
+
+# ---------------------------------------------------------------------------
+# Deriva de versión de Resolve (día 7, tarea 4): avisar, no leer mal en
+# silencio, cuando el `.drx` viene de una versión nunca comprobada.
+# ---------------------------------------------------------------------------
+
+
+def test_version_resolve_lee_el_comentario_de_cabecera(tmp_path: Path):
+    ruta = tmp_path / "prueba.drx"
+    ruta.write_text(_drx_sintetico([_nodo(1, None)]), encoding="utf-8")
+    assert version_resolve(ruta) == "21.1.0.0017"
+
+
+def test_version_resolve_none_si_no_hay_comentario(tmp_path: Path):
+    ruta = tmp_path / "prueba.drx"
+    ruta.write_text(_drx_sintetico([_nodo(1, None)], comentario_version=None), encoding="utf-8")
+    assert version_resolve(ruta) is None
+
+
+def test_advertencia_version_desconocida_para_version_confirmada():
+    for v in VERSIONES_RESOLVE_CONFIRMADAS:
+        assert advertencia_version_desconocida(v) is None
+
+
+def test_advertencia_version_desconocida_para_version_nueva():
+    aviso = advertencia_version_desconocida("99.9.9.9999")
+    assert aviso is not None
+    assert "99.9.9.9999" in aviso
+
+
+def test_advertencia_version_desconocida_para_ausente():
+    aviso = advertencia_version_desconocida(None)
+    assert aviso is not None
+
+
+def test_inspeccionar_drx_con_version_confirmada_no_avisa(tmp_path: Path):
+    ruta = tmp_path / "prueba.drx"
+    ruta.write_text(_drx_sintetico([_nodo(1, None)]), encoding="utf-8")
+    info = inspeccionar_drx(ruta)
+    assert info.version_resolve == "21.1.0.0017"
+    assert not info.advertencias
+
+
+def test_inspeccionar_drx_con_version_desconocida_avisa(tmp_path: Path):
+    ruta = tmp_path / "prueba.drx"
+    texto = _drx_sintetico(
+        [_nodo(1, None)], comentario_version='<!--DbAppVer="30.0.0.0001" DbPrjVer="17"-->'
+    )
+    ruta.write_text(texto, encoding="utf-8")
+    info = inspeccionar_drx(ruta)
+    assert info.version_resolve == "30.0.0.0001"
+    assert any("30.0.0.0001" in a for a in info.advertencias)
+
+
+def test_inspeccionar_drx_sin_comentario_de_version_avisa(tmp_path: Path):
+    ruta = tmp_path / "prueba.drx"
+    ruta.write_text(_drx_sintetico([_nodo(1, None)], comentario_version=None), encoding="utf-8")
+    info = inspeccionar_drx(ruta)
+    assert info.version_resolve is None
     assert info.advertencias
 
 
@@ -251,6 +321,17 @@ def test_powergrade_real_nodos_y_luts_coinciden_con_lo_documentado(ruta: Path):
     assert grado is not None
     assert len(grado.nodos) == n_nodos_esperado, f"{ruta.name}: nodos"
     assert len(rutas) == n_luts_esperado, f"{ruta.name}: rutas de LUT"
+
+
+@pytestmark_reales
+@pytest.mark.parametrize("ruta", _DRX_REALES, ids=lambda r: r.name)
+def test_powergrade_real_version_confirmada_no_avisa(ruta: Path):
+    """Los 10 archivos de referencia son de la misma versión de Resolve
+    (`FORMATO-DRX.md`): confirma que sigue en `VERSIONES_RESOLVE_CONFIRMADAS`
+    y que `inspeccionar_drx` no avisa de nada por versión con ellos."""
+    info = inspeccionar_drx(ruta)
+    assert info.version_resolve in VERSIONES_RESOLVE_CONFIRMADAS
+    assert not info.advertencias
 
 
 @pytestmark_reales

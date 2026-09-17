@@ -39,6 +39,34 @@ Esto NO es un criterio calibrado contra un conjunto de validación con verdad
 conocida (no la hay para "esto es una conversión" en el sentido en que sí la
 hay para ΔE2000). Es una medida razonable, explícita, y con el hueco real
 delante para quien quiera discutirla — que es lo que pedía el encargo.
+
+DÍA 7: MONOTONÍA RELAJADA PARA "LOOK" (`TOL_MONOTONIA_LOOK`)
+--------------------------------------------------------------
+La sección 4 de este archivo mide la distribución real de reversiones de
+monotonía en los 71 LUT "look" y confirma el umbral fijado en
+`core.umbrales.TOL_MONOTONIA_LOOK`. Cifras completas y el comando reproducible
+en `CIFRAS.md` §19. Resumen: el umbral relajado sigue cazando los LUT rotos a
+propósito de T4 con margen, pero **no arregla la mayoría de los falsos
+positivos reales**: 63 de los 71 LUT "look" siguen disparando `no_monotonia`
+incluso con la tolerancia más ancha que protege a T4, porque su peor salto
+real (mediana 0,028 por archivo) es mayor que el techo que hay que respetar
+(0,01). Con clasificación automática, el material real pasa de 76/79 a 70/79
+disparando `no_monotonia` — una mejora real pero pequeña, no la solución.
+
+También se documenta aquí un bug real encontrado al medir el día 7 y
+CORREGIDO en la sesión de seguimiento: el `break` de
+`core.io.qc._monotonia()` cortaba el bucle de los tres ejes en cuanto la
+lista de problemas llegaba a `MAX_PROBLEMAS_POR_CODIGO` (20), así que
+`metricas["celdas_no_monotonas"]` y `metricas["peor_caida_monotonia"]`
+**infracontaban** en 67 de los 79 archivos reales cuando el eje que se
+procesaba primero ya llenaba esa lista él solo. Nunca afectó a si
+`no_monotonia` se detecta (el código se añade a `informe.codigos()` en
+cuanto el primer eje con problemas se procesa) ni a la lista pública de
+`problemas` (ya estaba acotada por el mismo presupuesto restante,
+`MAX_PROBLEMAS_POR_CODIGO - len(problemas)`, sin necesitar el `break`), sólo
+a la magnitud de `total`/`peor` que se enseña. El `break` era redundante y se
+borró; ver `test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz` más
+abajo, ahora un test de regresión que confirma la cifra corregida.
 """
 
 from __future__ import annotations
@@ -48,8 +76,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from core.io import CODIGO_BANDING, CODIGO_LUT_PLANO, leer_cube, qc_lut
-from core.umbrales import SALTO_MINIMO_BANDING, UMBRAL_BANDING, UMBRAL_SOMBRAS
+from core.io import (
+    CODIGO_BANDING,
+    CODIGO_LUT_PLANO,
+    CODIGO_NO_MONOTONIA,
+    clasificar_lut,
+    leer_cube,
+    qc_lut,
+)
+from core.io.lut_malos import lut_no_monotono
+from core.umbrales import SALTO_MINIMO_BANDING, TOL_MONOTONIA_LOOK, UMBRAL_BANDING, UMBRAL_SOMBRAS
 
 _CARPETA = Path(__file__).parent / "luts_reales"
 _RUTAS = sorted(_CARPETA.rglob("*.cube")) if _CARPETA.is_dir() else []
@@ -273,16 +309,178 @@ def test_dji_mavic_4_pro_tiene_una_caida_de_verdad_no_ruido_de_redondeo():
 
 
 @pytestmark_reales
-def test_los_peores_no_monotonos_son_estos_seis_archivos_sony():
-    """Las caídas más grandes de todas (>0,19 sobre 0..1, sobre 48/255) son
-    seis variantes del mismo LUT de monitor Sony: 'SECRET SAUCE/A4 MONITOR
-    LUTs V2/SONY Slog3 Monitor LUTs V2/'. Es información para Mario, no algo
-    que esta app vaya a arreglar."""
+def test_los_peores_no_monotonos_son_jota_lut_fitz_y_cinco_sony():
+    """Corregido el bug del `break` (ver
+    `test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz`): la caída
+    más grande de TODO el material real es `Jota_lut_fitz.cube` (-0,315, eje
+    azul), no una de las variantes Sony — antes quedaba oculta porque
+    `qc_lut()` cortaba el escaneo en el eje rojo (-0,180) antes de llegar al
+    azul. Las otras cinco peores (>0,22 sobre 0..1) siguen siendo variantes
+    del mismo LUT de monitor Sony: 'SECRET SAUCE/A4 MONITOR LUTs V2/SONY
+    Slog3 Monitor LUTs V2/'. Es información para Mario, no algo que esta app
+    vaya a arreglar."""
     if len(_RUTAS) != 79:
         pytest.skip(f"el material cambió: hay {len(_RUTAS)} archivos, no 79")
     peores = sorted(
         _RUTAS,
         key=lambda r: qc_lut(leer_cube(r)).metricas["peor_caida_monotonia"],
     )[:6]
-    nombres = {str(r.relative_to(_CARPETA)) for r in peores}
-    assert all("SONY Slog3 Monitor LUTs V2" in n for n in nombres), nombres
+    nombres = [str(r.relative_to(_CARPETA)) for r in peores]
+    assert nombres[0] == "Jota_lut_fitz.cube", nombres
+    assert all("SONY Slog3 Monitor LUTs V2" in n for n in nombres[1:]), nombres
+
+
+@pytestmark_reales
+def test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz():
+    """Bug real encontrado al medir el día 7, CORREGIDO en la sesión de
+    seguimiento: `_monotonia()` cortaba el bucle de los tres ejes en cuanto
+    la lista de problemas llegaba a `MAX_PROBLEMAS_POR_CODIGO` (20). En un
+    LUT con miles de reversiones ya en el primer eje procesado, eso
+    significaba que los ejes siguientes NUNCA se examinaban, y
+    `peor_caida_monotonia` / `celdas_no_monotonas` salían más pequeños que
+    la realidad.
+
+    Ejemplo concreto: `Jota_lut_fitz.cube` es el peor LUT "look" de TODO el
+    material real (peor reversión de verdad: -0,315, en el eje azul). Antes
+    del fix, `qc_lut()` cortaba antes de llegar al eje azul y reportaba
+    -0,180 (el peor del eje rojo, que se procesa primero) — por eso no
+    aparecía entre los "6 peores Sony" de
+    `test_los_peores_no_monotonos_son_jota_lut_fitz_y_cinco_sony`. El fix fue
+    borrar el `break` redundante: la lista pública de `problemas` ya estaba
+    acotada por el presupuesto restante (`MAX_PROBLEMAS_POR_CODIGO -
+    len(problemas)`), así que sólo cambió la magnitud de `total`/`peor`, no
+    qué se detecta ni la lista de problemas que se enseña.
+
+    Este test ahora es de REGRESIÓN: confirma que `qc_lut()` coincide con el
+    cálculo directo sin recorte."""
+    ruta = _CARPETA / "Jota_lut_fitz.cube"
+    if not ruta.exists():
+        pytest.skip("no está 'Jota_lut_fitz.cube'")
+    table = np.asarray(leer_cube(ruta).table, dtype=np.float64)
+
+    def peor_real(tabla: np.ndarray) -> float:
+        peor = 0.0
+        for eje in range(3):
+            d = np.diff(tabla[..., eje], axis=eje)
+            if (d < 0).any():
+                peor = min(peor, float(d.min()))
+        return peor
+
+    informe = qc_lut(leer_cube(ruta))
+    assert peor_real(table) == pytest.approx(-0.31504, abs=1e-4)
+    assert informe.metricas["peor_caida_monotonia"] == pytest.approx(
+        peor_real(table), abs=1e-9
+    ), (
+        "si esto deja de coincidir, o volvió el bug del break, o el material "
+        "cambió — hay que revisarlo, no borrarlo sin mirar"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 4. Día 7: distribución real de reversiones en "look" y TOL_MONOTONIA_LOOK.
+#    Cifras completas en CIFRAS.md §19.
+# ---------------------------------------------------------------------------
+
+
+def _peor_reversion_por_eje(table: np.ndarray) -> float:
+    """Magnitud (positiva) de la peor caída de monotonía diagonal, escaneando
+    los TRES ejes siempre (sin el corte de `MAX_PROBLEMAS_POR_CODIGO` que
+    tiene `_monotonia()` — ver el bug de arriba). Es lo que hace falta para
+    medir la distribución real sin que el recorte de la lista pública la
+    distorsione."""
+    peor = 0.0
+    for eje in range(3):
+        d = np.diff(table[..., eje], axis=eje)
+        if (d < 0).any():
+            peor = max(peor, float(-d.min()))
+    return peor
+
+
+@pytestmark_reales
+def test_distribucion_de_reversiones_en_luts_look():
+    """La medida detrás de `TOL_MONOTONIA_LOOK`: por cada uno de los 71 LUT
+    "look", el peor salto de monotonía diagonal (sin recorte de ningún tipo).
+    La mediana POR ARCHIVO (0,028) es casi tres veces el techo que hay que
+    respetar por T4 (0,01): la mayoría de las reversiones "normales de un
+    look" no caben en ningún umbral que siga cazando el LUT roto de T4."""
+    if len(_RUTAS) != 79:
+        pytest.skip(f"el material cambió: hay {len(_RUTAS)} archivos, no 79")
+    peores_look = [
+        _peor_reversion_por_eje(np.asarray(leer_cube(r).table, dtype=np.float64))
+        for r in _RUTAS
+        if clasificar_lut(leer_cube(r)) == "look"
+    ]
+    assert len(peores_look) == 71
+    arr = np.array(peores_look)
+    assert int((arr == 0.0).sum()) == 2, "sólo 2 LUT look sin ninguna reversión"
+    assert float(np.median(arr)) == pytest.approx(0.02808, abs=1e-4)
+    assert float(arr.max()) == pytest.approx(0.31504, abs=1e-4)
+
+
+@pytestmark_reales
+def test_tol_monotonia_look_limpia_solo_8_de_71_luts_look():
+    """La tensión dicha con cifras: `TOL_MONOTONIA_LOOK` (0,005, con margen
+    real bajo el techo de T4) sólo deja limpios 8 de los 71 LUT "look" reales.
+    Los otros 63 (89%) SIGUEN disparando `no_monotonia` porque su peor caída
+    real supera el techo. La hipótesis de Mario (la monotonía relajada es
+    correcta para un look) es cierta conceptualmente, pero no resuelve la
+    mayoría de los falsos positivos de material real: el hueco entre "look
+    legítimo" y "techo que protege T4" no es un hueco limpio, es una zona
+    gris."""
+    if len(_RUTAS) != 79:
+        pytest.skip(f"el material cambió: hay {len(_RUTAS)} archivos, no 79")
+    look = [r for r in _RUTAS if clasificar_lut(leer_cube(r)) == "look"]
+    assert len(look) == 71
+    disparan = sum(
+        1
+        for r in look
+        if CODIGO_NO_MONOTONIA in qc_lut(leer_cube(r), clasificacion="look").codigos()
+    )
+    assert disparan == 63
+
+
+@pytestmark_reales
+def test_no_monotonia_con_clasificacion_automatica_baja_de_76_a_70_de_79():
+    """El titular del día 7: clasificando cada uno de los 79 archivos con
+    `clasificar_lut()` y usando esa clasificación en `qc_lut()`, el recuento
+    de `no_monotonia` baja de 76/79 (regla de ayer, estricta para todos) a
+    70/79. Una mejora real (6 archivos menos) pero pequeña: la hipótesis de
+    Mario no estaba mal, pero no arregla la mayoría del material real."""
+    if len(_RUTAS) != 79:
+        pytest.skip(f"el material cambió: hay {len(_RUTAS)} archivos, no 79")
+    disparan_regla_nueva = 0
+    for r in _RUTAS:
+        lut = leer_cube(r)
+        clase = clasificar_lut(lut)
+        if CODIGO_NO_MONOTONIA in qc_lut(lut, clasificacion=clase).codigos():
+            disparan_regla_nueva += 1
+    assert disparan_regla_nueva == 70
+
+
+@pytestmark_reales
+def test_tol_monotonia_look_sigue_cazando_los_luts_rotos_de_t4_con_margen():
+    """El techo duro (RESTRICCIONES DURAS del encargo del día 7): la versión
+    relajada tiene que seguir cazando los LUT rotos a propósito de T4.
+    `lut_no_monotono` usa `caida=0.01` por defecto (catálogo de T4) y el test
+    T4 real construye el suyo con 0.02 (`tests/test_entregables.py::
+    test_T4_caza_un_lut_no_monotono`); los dos siguen cazándose con
+    `TOL_MONOTONIA_LOOK`, con 2x y 4x de margen respectivamente. No depende
+    de material real (usa el generador de LUT rotos), pero vive aquí porque
+    es la comprobación que justifica el valor fijado en `core/umbrales.py`."""
+    for caida in (0.01, 0.02):
+        informe = qc_lut(
+            lut_no_monotono(size=17, eje=0, caida=caida),
+            clasificacion="look",
+            tol_monotonia_look=TOL_MONOTONIA_LOOK,
+        )
+        assert CODIGO_NO_MONOTONIA in informe.codigos(), (
+            f"con caida={caida} el LUT roto de T4 tiene que seguir cazándose"
+        )
+    # Y el punto exacto donde deja de cazar está por debajo de los dos: no es
+    # un margen de mentira, es un margen medido.
+    justo_debajo = qc_lut(
+        lut_no_monotono(size=17, eje=0, caida=TOL_MONOTONIA_LOOK * 0.99),
+        clasificacion="look",
+        tol_monotonia_look=TOL_MONOTONIA_LOOK,
+    )
+    assert CODIGO_NO_MONOTONIA not in justo_debajo.codigos()

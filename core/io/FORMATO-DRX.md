@@ -241,6 +241,54 @@ instalado en otra ruta), el PowerGrade se aplicaría mal y en silencio.
 
 ---
 
+## 4b · Versión de Resolve y por qué el lector avisa si no la conoce
+
+**Día 7.** Todo lo de este documento se confirmó contra UNA sola versión de Resolve —
+los 10 archivos de referencia vienen de la misma instalación. El protobuf del `<Body>`
+no tiene esquema publicado (§2.2): los números de campo son estables dentro de una
+build, pero nada garantiza que sigan significando lo mismo en otra versión de Resolve.
+Confiar en eso sin comprobarlo sería precisamente el fallo que este documento lleva
+evitando desde el día 6: dar una cifra sin haberla visto contra material real.
+
+**Dónde está la versión.** Confirmado en 10 de 10: la segunda línea del archivo, antes
+del elemento raíz, es un comentario XML con la versión de Resolve y de proyecto que lo
+escribió:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!--DbAppVer="21.1.0.0017" DbPrjVer="17"-->
+<Gallery::GyStill DbId="…">
+```
+
+`core/io/drx.py::version_resolve()` la lee con una expresión regular sobre el
+comentario — no hace falta parsear XML para esto, y así funciona incluso si el resto
+del archivo no es un XML válido.
+
+**Versiones confirmadas contra material real** (`VERSIONES_RESOLVE_CONFIRMADAS` en
+`core/io/drx.py`):
+
+| Versión (`DbAppVer`) | `DbPrjVer` | Confirmada en |
+|---|---|---|
+| `21.1.0.0017` | `17` | los 10 archivos de referencia de Mario |
+
+**Ninguna otra versión se ha visto nunca.** Cualquier `.drx` con un `DbAppVer` fuera de
+esa tabla — o sin el comentario en absoluto — hace que `inspeccionar_drx()` (vía
+`InfoDRX.advertencias`) y `core.io.biblioteca.sembrar_desde_drx()` (vía
+`Preset.advertencias`) avisen explícitamente, en vez de tratarlo como si fuera la
+versión conocida. **Avisa, no bloquea** (regla general de `CONTRATOS.md`, día 7): el
+archivo se sigue leyendo con el mismo código — protobuf suele ser aditivo entre
+versiones de un mismo producto, así que es razonable que siga funcionando — pero quien
+use el resultado sabe que no está comprobado, en vez de recibir una ruta de LUT con
+forma perfectamente plausible y contenido posiblemente equivocado sin ninguna señal de
+que algo podría estar mal.
+
+**Cómo añadir una versión a la tabla:** sólo después de tener un `.drx` real de esa
+versión y comprobar contra él (nodos, rutas de LUT, cabecera del `<Body>`) igual que se
+hizo el día 6 con los 10 de referencia — nunca por suposición de que "probablemente
+sigue igual".
+
+---
+
 ## 5 · Lo que queda abierto, explícitamente
 
 1. **El significado exacto del byte de cabecera `0x81`** — constante en las 20
@@ -255,6 +303,9 @@ instalado en otra ruta), el PowerGrade se aplicaría mal y en silencio.
 5. **Cualquier tipo de `.drx` que no sea un Still/PowerGrade** (p.ej. un `.drx` de
    timeline completo, si existe como formato de exportación distinto) — fuera del
    alcance de lo que Mario dejó.
+6. **Si el protobuf del grado cambia de forma entre versiones de Resolve** — sigue sin
+   confirmarse ni descartarse (§4b): sólo hay material real de una versión. El lector
+   avisa cuando ve otra, no ha comprobado que otra vaya a leerse mal.
 
 ## 6 · Cómo reproducir cualquier cifra de este documento
 

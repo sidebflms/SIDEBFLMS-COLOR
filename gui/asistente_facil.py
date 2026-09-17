@@ -202,12 +202,16 @@ def _frase_equilibrar(nombre: str, ev: float, balance: float) -> str:
     partes = []
     if abs(ev) > 0.05:
         direccion = "subido" if ev > 0 else "bajado"
-        partes.append(f"he {direccion} la exposición")
+        partes.append(f"{direccion} la exposición")
     if balance > 0.01:
         partes.append("corregido el balance de color")
     if not partes:
         return f"«{nombre}» ya estaba equilibrado: no ha hecho falta tocar nada."
-    return f"En «{nombre}» " + " y ".join(partes) + "."
+    # El "he" va UNA sola vez delante de todo el compuesto (día 7: con sólo
+    # `partes[0] == "corregido…"` se quedaba en "En «X» corregido…", una
+    # frase sin verbo conjugado — se detectó leyendo el paso 3 seguido, no en
+    # un test).
+    return f"En «{nombre}» he " + " y ".join(partes) + "."
 
 
 def ejecutar_equilibrar(clip: ClipDemo) -> PasoEquilibrar:
@@ -377,9 +381,21 @@ def ejecutar_repasar(
     )
 
     if not candidatos:
-        frase = "No hay nada que te haga falta revisar a mano: todo lo demás está medido."
+        # NO "todo lo demás está medido": sólo se han comprobado dos señales
+        # (desajuste de contenido y metadata de cámara sin resolver). Que no
+        # hayan saltado no certifica que el resto esté bien — sólo que estas
+        # dos cosas concretas no lo han encontrado. Ver la tarea 3 del día 7.
+        frase = "Por lo que he podido comprobar, no hay ninguno que destaque para que lo mires aparte."
     else:
-        frase = f"Hay {len(candidatos)} clip{'s' if len(candidatos) != 1 else ''} que conviene que mires tú."
+        # "Estos los miraría yo" (día 7): es una SUGERENCIA de por dónde
+        # empezar, no un veredicto. Con precisión@5 = 0.40 frente a 0.25 de
+        # un orden al azar (CIFRAS.md §18), decir "estos son los peores" o
+        # "estos tienen problemas" afirmaría más de lo medido — la lista
+        # ordena razonablemente bien, no certifica cuáles son malos.
+        frase = (
+            f"Estos son los {len(candidatos)} clip{'s' if len(candidatos) != 1 else ''} que yo miraría "
+            "primero, empezando por el que más lo necesita."
+        )
     return PasoRepasar(candidatos=candidatos, frase=frase)
 
 

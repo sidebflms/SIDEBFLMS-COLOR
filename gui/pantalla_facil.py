@@ -25,8 +25,16 @@ ha decidido algo que no se sabe.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QFontMetrics
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.io.biblioteca import Preset
 from gui import identidad as idn
@@ -110,6 +118,120 @@ class _SelectorPresets(QWidget):
         self.setVisible(bool(presets))
 
 
+#: Cuántos candidatos del paso 5 se enseñan en la lista. No es un capricho de
+#: diseño: es lo que se ha MEDIDO (`CIFRAS.md` §18, precisión@5 y @10) — más
+#: allá de 10 no hay ninguna cifra publicada que diga si el orden sigue
+#: sirviendo, así que enseñar más sería una promesa sin medir detrás.
+MAX_CANDIDATOS_REPASO = 10
+
+
+class _BotonRepaso(QPushButton):
+    """Una fila de `_ListaRepaso`: el texto se recorta con «…» al ancho real
+    del botón, no a lo bruto en el borde.
+
+    Día 7: capturada la anchura mínima (973px) del recorrido completo, el
+    motivo de un candidato salía cortado a mitad de palabra y sin ninguna
+    marca de que faltaba texto — el mismo fallo que `gui.widgets.EtiquetaElidida`
+    ya existe para resolver en las etiquetas normales, pero un botón
+    clicable no puede ser un `QLabel`. El texto completo siempre queda
+    accesible por el tooltip.
+
+    La primera versión sólo recortaba el TEXTO y se quedaba igual de rota:
+    `QPushButton.sizeHint()`/`minimumSizeHint()` de Qt se calculan a partir
+    del texto que el botón tiene puesto en cada momento, así que un botón
+    con el texto completo pedía un ancho mínimo más ancho que la ventana —
+    la `QScrollArea` (sin barra horizontal) le daba ese ancho de todas
+    formas y el sobrante quedaba fuera de la vista, sin recortar y sin
+    aviso. Por eso aquí, igual que en `EtiquetaElidida`, el tamaño que pide
+    el widget se DESACOPLA del texto que se ve: `sizeHint()` mira el texto
+    COMPLETO (para que una ventana holgada lo enseñe entero) y
+    `minimumSizeHint()` es un ancho mínimo fijo pequeño (para que el layout
+    pueda encogerlo de verdad), nunca lo que mide el texto ya recortado.
+    """
+
+    _ANCHO_MINIMO_PX = 80
+
+    def __init__(self, texto_completo: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._texto_completo = texto_completo
+        self.setToolTip(texto_completo)
+        # Un QPushButton normal tiene política horizontal `Minimum`, que para
+        # Qt significa "el ancho de `sizeHint()` es también el mínimo": con el
+        # `sizeHint()` de abajo devolviendo el ancho del texto COMPLETO, el
+        # botón nunca se habría podido encoger por debajo de eso, por mucho
+        # que `minimumSizeHint()` dijera otra cosa — el mismo bug de fondo,
+        # sólo que un nivel más abajo. `Preferred` es la política que SÍ dice
+        # "el mínimo de verdad es `minimumSizeHint()`, `sizeHint()` es sólo lo
+        # ideal" (la misma que usa `gui.widgets.EtiquetaElidida`).
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, self.sizePolicy().verticalPolicy())
+        super().setText(texto_completo)
+        self._refrescar()
+
+    def _margen_horizontal(self) -> int:
+        m = self.contentsMargins()
+        # +24px: el relleno interno que Qt añade a un QPushButton (chrome del
+        # estilo) no está en `contentsMargins()`; sin este margen extra el
+        # recorte se come el último carácter contra el borde del botón.
+        return m.left() + m.right() + 24
+
+    def _refrescar(self) -> None:
+        metricas = QFontMetrics(self.font())
+        disponible = max(self.width() - self._margen_horizontal(), 8)
+        recortado = metricas.elidedText(self._texto_completo, Qt.TextElideMode.ElideRight, disponible)
+        super().setText(recortado)
+
+    def sizeHint(self) -> QSize:  # noqa: N802  (override de Qt)
+        metricas = QFontMetrics(self.font())
+        ancho = metricas.horizontalAdvance(self._texto_completo) + self._margen_horizontal()
+        return QSize(ancho, super().sizeHint().height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802  (override de Qt)
+        return QSize(self._ANCHO_MINIMO_PX, super().sizeHint().height())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802  (override de Qt)
+        super().resizeEvent(event)
+        self._refrescar()
+
+
+class _ListaRepaso(QWidget):
+    """La lista del paso 5, completa (hasta `MAX_CANDIDATOS_REPASO`) y en
+    orden — antes sólo se enseñaba el primer candidato, lo que rompía la
+    promesa de "estos los miraría yo, por orden": si sólo se ve uno, no hay
+    orden que enseñar (día 7, tarea 3)."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._area = QScrollArea()
+        self._area.setWidgetResizable(True)
+        self._area.setMaximumHeight(180)
+        self._area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        contenido = QWidget()
+        self._columna = QVBoxLayout(contenido)
+        self._columna.setContentsMargins(0, 0, 0, 0)
+        self._columna.setSpacing(2)
+        self._area.setWidget(contenido)
+        capa = QVBoxLayout(self)
+        capa.setContentsMargins(0, 0, 0, 0)
+        capa.addWidget(self._area)
+        self._botones: list[_BotonRepaso] = []
+
+    def poner(self, candidatos: tuple, elegido_id: str | None, al_elegir) -> None:
+        for b in self._botones:
+            b.setParent(None)
+        self._botones.clear()
+        for i, c in enumerate(candidatos[:MAX_CANDIDATOS_REPASO], start=1):
+            b = _BotonRepaso(f"{i}. {c.nombre} — {c.motivo}")
+            b.setObjectName("navegacion")
+            b.setCheckable(True)
+            b.setChecked(c.clip_id == elegido_id)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet("text-align: left;")
+            b.clicked.connect(lambda _checked, cid=c.clip_id: al_elegir(cid))
+            self._columna.addWidget(b)
+            self._botones.append(b)
+        self.setVisible(bool(candidatos))
+
+
 class PantallaFacil(QWidget):
     """El asistente completo. Se construye una vez por `EstadoDemo`."""
 
@@ -126,6 +248,7 @@ class PantallaFacil(QWidget):
         self._preset_elegido_id: str | None = biblioteca[0].id if biblioteca else None
         self._indice = 0
         self._paso_ordenar = None  # cacheado: el paso 5 lo necesita
+        self._repaso_elegido_id: str | None = None
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -151,6 +274,10 @@ class PantallaFacil(QWidget):
         self._pregunta.hide()
         self._panel_texto.caja.addWidget(self._pregunta)
         raiz.addWidget(self._panel_texto)
+
+        self._lista_repaso = _ListaRepaso()
+        self._lista_repaso.hide()
+        raiz.addWidget(self._lista_repaso)
 
         fila = QHBoxLayout()
         self.boton_deshacer = QPushButton("Deshacer")
@@ -272,16 +399,32 @@ class PantallaFacil(QWidget):
             paso = ejecutar_repasar(self._estado, paso_ordenar)
             self._frase.setText(paso.frase)
             if paso.candidatos:
-                primero = paso.candidatos[0]
-                clip = self._estado.por_id(primero.clip_id)
-                self._pregunta.setText(f"«{primero.nombre}»: {primero.motivo}")
+                # El elegido sigue siendo válido si el usuario ya había hecho
+                # click en la lista en una vuelta anterior a este paso; si no
+                # (o si ya no está en la lista), se cae al primero — que es
+                # el que el orden dice que conviene mirar antes.
+                ids_candidatos = {c.clip_id for c in paso.candidatos}
+                if self._repaso_elegido_id not in ids_candidatos:
+                    self._repaso_elegido_id = paso.candidatos[0].clip_id
+                elegido = next(c for c in paso.candidatos if c.clip_id == self._repaso_elegido_id)
+
+                self._lista_repaso.poner(paso.candidatos, self._repaso_elegido_id, self._elegir_repaso)
+                self._pregunta.setText(f"«{elegido.nombre}»: {elegido.motivo}")
                 self._pregunta.show()
+                clip = self._estado.por_id(elegido.clip_id)
                 self._visor.poner(
                     a_qimage(clip.original) if clip and clip.original is not None else None,
                     a_qimage(clip.despues()) if clip and clip.original is not None else None,
                 )
             else:
+                self._lista_repaso.poner((), None, self._elegir_repaso)
                 self._visor.poner(None, None, mensaje="No hay nada pendiente de revisar.")
+        if pid != "repasar":
+            self._lista_repaso.hide()
+
+    def _elegir_repaso(self, clip_id: str) -> None:
+        self._repaso_elegido_id = clip_id
+        self._mostrar_paso(self._indice)
 
 
 __all__ = ["PantallaFacil"]

@@ -148,6 +148,75 @@ def test_selector_se_oculta_fuera_del_paso_look(tmp_path):
     assert not p._selector_presets.isVisible()
 
 
+def test_paso_repasar_muestra_la_lista_completa_no_solo_el_primero():
+    """Día 7, tarea 3: si sólo se pintaba `candidatos[0]` no había orden que
+    enseñar en pantalla, aunque la frase dijera "por orden". La lista tiene
+    que traer TODOS los candidatos del cálculo puro, no sólo el primero."""
+    app_qt()
+    estado = dd.estado_demo()
+    p = PantallaFacil(estado)
+    p.show()
+    for _ in range(4):
+        p.siguiente()
+    assert p.paso_actual() == "repasar"
+
+    from gui.asistente_facil import ejecutar_ordenar, ejecutar_repasar
+
+    esperado = ejecutar_repasar(estado, ejecutar_ordenar(estado))
+    assert esperado.candidatos  # el caso de demo tiene de sobra
+    assert p._lista_repaso.isVisible()
+    assert len(p._lista_repaso._botones) == len(esperado.candidatos)
+
+
+def test_boton_de_la_lista_recorta_el_texto_largo_con_puntos_suspensivos():
+    """Día 7: capturada la anchura mínima real, el motivo de un candidato
+    salía cortado a mitad de palabra sin ninguna marca de que faltaba texto.
+    A un ancho estrecho el botón tiene que recortar con «…» y guardar el
+    texto completo en el tooltip, nunca cortarlo a lo bruto."""
+    app_qt()
+    p = PantallaFacil(dd.estado_demo())
+    p.show()
+    for _ in range(4):
+        p.siguiente()
+    assert p._lista_repaso._botones
+    b = p._lista_repaso._botones[0]
+    completo = b._texto_completo
+    b.resize(60, b.sizeHint().height())
+    asentar()
+    assert b.text() != completo
+    assert b.text().endswith("…")
+    assert b.toolTip() == completo
+
+
+def test_lista_repaso_se_oculta_fuera_del_paso_repasar():
+    app_qt()
+    p = PantallaFacil(dd.estado_demo())
+    p.show()
+    for _ in range(4):
+        p.siguiente()
+    assert p._lista_repaso.isVisible()
+    p.deshacer()  # vuelve a "look"
+    assert not p._lista_repaso.isVisible()
+
+
+def test_elegir_un_candidato_de_la_lista_cambia_lo_que_se_muestra():
+    app_qt()
+    estado = dd.estado_demo()
+    p = PantallaFacil(estado)
+    for _ in range(4):
+        p.siguiente()
+
+    from gui.asistente_facil import ejecutar_ordenar, ejecutar_repasar
+
+    candidatos = ejecutar_repasar(estado, ejecutar_ordenar(estado)).candidatos
+    assert len(candidatos) > 1
+    otro = candidatos[1]
+
+    p._elegir_repaso(otro.clip_id)
+    assert p._repaso_elegido_id == otro.clip_id
+    assert otro.nombre in p._pregunta.text()
+
+
 def test_paso_ordenar_no_muestra_ni_un_numero_de_confianza():
     """Regla del encargo: ni ΔE, ni CDL, ni cobertura, ni confianza en pantalla."""
     app_qt()

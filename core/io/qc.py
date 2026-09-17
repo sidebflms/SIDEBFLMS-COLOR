@@ -22,7 +22,12 @@ QUÉ BUSCA, Y CÓMO
                    Se mira la diagonal: eje de entrada `a` contra canal de
                    salida `a`. Un LUT puede mezclar canales todo lo que quiera
                    (eso es un tinte), pero que el rojo baje cuando subes el
-                   rojo es siempre un defecto.
+                   rojo es siempre un defecto EN UN LUT DE CONVERSIÓN de
+                   espacio de color. En un LUT de "look" (`clasificacion=
+                   "look"`, día 7) un viraje de tono retrocede un canal a
+                   propósito, así que se usa una tolerancia distinta y más
+                   ancha (`TOL_MONOTONIA_LOOK`, ver `core/umbrales.py`): el
+                   detector es el mismo, sólo cambia cuánto se le perdona.
 4. `banding`     — escalón brusco entre celdas contiguas. Ver abajo.
 5. `gamut`       — valores de salida fuera de 0..1. Aviso, no error: un LUT de
                    look puede salirse a propósito y Resolve lo recorta.
@@ -122,6 +127,7 @@ from core.umbrales import (
     SALTO_MINIMO_BANDING,
     TOL_GAMUT,
     TOL_MONOTONIA,
+    TOL_MONOTONIA_LOOK,
     UMBRAL_BANDING,
     UMBRAL_RECORRIDO_LUT_PLANO,
     UMBRAL_SOMBRAS,
@@ -380,8 +386,6 @@ def _monotonia(table: np.ndarray, tol: float) -> tuple[list[ProblemaQC], int, fl
                     valor=caida,
                 )
             )
-        if len(problemas) >= MAX_PROBLEMAS_POR_CODIGO:
-            break
     return problemas, total, peor
 
 
@@ -601,9 +605,11 @@ def clasificar_lut(lut: LUT3D) -> Literal["conversion", "look"]:
 def qc_lut(
     lut: LUT3D,
     *,
+    clasificacion: Literal["conversion", "look"] | None = None,
     umbral_banding: float = UMBRAL_BANDING,
     salto_minimo_banding: float = SALTO_MINIMO_BANDING,
     tol_monotonia: float = TOL_MONOTONIA,
+    tol_monotonia_look: float = TOL_MONOTONIA_LOOK,
     tol_gamut: float = TOL_GAMUT,
 ) -> LUTQualityReport:
     """Pasa el LUT por los seis detectores y devuelve el informe.
@@ -613,6 +619,16 @@ def qc_lut(
 
     Cada problema dice **dónde** está (celda, eje de entrada, canal de salida)
     porque la GUI lo va a enseñar y "hay banding" sin más no le sirve a nadie.
+
+    `clasificacion` (día 7, `core.io.qc.clasificar_lut`): decide la tolerancia
+    de monotonía. `None` (por defecto, compatible con quien llamaba a esto
+    antes de hoy) usa `tol_monotonia`, la estricta — el comportamiento de
+    siempre, sin sorpresas para quien no sepa de esto. `"conversion"` hace lo
+    mismo explícitamente. `"look"` usa `tol_monotonia_look`, más laxa: un look
+    retrocede un canal a propósito (una emulación de película, un viraje de
+    tono) y eso no es un defecto — ver `core/umbrales.py::TOL_MONOTONIA_LOOK`
+    para la cifra y de dónde sale. Es la MISMA comprobación (`_monotonia`) en
+    los dos casos: sólo cambia el umbral que decide qué cuenta como "grande".
     """
     table = np.asarray(lut.table, dtype=np.float64)
     problemas: list[ProblemaQC] = []
@@ -624,7 +640,8 @@ def qc_lut(
 
     problemas += _lut_plano(table)
 
-    p_mono, n_mono, peor_caida = _monotonia(table, tol_monotonia)
+    tol_monotonia_efectiva = tol_monotonia_look if clasificacion == "look" else tol_monotonia
+    p_mono, n_mono, peor_caida = _monotonia(table, tol_monotonia_efectiva)
     problemas += p_mono
     metricas["celdas_no_monotonas"] = float(n_mono)
     metricas["peor_caida_monotonia"] = float(peor_caida)

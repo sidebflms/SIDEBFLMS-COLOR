@@ -81,6 +81,12 @@ class Preset:
     #: pudieron leer el `.cube` para medirlo — no debería pasar en uso normal,
     #: ya que las dos funciones ya necesitan cargarlo para saber su rejilla.
     clasificacion: str | None = None
+    #: Avisos de procedencia (día 7, tarea 4): sólo lo llena
+    #: `sembrar_desde_drx`, con `core.io.drx.advertencia_version_desconocida`
+    #: si el `.drx` de origen vino de una versión de Resolve nunca comprobada
+    #: contra material real. Vacío en el caso normal y siempre en presets
+    #: sembrados de un `.cube` suelto (no hay versión de Resolve que avisar).
+    advertencias: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -160,8 +166,18 @@ def sembrar_desde_drx(ruta_drx: str | Path, carpeta_luts: str | Path) -> tuple[P
     `None` si el `.drx` no referencia ningún LUT, o si el que sería el look
     no se encuentra (por nombre) dentro de `carpeta_luts` — sin el archivo
     real no hay nada que empaquetar.
+
+    Día 7, tarea 4: si el `.drx` fue escrito por una versión de Resolve
+    nunca comprobada contra material real, el `Preset` resultante lleva ese
+    aviso en `advertencias` — el protobuf del grado no tiene esquema
+    publicado y los campos podrían haberse movido; avisa en vez de dar por
+    buenas unas rutas de LUT que podrían estar mal leídas en silencio.
     """
-    from core.io.drx import buscar_rutas_referenciadas
+    from core.io.drx import (
+        advertencia_version_desconocida,
+        buscar_rutas_referenciadas,
+        version_resolve,
+    )
 
     rutas = buscar_rutas_referenciadas(ruta_drx)
     if not rutas:
@@ -176,6 +192,8 @@ def sembrar_desde_drx(ruta_drx: str | Path, carpeta_luts: str | Path) -> tuple[P
         lut = leer_cube(candidato)
     except ErrorFormatoCube:
         return None
+    aviso_version = advertencia_version_desconocida(version_resolve(ruta_drx))
+    advertencias = (aviso_version,) if aviso_version is not None else ()
     nombre = nombre_legible(candidato)
     preset = Preset(
         id=_slug(nombre),
@@ -184,6 +202,7 @@ def sembrar_desde_drx(ruta_drx: str | Path, carpeta_luts: str | Path) -> tuple[P
         ruta_origen=str(candidato),
         dependencias_declaradas=dependencias,
         clasificacion=clasificar_lut(lut),
+        advertencias=advertencias,
     )
     return preset, lut
 
