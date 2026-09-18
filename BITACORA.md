@@ -2029,3 +2029,137 @@ arriba) — NO EMPEZADO, PENDIENTE DE DECISIÓN, nada de esto se ha tocado esta 
 `pytest tests/test_referencia_externa_look.py -q` verde (2 tests, sin material real ni
 `/Volumes`, sin conexión a Resolve) y `ruff check tests/test_referencia_externa_look.py`
 limpio.
+
+## D9-2 · Bloque 3: ronda de caminos de error, uno por uno
+
+Ocho días construyendo el camino feliz. El encargo pedía, por cada uno de los ocho escenarios
+de Mario: qué hace hoy, qué debería hacer, y el test que lo fija. Se han mirado los ocho; en
+cuatro había un hueco real y dos se han arreglado esta noche, en dos no hay arreglo razonable
+sin más arquitectura de la que cabe en un bloque, y se dice así en vez de fingir que se ha
+resuelto. Regla que gobierna todo esto, tal como la pidió Mario: fallar en voz alta y sin dejar
+nada a medias, en castellano llano.
+
+**1. ffmpeg falla o no está a mitad del análisis de una timeline de 200 clips. ¿Se pierde todo
+lo analizado? ¿Se puede reanudar?**
+
+**Hueco real, sin arreglar.** No existe ningún orquestador de "analiza esta timeline entera":
+`core.analysis` tiene funciones POR CLIP (`sondear`, `extraer_fotogramas`, `analizar_clip`) con
+una jerarquía de errores tipada y clara (`ErrorAnalisis`/`ErrorFFmpeg`/`HerramientaNoDisponible`/
+`FicheroNoEncontrado`, `core/analysis/errores.py`) que ya "nunca sale como traceback" — pero
+nada en el repo itera sobre una LISTA de clips llamando a esas funciones con manejo de fallo
+por clip y estado persistido entre llamadas. Toda la GUI de hoy trabaja sobre `EstadoDemo`, que
+ya viene con el análisis hecho (datos de demostración o, el día que exista, ya calculados) — no
+hay un botón "analizar el timeline" que dispare 200 llamadas reales a ffmpeg. Sin ese
+orquestador no hay nada que reanudar: "reanudable" exige saber qué se hizo ya, y eso exige un
+estado persistido (un manifiesto clip_id → resultado-o-error, escrito de forma incremental) que
+hoy no existe en ningún sitio. **Qué haría falta**: un `core.analysis.lote` (nombre a decidir)
+que reciba una lista de clips, llame a `analizar_clip` uno a uno capturando `ErrorAnalisis` por
+clip (no por lote), escriba el progreso en un fichero conforme avanza (para poder reanudar
+saltándose los ya hechos), y devuelva un resumen con éxitos/fallos. Es una pieza nueva de
+ingeniería real, no un arreglo de una tarde — no se ha improvisado esta noche por la misma
+razón por la que Mario pidió no fingir que algo funciona: un orquestador mal diseñado a las
+4 de la mañana sería peor que no tener ninguno.
+
+**2. Un archivo de origen desaparece entre el análisis y la aplicación (disco desconectado a
+mitad del trabajo).**
+
+**No aplica hoy, y queda dicho por qué en vez de dar un test falso.** Se ha revisado
+`gui/pantalla_aplicar.py::aplicar()` y `core/resolve/bridge.py::aplicar_grado_seguro()` entera:
+ninguna de las dos vuelve a abrir el fichero de origen. La fase de aplicar trabaja enteramente
+con lo que ya se calculó en el análisis (`clip.match.cdl`, cacheado en `EstadoDemo`) y con
+llamadas al puente de Resolve — nunca con una ruta de disco. Así que, con la arquitectura de
+hoy, un disco que se desconecta DESPUÉS de analizar y ANTES de aplicar no puede tumbar la
+escritura, porque nada en ese camino vuelve a tocar el archivo. El riesgo real está en la fase
+de ANÁLISIS (punto 1) y en cualquier función futura que regenere una miniatura o revalide el
+origen en el momento de aplicar — si algún día se añade eso, hay que repetir esta pregunta.
+
+**3. Un clip con metadatos contradictorios o corruptos: que no tumbe el lote entero.**
+
+**Ya cubierto, verificado, no arreglado porque no hacía falta.**
+`core.colormgmt.deteccion.detectar_espacio_clip` está escrito para esto explícitamente
+("Nunca lanza: la falta de metadata es el caso normal, no un error") y tiene 18 tests, incluidos
+`test_dos_curvas_a_la_vez_no_se_elige_sola` (metadata contradictoria: dos cámaras a la vez) y
+`test_curva_que_no_cuadra_con_el_fabricante` (metadata que no cuadra consigo misma) —
+exactamente el escenario de Mario. Un clip así sale con `segura=False` y una razón en
+castellano, nunca con una excepción; `agrupar_ambiguos` los agrupa para preguntar, no rompe el
+recorrido del resto.
+
+**4. El proyecto no tiene gestión de color puesta, o la tiene mal: que avise y no siga.**
+
+**Bug real encontrado y arreglado.** `core.colormgmt.verificacion.verificar_proyecto` ya
+detectaba la doble conversión con severidad `"grave"`, y `asistente_facil.PasoOrdenar.hecho`
+ya devolvía `False` cuando había un aviso grave — pero **nada en `gui/pantalla_facil.py`
+consultaba `.hecho`**: `siguiente()` avanzaba igual, con la doble conversión sin resolver. La
+mitad "avisa" funcionaba; la mitad "no sigue" no existía. Arreglado con
+`PantallaFacil._bloqueado_por_ordenar()`, consultado tanto por `siguiente()` (defensa en
+profundidad: quien llame al método directamente topa con la misma regla) como por el estado de
+`boton_siguiente` (para que la señal sea visible, no sólo un clic que no hace nada).
+
+**Ojo con el matiz, encontrado escribiendo el arreglo**: `PasoOrdenar.hecho` es `False` por DOS
+motivos distintos — avisos "graves" (un problema, lo que pedía Mario) Y `grupos_pendientes`
+(cámaras sin identificar, que es una PREGUNTA pendiente, no un problema). El estado de
+demostración de siempre (`gui.datos_demo.estado_demo()`) tiene casi siempre grupos pendientes
+porque su metadata no es completa a propósito — bloquear por `.hecho` a secas rompía el
+recorrido normal del asistente en la mitad de la batería existente (13 tests fallando en el
+primer intento). El bloqueo final mira sólo `severidad == "grave"`, no `.hecho` entero. Test
+`test_un_aviso_grave_de_gestion_de_color_bloquea_siguiente`
+(`tests/test_gui_pantalla_facil.py`).
+
+**5. Un `.cube` referenciado por un preset no existe en este Mac.**
+
+**Bug real encontrado y arreglado.** `gui/asistente_facil.py::ejecutar_look()` llamaba a
+`leer_cube(preset_elegido.ruta_origen)` sin capturar nada — `leer_cube` levanta
+`ErrorFormatoCube` para "corrupto, vacío, binario, sin permisos, INEXISTENTE o absurdo" (su
+propio docstring), así que un preset cuyo `.cube` se ha borrado, movido, o vive en un disco
+desmontado tumbaba el paso "look" entero con una traza de Python. Arreglado capturando
+`ErrorFormatoCube` y cayendo a `PasoLook(look=None, ...)` con una frase en castellano que dice
+qué preset ha fallado y por qué, manteniendo `presets_disponibles` intacto para que el usuario
+pueda elegir OTRO sin que el hueco se lleve la biblioteca entera por delante. Test
+`test_look_con_el_cube_del_preset_borrado_no_lanza` (`tests/test_gui_asistente_facil.py`),
+que borra el fichero de verdad entre sembrar la biblioteca y elegir el preset.
+
+**6. Disco lleno al escribir un LUT o un bundle.**
+
+**El mecanismo ya existe y ya está bien probado — pero no está cableado a ningún botón
+todavía.** `core.io.cube.escribir_cube` y `core.io.bundle.guardar_sesion` ya capturan
+`OSError`/`PermissionError` y los convierten en `ErrorFormatoCube`/`ErrorBundle` con mensaje en
+castellano (`tests/test_io_cube.py`, `tests/test_io_bundle.py` ya lo prueban con ficheros
+reales). Lo que se ha comprobado esta noche, y es la parte que faltaba decir: **ninguna
+pantalla de `gui/` llama hoy a `escribir_cube` ni a `guardar_sesion`** — la biblioteca sólo LEE
+`.cube` existentes (`sembrar_desde_carpeta`), nunca escribe ninguno nuevo desde la interfaz.
+El escenario "disco lleno al escribir un LUT" no tiene, hoy, ningún camino alcanzable desde la
+GUI que lo dispare. No es un bug: es una función (`core/tutor/opciones.py`, tarea 2.3 del día 8)
+que quedó construida y probada pero nunca cableada a un botón — coherente con la nota ya
+existente en `core/tutor/NOTAS.md` sobre supuestos pendientes. Cuando se cablee, este escenario
+habrá que volver a mirarlo con el camino real delante.
+
+**7. La timeline cambia entre que se analiza y que se aplica.**
+
+**Ya cubierto por diseño, verificado con un test nuevo.** `FakeResolve._clip()` (y por tanto la
+API real el día que exista) levanta `ClipNoEncontrado`, que ES un `ResolveError`
+(`core/resolve/bridge.py:100`) — y `gui/pantalla_aplicar.py::aplicar()` ya captura
+`ResolveError` por clip, no por lote entero. Un clip que un colorista borra del timeline de
+Resolve DESPUÉS de que esta app calculó su CDL sale como un fallo individual, con el resto del
+lote escribiéndose igual. No había, sin embargo, un test que fijara ESTE escenario concreto
+(sólo el genérico "una avería no tumba el lote"); añadido
+`test_un_clip_que_desaparece_de_la_timeline_no_tumba_el_lote` (`tests/test_gui_estados.py`),
+que borra un clip de `FakeResolve._clips` a mitad de camino, tal como pidió Mario.
+
+**8. Se cancela a mitad: que no deje la timeline a medio aplicar sin decirlo.**
+
+**Hueco real, sin arreglar, de la misma familia que el punto 1.** `aplicar()` es un bucle
+`for` síncrono sin ningún punto de cancelación: una vez que empieza a escribir 200 clips, no
+hay manera de pararlo a mitad desde la interfaz salvo matar la aplicación entera (que sí que
+dejaría la timeline a medio aplicar, y sin decir nada). Arreglar esto de verdad exige que
+`aplicar()` deje de ser una llamada síncrona bloqueante — ejecutarse en trozos (por hilo, o por
+lote incremental dirigido por un temporizador de Qt) con un punto donde comprobar "¿me han
+pedido parar?" entre clip y clip. Es la MISMA pieza de arquitectura que hace falta para que la
+interfaz no se quede colgada con una timeline larga (bloque 4, medido más abajo) — no son dos
+arreglos distintos, es un solo rediseño de "cómo se ejecuta un lote" que ninguno de los dos
+bloques de esta noche tiene margen para hacer bien. Se deja explícitamente para una sesión que
+empiece por ahí, con las cifras del bloque 4 delante para saber si urge.
+
+Todo lo tocado esta noche (`gui/asistente_facil.py`, `gui/pantalla_facil.py`,
+`tests/test_gui_asistente_facil.py`, `tests/test_gui_estados.py`,
+`tests/test_gui_pantalla_facil.py`) verde en sus ficheros y en la batería completa
+(`pytest -q`, ver el comando exacto en el resumen del amanecer), `ruff check` limpio.

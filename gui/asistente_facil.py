@@ -266,8 +266,28 @@ def ejecutar_look(
     if biblioteca:
         preset_elegido = next((p for p in biblioteca if p.id == preset_elegido_id), biblioteca[0])
         from core.io.cube import leer_cube
+        from core.io.errores import ErrorFormatoCube
 
-        look = leer_cube(preset_elegido.ruta_origen)
+        # Bloque 3 (día 9): `ruta_origen` se guardó al sembrar la biblioteca
+        # (`core.io.biblioteca.sembrar_desde_carpeta`), en otro momento. Para
+        # entonces el .cube puede haberse borrado, movido, o quedado en un
+        # disco que ya no está montado — nada de esto es responsabilidad de
+        # quien elige un preset, así que no se le enseña una traza de Python:
+        # se cae a "sin look" con una frase que dice qué presets SÍ siguen
+        # disponibles, en vez de tumbar el paso entero.
+        try:
+            look = leer_cube(preset_elegido.ruta_origen)
+        except ErrorFormatoCube as exc:
+            return PasoLook(
+                look=None,
+                aplicado_a=(),
+                frase=(
+                    f"El preset «{preset_elegido.nombre}» ya no está disponible: {exc}. "
+                    "Elige otro de la lista."
+                ),
+                presets_disponibles=biblioteca,
+                preset_elegido=preset_elegido,
+            )
 
     if look is None:
         return PasoLook(look=None, aplicado_a=(), frase="Todavía no hay ningún look elegido.")

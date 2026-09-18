@@ -94,6 +94,47 @@ def test_la_frase_del_paso_1_coincide_con_el_calculo_puro():
     assert p._frase.text() == esperado.frase
 
 
+def test_un_aviso_grave_de_gestion_de_color_bloquea_siguiente(monkeypatch):
+    """Bloque 3 del día 9 (caminos de error): "el proyecto no tiene gestión
+    de color puesta, o la tiene mal: que avise y no siga". `PasoOrdenar.hecho`
+    ya decía la verdad (`False` con un aviso "grave"), pero `siguiente()` no
+    lo consultaba — el asistente dejaba pasar al paso 2 con una doble
+    conversión sin resolver. Se fabrica el aviso con monkeypatch en vez de
+    material real porque lo que se prueba es el CABLEADO (¿se consulta el
+    aviso?), no el detector en sí (ya probado en
+    tests/test_colormgmt_verificacion.py)."""
+    import gui.pantalla_facil as pf
+    from core.contracts import AvisoGestionColor
+    from gui.asistente_facil import PasoOrdenar
+
+    aviso_grave = AvisoGestionColor(
+        clip_id="clip001",
+        tipo="doble_conversion",
+        mensaje="doble conversión de prueba",
+        severidad="grave",
+    )
+    paso_bloqueado = PasoOrdenar(
+        clips_resueltos=(),
+        grupos_pendientes=(),
+        avisos=(aviso_grave,),
+        frase="Hay una doble conversión: hay que arreglarlo antes de seguir.",
+    )
+    assert not paso_bloqueado.hecho
+    monkeypatch.setattr(pf, "ejecutar_ordenar", lambda estado: paso_bloqueado)
+
+    app_qt()
+    p = PantallaFacil(dd.estado_demo())
+    assert p.paso_actual() == "ordenar"
+    assert not p.boton_siguiente.isEnabled(), (
+        "un aviso grave de gestión de color no debería dejar el botón activo"
+    )
+
+    p.siguiente()  # ni el botón ni una llamada directa deberían avanzar
+    assert p.paso_actual() == "ordenar", (
+        "el asistente ha avanzado más allá de 'ordenar' con un aviso grave sin resolver"
+    )
+
+
 def test_paso_look_sin_biblioteca_no_muestra_selector():
     app_qt()
     p = PantallaFacil(dd.estado_demo())

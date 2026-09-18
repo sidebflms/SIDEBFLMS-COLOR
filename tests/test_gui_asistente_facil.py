@@ -180,6 +180,36 @@ def test_look_con_biblioteca_respeta_el_id_elegido(tmp_path):
     assert "Look B" in paso.frase
 
 
+def test_look_con_el_cube_del_preset_borrado_no_lanza(tmp_path):
+    """Bloque 3 del día 9 (caminos de error): el `.cube` de un preset puede
+    desaparecer entre que se siembra la biblioteca y que el usuario lo elige
+    — un disco que se desmonta, alguien que borra el archivo. Antes de este
+    test, `ejecutar_look` llamaba a `leer_cube(preset_elegido.ruta_origen)`
+    sin capturar `ErrorFormatoCube`: un preset con el fichero borrado tumbaba
+    el paso entero con una traza de Python en vez de una frase en castellano.
+    """
+    from core.io.biblioteca import sembrar_desde_carpeta
+    from core.io.cube import escribir_cube
+
+    lut = LUT3D.identity(3)
+    ruta = tmp_path / "Look que desaparece.cube"
+    escribir_cube(lut, ruta)
+    biblioteca = sembrar_desde_carpeta(tmp_path)
+    assert biblioteca
+
+    ruta.unlink()  # el disco se desmonta, o alguien lo borra, entre sembrar y elegir
+
+    estado = estado_demo()
+    paso = ejecutar_look(estado, biblioteca=biblioteca)
+    assert paso.look is None
+    assert paso.preset_elegido is not None
+    assert "Look que desaparece" in paso.frase
+    assert "ya no está disponible" in paso.frase
+    # La biblioteca sigue completa: el usuario puede elegir OTRO preset sin
+    # que el que ha desaparecido se lleve la lista entera por delante.
+    assert paso.presets_disponibles == biblioteca
+
+
 def test_look_sin_biblioteca_usa_el_look_fijo_del_estado():
     """Sin biblioteca (el camino de siempre, `estado_demo()`), el
     comportamiento no cambia respecto al día 5."""

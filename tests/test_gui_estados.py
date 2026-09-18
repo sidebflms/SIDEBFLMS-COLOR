@@ -226,6 +226,34 @@ def test_una_averia_de_una_sola_vez_se_cura_y_el_resto_se_escribe():
         assert r.version == VERSION_NAME
 
 
+def test_un_clip_que_desaparece_de_la_timeline_no_tumba_el_lote():
+    """Bloque 3 del día 9 (caminos de error): la timeline cambia entre que se
+    analiza y que se aplica — alguien borra un plano del timeline de Resolve
+    después de que esta app ya calculó su CDL. `FakeResolve.set_cdl` levanta
+    `ClipNoEncontrado` (subclase de `ResolveError`) para ese clip_id; como
+    `aplicar()` sólo captura `ResolveError` por clip, el resto del lote tiene
+    que escribirse igual — no es un bug nuevo, es la garantía que ya da
+    `aplicar_grado_seguro`, fijada aquí con el escenario concreto que pidió
+    Mario."""
+    est = dd.estado_demo()
+    assert len(est.clips) >= 2, "hacen falta al menos dos clips para ver que el resto sobrevive"
+    desaparecido = est.clips[0].clip_id
+    del est.puente._clips[desaparecido]  # el plano ya no existe en Resolve
+
+    resultados = aplicar(est, [c.clip_id for c in est.clips])
+    por_id = {r.clip_id: r for r in resultados}
+
+    assert not por_id[desaparecido].ok
+    assert "no existe el clip" in por_id[desaparecido].mensaje
+
+    resto = [c.clip_id for c in est.clips if c.clip_id != desaparecido]
+    assert resto, "no hay nada que comprobar: hacen falta al menos dos clips para ver que el resto sobrevive"
+    for clip_id in resto:
+        assert por_id[clip_id].ok, (
+            f"{clip_id}: el clip desaparecido no debería tumbar al resto del lote"
+        )
+
+
 def test_un_clip_sin_los_tres_nodos_sale_como_no_se_puede():
     """La API de Resolve no sabe crear nodos, asi que esto no lo arregla la app."""
     est = dd.estado_demo()

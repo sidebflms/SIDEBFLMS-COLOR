@@ -362,7 +362,11 @@ class PantallaFacil(QWidget):
         return ID_PASOS[self._indice]
 
     def siguiente(self) -> None:
-        if self._indice < len(ID_PASOS) - 1:
+        # La guarda no depende sólo de que el botón esté deshabilitado: quien
+        # llame a `siguiente()` directamente (un test, un atajo de teclado
+        # futuro) tiene que topar con la misma regla, no sólo quien hace
+        # click. Ver `_bloqueado_por_ordenar`.
+        if self._indice < len(ID_PASOS) - 1 and not self._bloqueado_por_ordenar():
             self._indice += 1
             self._mostrar_paso(self._indice)
 
@@ -400,10 +404,6 @@ class PantallaFacil(QWidget):
     def _mostrar_paso(self, indice: int) -> None:
         self._indicador.marcar_actual(indice)
         self.boton_deshacer.setEnabled(indice > 0)
-        self.boton_siguiente.setText(
-            "Siguiente paso" if indice < len(ID_PASOS) - 1 else "Terminado"
-        )
-        self.boton_siguiente.setEnabled(indice < len(ID_PASOS) - 1)
         self._pregunta.hide()
         if ID_PASOS[indice] != "look":
             self._selector_presets.hide()
@@ -486,6 +486,27 @@ class PantallaFacil(QWidget):
                 self._visor.poner(None, None, mensaje="No hay nada pendiente de revisar.")
         if pid != "repasar":
             self._lista_repaso.hide()
+
+        es_ultimo = indice >= len(ID_PASOS) - 1
+        self.boton_siguiente.setText("Siguiente paso" if not es_ultimo else "Terminado")
+        self.boton_siguiente.setEnabled(not es_ultimo and not self._bloqueado_por_ordenar())
+
+    def _bloqueado_por_ordenar(self) -> bool:
+        """Bloque 3 del día 9 (caminos de error): "el proyecto no tiene
+        gestión de color puesta, o la tiene mal: que avise y no siga" — para
+        un aviso GRAVE (hoy sólo la doble conversión), no para cualquier
+        motivo de `PasoOrdenar.hecho`. A propósito NO se usa `.hecho`
+        directamente: también es `False` con `grupos_pendientes` (cámaras
+        sin identificar, que son una PREGUNTA, no un problema), y el
+        material sin metadata completa —el estado de demostración de
+        siempre— cae ahí constantemente; bloquear por eso rompería el
+        recorrido normal del asistente por una razón que no es la del
+        encargo. Bloquea, además, SÓLO mientras el paso "ordenar" (el
+        primero) es el que está en pantalla: una vez pasado, no vuelve a
+        impedir nada retroactivamente."""
+        return ID_PASOS[self._indice] == "ordenar" and any(
+            a.severidad == "grave" for a in (self._paso_ordenar.avisos if self._paso_ordenar else ())
+        )
 
     def _elegir_repaso(self, clip_id: str) -> None:
         self._repaso_elegido_id = clip_id
