@@ -170,6 +170,37 @@ def test_panel_del_tutor_nunca_empuja_los_botones_fuera_de_la_ventana(monkeypatc
     assert p.boton_deshacer.isVisible() and p.boton_siguiente.isVisible()
 
 
+def test_panel_del_tutor_con_cero_frases_no_deja_cabecera_flotando(monkeypatch):
+    """Bloque 0 del día 9 (cabo suelto del día 8): si el catálogo no da
+    ninguna frase para este clip, `poner(())` debe ocultar el panel ENTERO
+    —incluida la cabecera "EL TUTOR DICE"—, no dejar la cabecera visible
+    sobre un panel vacío. `_PanelTutor.poner()` ya hace
+    `self.setVisible(bool(frases))` sobre sí mismo (que contiene la
+    cabecera), así que este test fija ese comportamiento con un test que
+    hoy no existía."""
+    import gui.pantalla_facil as pf
+
+    monkeypatch.setattr(pf, "frases_de_clip", lambda estado, clip: ())
+
+    p = PantallaFacil(dd.estado_demo())
+    p.show()
+    for _ in range(3):
+        p.siguiente()
+    assert p.paso_actual() == "look"
+    asentar()
+
+    assert not p._panel_tutor.isVisible(), (
+        "cero frases y el panel (cabecera incluida) sigue visible: "
+        "queda una cabecera flotando sobre un hueco"
+    )
+    assert not p._panel_tutor._rotulo.isVisible(), (
+        "la cabecera 'EL TUTOR DICE' es visible aunque su contenedor esté "
+        "oculto — comprobado aparte porque un widget hijo puede quedar "
+        "'visible' en su propio flag aunque el padre oculto lo tape"
+    )
+    assert not p._panel_tutor._etiquetas
+
+
 def test_panel_del_tutor_se_oculta_fuera_del_paso_look():
     app_qt()
     p = PantallaFacil(dd.estado_demo())

@@ -1825,3 +1825,106 @@ desplazar para leer "por qué" es aceptable — es contenido de discusión, no l
 inmediata que exige el modo fácil. Se retira de la lista de cosas por resolver.
 
 Suite completa verde después de cada paso de esta cadena.
+
+## D9-0 · La prueba del eje propio: hipótesis distinta de D8-0, resultado intermedio
+
+Encargo nuevo de Mario, delegado de nuevo a sesión limpia por el mismo motivo que D8-0: quien
+diseñó `TOL_MONOTONIA_LOOK` (D7-1) y midió la diagonal neutra (D8-0) sobre el mismo
+`no_monotonia` no arbitra una hipótesis distinta sobre la misma causa. Encargo textual: "mide
+cuántos saltan SOLO en su eje propio (R barriendo el eje R, G el G, B el B), en vez de barrer
+los tres ejes para los tres canales".
+
+**Distinción con D8-0, hecha explícita antes de medir**: la diagonal neutra de D8-0 mueve los
+TRES canales A LA VEZ por una única línea (R=G=B) — es la operacionalización más laxa de
+"monótono en el gris". Lo que pide Mario hoy es otra cosa: mover UN canal cada vez, con los
+otros dos FIJOS, en vez de recorrer las n² combinaciones que hace `_monotonia()` hoy. La
+interpretación elegida (no hay ninguna más natural sin inventar una cifra): fijar los otros
+dos en el CENTRO del cubo (`(n - 1) // 2`, exacto para 33 y 65, los dos tamaños del material
+real, ambos impares) en vez de en 0 o en el extremo, porque el centro es el valor de
+referencia menos arbitrario para "dónde vive el contenido real". Son tres líneas sueltas de
+`n` puntos cada una (eje R: `table[:, j0, k0, 0]`; eje G: `table[i0, :, k0, 1]`; eje B:
+`table[i0, j0, :, 2]`, con `i0=j0=k0=centro`), no n² por eje y no un movimiento conjunto de
+los tres canales.
+
+**Medido** (`tests/test_io_qc_reales.py::test_prueba_del_eje_propio_centro_del_cubo_matiza_la_hipotesis`,
+cifras completas en `CIFRAS.md` §22), sobre los 79 `.cube` reales, con la misma tolerancia
+por clase que usa `qc_lut()` hoy:
+
+- **Todo el cubo** (regla actual): **70 de 79** disparan `no_monotonia`. Confirma D7-1/D8-0.
+- **Sólo el eje propio, con los otros dos fijos en el centro**: **36 de 79** (4/8 conversión +
+  32/71 look).
+- Para comparar, la diagonal neutra de D8-0: **3 de 79**.
+
+**La hipótesis NO se confirma con la fuerza de D8-0, y tampoco queda descartada sin más.**
+36/79 no es "cerca de 70" (que habría sido un descarte limpio) ni "comparable al 3/79" de la
+diagonal (que habría sido una confirmación más fina de la misma idea): es un resultado
+intermedio — reduce el recuento casi a la mitad, pero deja más del triple de falsos positivos
+que la vía de la diagonal neutra. Se dice tal cual, sin forzarlo hacia ninguno de los dos
+extremos que pedía el encargo, porque ninguno de los dos describe lo que salió medido.
+
+**Por qué la diferencia con D8-0 es real, no ruido**: la diagonal exige que los TRES canales
+fallen a la vez, en el único punto donde se mueven juntos (R=G=B) — eso es muy restrictivo, y
+por eso baja tanto (3/79). Aquí basta con que UN canal falle en su propia línea, con los otros
+dos clavados en un valor fijo (el centro) que no es protector de la misma manera: no exige que
+los otros dos canales estén "en su sitio neutro", sólo que estén en el medio del rango. El
+resultado dice algo con sustancia: 32 de los 71 LUT "look" invierten su propio canal incluso a
+lo largo de esa línea central, lejos de las zonas más extremas de tinte que recorre el cubo
+completo. Eso significa que la inversión de un canal propio no está confinada a las esquinas
+del cubo en buena parte del material real — restringir `_monotonia()` a "el eje propio con el
+resto fijo en el centro" dejaría todavía 36/79 disparando, un resultado peor que la vía de la
+diagonal neutra que ya proponía D8-0.
+
+**Lo que esto NO es**: no es una propuesta de arreglo, y `core/io/qc.py::_monotonia()` no se
+ha tocado — sigue recorriendo todo el cubo. Tampoco se ha tocado ningún umbral de
+`core/umbrales.py`. Es sólo la medida que Mario pidió hoy, con un resultado que no encaja
+limpio en ninguna de las dos casillas que planteaba el encargo ("baja mucho" / "no baja") y
+se ha dejado dicho así, en vez de forzarlo hacia la que más convenía.
+
+`pytest tests/test_io_qc_reales.py -q` verde (incluido el test nuevo) y
+`ruff check tests/test_io_qc_reales.py` limpio.
+
+**Aviso encontrado en paralelo, no arreglado esta noche — «decidí yo»**: revisando
+`core/io/qc.py::_monotonia()` para poder encargar la medida de arriba con precisión, hay un
+recorte compartido real: `idx = np.argwhere(mal)[: MAX_PROBLEMAS_POR_CODIGO - len(problemas)]`
+(línea ~368) usa `MAX_PROBLEMAS_POR_CODIGO` (20) como techo GLOBAL de `self.problemas` de
+`qc_lut()` entero (no "por código", pese al nombre) — si problemas de un tipo ANTERIOR (u
+otro eje de la propia monotonía, ya que los tres ejes comparten la misma lista y se recorren
+en orden) ya alcanzaron ese techo, `MAX_PROBLEMAS_POR_CODIGO - len(problemas)` puede llegar a
+`0` o a un número NEGATIVO, y `argwhere(mal)[:0]` es una lista vacía — cero entradas
+`ProblemaQC(codigo=CODIGO_NO_MONOTONIA, ...)` para ese eje aunque `cuantos > 0`. Como
+`LUTQualityReport.codigos()`/`.ok` leen de `self.problemas` (la lista recortada), no de
+`metricas["celdas_no_monotonas"]` (el conteo real, sin recortar), un fichero con muchas
+violaciones en el eje R podría no dejar sitio para que G o B aparezcan como `no_monotonia` en
+`codigos()`, aunque el conteo interno sepa que existen.
+
+**Ojo, esto NO es el bug del `break` de D7-7** (el que CIFRAS.md §21 ya da por corregido en
+`main`, confirmado leyendo el bucle línea por línea: no hay ningún `break`). Ese bug afectaba
+`total`/`peor` en `metricas`, nunca a si `no_monotonia` se detecta. Éste es distinto: afecta a
+si una entrada `ProblemaQC` LLEGA A EXISTIR en `self.problemas` (de donde salen `codigos()` y
+`.ok`), por un recorte compartido (`MAX_PROBLEMAS_POR_CODIGO`), no por ningún `break`.
+
+**Por qué no lo toco esta noche, aun así**: hay OTRA sesión de Claude Code con un nombre que
+suena al mismo sitio — aparece en `ListAgents` como *"Fix early-break undercount bug in
+core/io/qc._monotonia"* (inactiva, en un worktree propio partido de un commit antiguo,
+día 4/6, es decir de ANTES del arreglo de D7-7). Lo más probable, por la fecha del worktree,
+es que esa sesión sea sobre el bug del `break` YA CORREGIDO — no sobre este de hoy — y por
+tanto esté obsoleta; pero no lo sé con certeza sin abrir esa sesión, y tocar
+`core/io/qc.py::_monotonia()` esta misma noche, mientras existe cualquier posibilidad de que
+otra sesión tenga trabajo a medio hacer ahí, es justo el tipo de pisada que las reglas de esta
+noche piden evitar. Lo dejo anotado, sin arreglar, para que quien recoja esa sesión (o Mario
+por la mañana) decida con el cuadro completo:
+
+* El recuento **70/79** de D7-1/D8-0 (todo el cubo) y el **36/79** de esta misma sección son
+  del código de HOY tal cual está en `main`, con este recorte compartido potencialmente activo
+  — no se ha verificado si alguno de los 79 ficheros reales llega a rozar
+  `MAX_PROBLEMAS_POR_CODIGO` antes de que monotonía tenga su turno; es posible que el recorte
+  no cambie ninguno de los dos recuentos en la práctica (el eje R se comprueba primero y basta
+  una violación en R para que el fichero cuente, así que el recuento POR FICHERO es más robusto
+  al recorte que el detalle POR EJE), pero no está medido y no se afirma que sea inocuo.
+* Cuando esa sesión cierre su arreglo, **volver a correr `test_no_monotonia_...` y
+  `test_prueba_del_eje_propio_centro_del_cubo_matiza_la_hipotesis`** para confirmar si 70/79 y
+  36/79 se mantienen o cambian.
+* Lo que SÍ se puede afirmar sin esperar ese arreglo: la comparación relativa entre "todo el
+  cubo" (70), "eje propio" (36) y "diagonal neutra" (3) usa el MISMO código con el MISMO
+  posible sesgo en los tres casos, así que el ORDEN entre las tres vías (diagonal « eje propio
+  « cubo completo) es fiable aunque las cifras exactas pudieran moverse un poco.

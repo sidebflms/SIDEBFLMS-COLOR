@@ -446,6 +446,70 @@ def test_comparar_no_arranca_ensenando_la_referencia_contra_si_misma():
         v.close()
 
 
+def test_cambiar_de_clip_no_deja_nada_del_anterior_en_ninguna_pantalla_seleccionable():
+    """Bloque 1 del día 9: generalización de las dos regresiones de estado
+    rancio (`test_el_panel_por_que_no_se_queda_con_el_texto_del_clip_anterior`
+    aquí, y la de `pantalla_reverse.py::test_un_recalculo_que_falla_no_deja_nada
+    _del_resultado_anterior`) a TODAS las pantallas que saben seleccionar un
+    clip por id — no sólo a las dos que ya tenían su regresión dedicada.
+
+    La lista de pantallas sale de introspección, no escrita a mano: cualquier
+    atributo `p_*` de `VentanaPrincipal` que tenga un método `.seleccionar()`
+    entra en el barrido solo (hoy son `p_comparar` y `p_clips`; una pantalla
+    nueva con ese método se suma sin tocar este test). La lista de etiquetas
+    a revisar por pantalla también sale de introspección
+    (`etiquetas_visibles`, que recorre el árbol de `QLabel`), no de una lista
+    de widgets elegidos a mano.
+
+    `pantalla_reverse.py` se queda con su test dedicado en vez de entrar
+    aquí: no tiene `.seleccionar(clip_id)` porque no es una pantalla de
+    clips — es un resultado que tiene éxito o falla, una forma de estado
+    distinta que no encaja en "clip A, clip B" sin fingir una interfaz que no
+    tiene."""
+    from gui.ventana import PANTALLAS
+    from tests.test_gui_apoyo import etiquetas_visibles
+
+    est = demo()
+    v = ventana(est)
+    try:
+        indice_de_pantalla = {f"p_{clave}": i for i, (clave, _) in enumerate(PANTALLAS)}
+        seleccionables = [
+            (nombre, w)
+            for nombre, w in vars(v).items()
+            if nombre.startswith("p_") and callable(getattr(w, "seleccionar", None))
+        ]
+        assert seleccionables, "ninguna pantalla con .seleccionar(): revisa el barrido"
+
+        # Ni A ni B pueden ser la referencia: su nombre aparece a propósito
+        # aunque se seleccione otro clip (es la referencia FIJA, no un resto
+        # rancio), y usarla como needle daria un falso positivo.
+        candidatos = [
+            c for c in est.clips if c.original is not None and c.clip_id != est.referencia_id
+        ]
+        assert len(candidatos) >= 2, "hacen falta dos clips con imagen, sin contar la referencia"
+        clip_a, clip_b = candidatos[0], candidatos[1]
+        needles = [t for t in (clip_a.nombre, clip_a.clip_id) if t and len(t) >= 4]
+        assert needles, "el clip de prueba no tiene nombre ni id que sirva de rastro"
+
+        for nombre, pantalla in seleccionables:
+            indice = indice_de_pantalla.get(nombre)
+            if indice is not None:
+                v.ir_a(indice)
+            pantalla.seleccionar(clip_a.clip_id)
+            asentar(1)
+            pantalla.seleccionar(clip_b.clip_id)
+            asentar(1)
+            for etiqueta in etiquetas_visibles(pantalla):
+                texto = etiqueta.text()
+                for needle in needles:
+                    assert needle not in texto, (
+                        f"{nombre}: una etiqueta sigue mencionando al clip anterior "
+                        f"({needle!r}) después de seleccionar {clip_b.clip_id!r}: {texto!r}"
+                    )
+    finally:
+        v.close()
+
+
 def test_el_despues_es_el_cdl_del_contrato_aplicado_al_antes():
     """El «despues» no es una simulacion: es `CDL.apply()`, la formula del nodo 2."""
     est = demo()

@@ -760,3 +760,43 @@ hay ningún `break` en el bucle de los tres ejes).
 
 ---
 
+## 22 · La prueba del eje propio (día 9): tres líneas sueltas, centro fijo, distinto de §21
+
+Encargo nuevo de Mario, otra vez delegado a sesión limpia por el mismo motivo que §21: "mide
+cuántos saltan SÓLO en su eje propio (R barriendo el eje R, G el G, B el B), en vez de
+barrer los tres ejes para los tres canales". Es una hipótesis DISTINTA de la diagonal neutra
+de §21: la diagonal mueve los tres canales A LA VEZ por una sola línea (R=G=B); aquí se mueve
+UN canal cada vez, con los otros dos FIJOS en el centro del cubo (`(n - 1) // 2`, exacto para
+33 y 65, los dos tamaños del material real) — tres líneas sueltas de `n` puntos, no n²
+combinaciones y no un movimiento conjunto de los tres canales.
+
+```bash
+.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -rA -k prueba_del_eje_propio
+```
+
+| Cifra | Valor | Comando | Fecha |
+|---|---|---|---|
+| **`no_monotonia`, todo el cubo** — confirma §19/§21 | **70 de 79** (7/8 conversión + 63/71 look) | `test_prueba_del_eje_propio_centro_del_cubo_matiza_la_hipotesis` | 18-09 |
+| **`no_monotonia`, sólo el eje propio con los otros dos fijos en el centro** (misma tolerancia por clase) | **36 de 79** (4/8 conversión + 32/71 look) | `test_prueba_del_eje_propio_centro_del_cubo_matiza_la_hipotesis` | 18-09 |
+| Para comparar, §21 (diagonal neutra R=G=B, los tres canales a la vez) | 3 de 79 | `test_prueba_del_eje_diagonal_neutra_confirma_la_hipotesis` | 17-09 |
+
+**La hipótesis NO se confirma con la misma fuerza que la diagonal neutra de §21.** 36/79
+reduce el recuento casi a la mitad respecto al cubo completo (70/79), pero se queda lejos del
+3/79 de la diagonal — no es un resultado "cerca de 70" (hipótesis descartada sin más) ni
+"comparable al 3" (confirmación tan limpia como la diagonal): es un resultado intermedio, y
+hay que decirlo así, sin maquillarlo hacia ninguno de los dos extremos.
+
+La diferencia con §21 tiene una explicación concreta, no es ruido: la diagonal exige que los
+TRES canales fallen a la vez en el ÚNICO punto donde se mueven juntos (R=G=B); aquí basta con
+que UN canal falle en SU línea, con los otros dos clavados en el centro del cubo — un valor
+de referencia razonable, pero no protector como lo es forzar los tres a moverse juntos. El
+resultado dice que muchos LUT "look" (32 de 71) invierten su propio canal incluso a lo largo
+de esa línea central, no sólo en las combinaciones extremas de tinte que sí recorre el cubo
+completo — así que "el eje propio con los otros dos fijos", por sí solo, no aísla la causa de
+los falsos positivos tan bien como restringir a la diagonal neutra. Restringir `_monotonia()`
+al eje propio con centro fijo dejaría todavía 36/79 disparando, más del doble que la vía de
+la diagonal neutra que ya sugería §21.
+
+No se ha tocado `core/io/qc.py::_monotonia()` ni ningún umbral de `core/umbrales.py`: es sólo
+la medida que Mario pidió hoy. Nombres completos de los 36 archivos en el `assert` del test
+(`nombres_eje_propio`) y en `BITACORA.md` D9-0.

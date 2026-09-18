@@ -67,6 +67,43 @@ cuanto el primer eje con problemas se procesa) ni a la lista pública de
 a la magnitud de `total`/`peor` que se enseña. El `break` era redundante y se
 borró; ver `test_bug_el_break_de_monotonia_infracuenta_en_jota_lut_fitz` más
 abajo, ahora un test de regresión que confirma la cifra corregida.
+
+DÍA 8: LA PRUEBA DEL EJE — ¿DÓNDE OCURREN LAS REVERSIONES, NO CUÁNTAS?
+------------------------------------------------------------------------
+El 70/79 de arriba no bajó apenas con la tolerancia por clase (76/79 -> 70/79).
+Hipótesis de Mario, sin probar hasta hoy: `_monotonia()` exige que el canal
+`c` suba al mover el eje `c` para CUALQUIER combinación fija de los otros dos
+ejes — recorre las n² líneas paralelas del cubo, no sólo la diagonal neutra
+R=G=B. Pedirle a un LUT de "look" (que mezcla canales a propósito, eso es lo
+que hace un grado) que no tenga ni una reversión en NINGÚN punto del cubo es
+mucho más estricto que pedirle que no la tenga a lo largo del gris. Sección 5
+mide las dos reglas sobre los 79 archivos: **todo el cubo (la regla de
+`_monotonia()` hoy) sigue confirmando 70/79; sólo la diagonal neutra R=G=B
+baja a 3/79.** La hipótesis se confirma. Cifras y nombres en `CIFRAS.md` §21
+y `BITACORA.md` D8-0. No se ha tocado `core/io/qc.py::_monotonia()` ni ningún
+umbral: esto es sólo la medida, la decisión de qué hacer con ella queda para
+Mario.
+
+DÍA 9: ¿SÓLO EL EJE PROPIO, SIN LAS n² COMBINACIONES? (medición distinta de D8-0)
+------------------------------------------------------------------------------
+Encargo nuevo de Mario, delegado de nuevo a una sesión limpia por el mismo motivo
+que D8-0 (quien diseñó `TOL_MONOTONIA_LOOK` y la diagonal neutra no arbitra su
+propia hipótesis): "mide cuántos saltan SOLO en su eje propio (R barriendo el eje
+R, G el G, B el B), en vez de barrer los tres ejes para los tres canales". Esto es
+DISTINTO de la diagonal neutra de la sección 5: la diagonal mueve los TRES canales
+A LA VEZ por una sola línea (R=G=B); aquí se mueve UN canal cada vez, con los
+otros dos FIJOS en el centro del cubo (no en la diagonal) — tres líneas sueltas,
+no n² combinaciones y no un movimiento conjunto de los tres.
+
+Sección 6 mide esa regla exacta sobre los 79 archivos: **36/79** disparan
+`no_monotonia` sólo en su eje propio (con los otros dos fijos en el centro),
+frente a 70/79 con todo el cubo y 3/79 con la diagonal neutra de D8-0. El
+resultado NO es una confirmación tan limpia como la diagonal: 36/79 reduce el
+recuento casi a la mitad, pero se queda lejos del 3/79 — muchos LUT "look" siguen
+invirtiendo su propio canal incluso en la línea central, no sólo en zonas
+extremas de tinte. Cifras y nombres en `CIFRAS.md` §22 y `BITACORA.md` D9-0. No
+se ha tocado `core/io/qc.py::_monotonia()` ni ningún umbral: esto es sólo la
+medida.
 """
 
 from __future__ import annotations
@@ -85,7 +122,13 @@ from core.io import (
     qc_lut,
 )
 from core.io.lut_malos import lut_no_monotono
-from core.umbrales import SALTO_MINIMO_BANDING, TOL_MONOTONIA_LOOK, UMBRAL_BANDING, UMBRAL_SOMBRAS
+from core.umbrales import (
+    SALTO_MINIMO_BANDING,
+    TOL_MONOTONIA,
+    TOL_MONOTONIA_LOOK,
+    UMBRAL_BANDING,
+    UMBRAL_SOMBRAS,
+)
 
 _CARPETA = Path(__file__).parent / "luts_reales"
 _RUTAS = sorted(_CARPETA.rglob("*.cube")) if _CARPETA.is_dir() else []
@@ -484,3 +527,182 @@ def test_tol_monotonia_look_sigue_cazando_los_luts_rotos_de_t4_con_margen():
         tol_monotonia_look=TOL_MONOTONIA_LOOK,
     )
     assert CODIGO_NO_MONOTONIA not in justo_debajo.codigos()
+
+
+# ---------------------------------------------------------------------------
+# 5. Día 8: la prueba del eje — diagonal neutra (R=G=B) vs. todo el cubo.
+#    Cifras completas en CIFRAS.md §21.
+# ---------------------------------------------------------------------------
+
+
+def _diagonal_no_monotona(table: np.ndarray, tol: float) -> bool:
+    """¿Baja algún canal de salida a lo largo de la diagonal neutra R=G=B?
+
+    Operacionalización de "sólo en su eje propio" (hipótesis de Mario, día
+    8): en vez de exigir que el canal `c` suba al mover el eje `c` para
+    CUALQUIER combinación fija de los otros dos ejes -que es lo que hace
+    `core.io.qc._monotonia()` hoy: `v = table[..., eje]`, `diff(v,
+    axis=eje)` recorre las n² líneas paralelas a ese eje, con canal==eje
+    siempre, nunca canal contra un eje distinto-, se exige sólo que suba a
+    lo largo del ÚNICO camino donde R, G y B se mueven juntos: la rampa de
+    gris `(i, i, i)` para i=0..n-1. Son n puntos por canal, no n * n² = n³:
+    la lectura más estricta posible de "eje propio" que sigue siendo mucho
+    más laxa que "todo el cubo".
+    """
+    n = table.shape[0]
+    diagonal = table[np.arange(n), np.arange(n), np.arange(n), :]  # (n, 3)
+    d = np.diff(diagonal, axis=0)  # (n-1, 3): un delta por canal y por paso
+    return bool((d < -tol).any())
+
+
+@pytestmark_reales
+def test_prueba_del_eje_diagonal_neutra_confirma_la_hipotesis():
+    """La prueba de diez minutos que pidió Mario el día 8.
+
+    Para los 79 archivos reales, con la MISMA tolerancia por clase que usa
+    `qc_lut()` hoy (`TOL_MONOTONIA` para conversión, `TOL_MONOTONIA_LOOK`
+    para look, decidida por `clasificar_lut()`), se comparan dos reglas:
+
+    * **todo el cubo** (la regla real de `_monotonia()` hoy): confirma el
+      70/79 de `test_no_monotonia_con_clasificacion_automatica_baja_de_76_a_70_de_79`.
+    * **sólo la diagonal neutra** (`_diagonal_no_monotona`, arriba): baja a
+      **3/79**. La hipótesis de Mario se CONFIRMA: casi toda la reversión
+      que dispara `no_monotonia` hoy ocurre lejos del gris -en zonas de
+      tinte, donde la mezcla entre canales es justo lo que hace un look-, no
+      a lo largo del eje neutro. Sólo 3 LUT "look" tienen una reversión real
+      incluso en su propio gris: `EKTAR 100 REC709 SONY.cube`, `EKTAR 100
+      SIDEB SONY.cube` y `Jota_lut_fitz.cube` (el mismo LUT con la reversión
+      más grande de todo el material, D7-7/§19 -no es casualidad: si baja en
+      el cubo, es candidato a que también baje en su gris).
+
+    No se toca `core/io/qc.py::_monotonia()` ni ningún umbral aquí: es sólo
+    la medida. Ver `CIFRAS.md` §21 y `BITACORA.md` D8-0 para la cifra con su
+    comando y la propuesta que se deja para que Mario decida.
+    """
+    if len(_RUTAS) != 79:
+        pytest.skip(f"el material cambió: hay {len(_RUTAS)} archivos, no 79")
+
+    dispara_cubo_completo = 0
+    dispara_solo_diagonal = 0
+    nombres_diagonal: list[str] = []
+    for r in _RUTAS:
+        lut = leer_cube(r)
+        clase = clasificar_lut(lut)
+        tol = TOL_MONOTONIA_LOOK if clase == "look" else TOL_MONOTONIA
+        if CODIGO_NO_MONOTONIA in qc_lut(lut, clasificacion=clase).codigos():
+            dispara_cubo_completo += 1
+        table = np.asarray(lut.table, dtype=np.float64)
+        if _diagonal_no_monotona(table, tol):
+            dispara_solo_diagonal += 1
+            nombres_diagonal.append(str(r.relative_to(_CARPETA)))
+
+    assert dispara_cubo_completo == 70, (
+        "esto tiene que seguir coincidiendo con el 70/79 de §19 (regla de hoy, "
+        "todo el cubo); si cambia, el material o el detector cambiaron"
+    )
+    assert dispara_solo_diagonal == 3, nombres_diagonal
+    assert sorted(nombres_diagonal) == sorted(
+        [
+            "EKTAR 100 REC709 SONY.cube",
+            "EKTAR 100 SIDEB SONY.cube",
+            "Jota_lut_fitz.cube",
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# 6. Día 9: la prueba del eje propio — tres líneas sueltas (R, G, B) con los
+#    otros dos canales fijos en el centro, en vez de la diagonal neutra o
+#    todo el cubo. Cifras completas en CIFRAS.md §22.
+# ---------------------------------------------------------------------------
+
+
+def _eje_propio_no_monotono(table: np.ndarray, tol: float) -> bool:
+    """¿Baja el canal `c` a lo largo de la línea que barre SÓLO el eje `c`,
+    con los otros dos canales fijos en el centro del cubo?
+
+    Operacionalización de "salta sólo en su eje propio" (encargo de Mario,
+    día 9, distinto del de día 8): en vez de la diagonal neutra
+    (`_diagonal_no_monotona`, arriba, mueve los TRES canales A LA VEZ por
+    R=G=B) o el cubo completo (`core.io.qc._monotonia()`, canal `c` contra
+    eje `c` para las n² combinaciones de los otros dos ejes), aquí se mueve
+    UN solo canal por vez, con los otros dos FIJOS en el punto medio del
+    cubo (`(n - 1) // 2`, exacto para los tamaños 33 y 65 del material real,
+    ambos impares) — el valor de referencia más natural, ya que fijar los
+    otros dos en 0 o en el extremo no representa dónde vive el contenido
+    real. Son sólo TRES líneas de `n` puntos cada una, no n² por eje:
+
+        eje R: table[:, j0, k0, 0]   (j0 = k0 = centro)
+        eje G: table[i0, :, k0, 1]   (i0 = k0 = centro)
+        eje B: table[i0, j0, :, 2]   (i0 = j0 = centro)
+
+    Un LUT "salta sólo en su eje propio" si ALGUNA de las tres líneas viola
+    la monotonía con la tolerancia que le toque.
+    """
+    n = table.shape[0]
+    centro = (n - 1) // 2
+    lineas = (
+        table[:, centro, centro, 0],
+        table[centro, :, centro, 1],
+        table[centro, centro, :, 2],
+    )
+    return any(bool((np.diff(v) < -tol).any()) for v in lineas)
+
+
+@pytestmark_reales
+def test_prueba_del_eje_propio_centro_del_cubo_matiza_la_hipotesis():
+    """El encargo de diez minutos que pidió Mario el día 9, distinto del de
+    día 8: no la diagonal neutra (los tres canales moviéndose a la vez), sino
+    tres líneas sueltas -una por eje- que mueven UN canal cada vez con los
+    otros dos fijos en el centro del cubo. Ver `_eje_propio_no_monotono`
+    arriba para la operacionalización exacta y por qué el centro (y no 0 ni
+    el extremo) es el punto de referencia.
+
+    Para los 79 archivos reales, con la MISMA tolerancia por clase que usa
+    `qc_lut()` hoy:
+
+    * **todo el cubo** (regla real de `_monotonia()` hoy): confirma el
+      70/79 de la sección 5 y de
+      `test_no_monotonia_con_clasificacion_automatica_baja_de_76_a_70_de_79`.
+    * **sólo el eje propio, centro fijo** (`_eje_propio_no_monotono`):
+      **36/79** (4/8 conversión + 32/71 look).
+
+    El resultado NO confirma la hipótesis con la misma fuerza que la
+    diagonal neutra de D8-0 (3/79): 36/79 reduce el recuento casi a la
+    mitad respecto al cubo completo, pero se queda lejos del 3/79. La
+    diferencia con la diagonal es real y explica el hueco: la diagonal exige
+    que los TRES canales fallen a la vez en un único punto (R=G=B), mientras
+    que aquí basta con que UN canal falle en su propia línea, con los otros
+    dos en un valor fijo (el centro) que no es especialmente protector. Eso
+    significa que muchos LUT "look" invierten su propio canal incluso a lo
+    largo de esa línea central -no sólo en las combinaciones extremas de
+    tinte que sí recorre el cubo completo-, así que restringir la
+    comprobación a "el eje propio con los otros dos fijos" no es, por sí
+    solo, una vía tan limpia como restringirla a la diagonal neutra. No se
+    toca `core/io/qc.py::_monotonia()` ni ningún umbral aquí: es sólo la
+    medida. Ver `CIFRAS.md` §22 y `BITACORA.md` D9-0."""
+    if len(_RUTAS) != 79:
+        pytest.skip(f"el material cambió: hay {len(_RUTAS)} archivos, no 79")
+
+    dispara_cubo_completo = 0
+    dispara_eje_propio = 0
+    por_clase = {"conversion": 0, "look": 0}
+    nombres_eje_propio: list[str] = []
+    for r in _RUTAS:
+        lut = leer_cube(r)
+        clase = clasificar_lut(lut)
+        tol = TOL_MONOTONIA_LOOK if clase == "look" else TOL_MONOTONIA
+        if CODIGO_NO_MONOTONIA in qc_lut(lut, clasificacion=clase).codigos():
+            dispara_cubo_completo += 1
+        table = np.asarray(lut.table, dtype=np.float64)
+        if _eje_propio_no_monotono(table, tol):
+            dispara_eje_propio += 1
+            por_clase[clase] += 1
+            nombres_eje_propio.append(str(r.relative_to(_CARPETA)))
+
+    assert dispara_cubo_completo == 70, (
+        "esto tiene que seguir coincidiendo con el 70/79 de §19/§21; si cambia, "
+        "el material o el detector cambiaron"
+    )
+    assert dispara_eje_propio == 36, nombres_eje_propio
+    assert (por_clase["conversion"], por_clase["look"]) == (4, 32)
