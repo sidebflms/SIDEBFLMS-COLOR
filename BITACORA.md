@@ -1928,3 +1928,104 @@ por la mañana) decida con el cuadro completo:
   cubo" (70), "eje propio" (36) y "diagonal neutra" (3) usa el MISMO código con el MISMO
   posible sesgo en los tres casos, así que el ORDEN entre las tres vías (diagonal « eje propio
   « cubo completo) es fiable aunque las cifras exactas pudieran moverse un poco.
+
+---
+
+## D9-1 · Referencia externa → look: medido antes de construir
+
+Encargo del bloque 2 de esta noche: antes de construir CUALQUIER interfaz para "aplicar un
+look extraído de una imagen de referencia externa" (un fotograma de una película que le gusta
+al colorista, no material de SU rodaje), medir si la idea siquiera funciona con el código de
+hoy. La regla del bloque era explícita: si sale mal, decirlo con todas las letras y no
+construir nada — ese es un resultado válido y, por precedente (T5, día 4), el esperado.
+
+**Por qué esto es el mismo problema que T5, sólo que más estrecho.** T5
+(`tests/fuera_de_plano/`, congelado contra `v0.3.0`, CIFRAS.md §8) ya midió que el grado
+extraído de UN plano del propio rodaje no sirve para OTRO plano del mismo rodaje: ΔE máximo
+por encima de 3.0 en 12 de 12 pares A→B. Una referencia externa es, por construcción, un caso
+todavía más pobre del mismo escenario: no existe "la misma referencia sin gradar" ni "otros
+planos del mismo trabajo" de los que sacar más cobertura o promediar la extracción — sólo hay
+UN PAR (la imagen ya con el look aplicado). Eso es exactamente "un solo plano", la condición
+que T5 ya había medido que falla. La pregunta de hoy no era "¿es un problema nuevo?" sino "¿el
+problema de T5 sigue con el código vivo de hoy?" — porque `core.reverse.invertir_grado` ha
+tenido varias rondas de arreglos entre el día 4 y el día 7, y T5 está congelado a propósito y
+no se re-ejecuta contra el código vivo.
+
+**Montaje** (`tests/test_referencia_externa_look.py`, nuevo, reutiliza
+`tests/fuera_de_plano/t5_material.py` tal cual — sin ninguna dependencia de la copia congelada,
+confirmado en su propio docstring — y llama a `core.reverse.invertir_grado` por la API
+pública, sin ninguna guardia de copia congelada porque aquí SÍ se quiere medir el repo vivo):
+
+1. Escena A = `M.PALETAS_A[1]` ("A2 interior cálido", la paleta que T5 calibró contra el
+   ~0.46% de cobertura de un plano real del propio repo — ni la más pobre en color ni la más
+   rica de las seis, la menos arbitraria para representar "un fotograma cualquiera").
+2. `A' = M.colorear(A, tabla)` con un look sintético conocido de `M.tabla_look` — el par
+   (A, A') ES la referencia externa.
+3. `invertir_grado(A, A')` extrae `(cdl, lut)` — "extraer el look" de la referencia.
+4. `M.paletas_b(paleta_de_A)` da las 6 escenas B a distintos niveles de disparidad de
+   contenido, con su propia etiqueta (B0..B5) reutilizada tal cual, sin inventar tramos
+   propios.
+5. Por cada B: `B' = M.colorear(B, tabla)` (la MISMA función, la verdad fundamental) contra
+   `prediccion = lut.apply(cdl.apply(B))` con el grado extraído en el paso 3. ΔE2000 con
+   `M.delta_e2000` + `M.resumen`.
+6. Repetido para los 2 looks sintéticos que existen en `tabla_look` ("global" y "secundarias"
+   — son los únicos dos; `tabla_look` no tiene un tercer tipo registrado, así que usar los dos
+   que hay, sin inventar uno nuevo a mano, es lo que pide reutilizar la pieza tal cual).
+7. Mismo criterio de "falla" que T5: ΔE máximo > 3.0.
+
+**Medido** (cifras completas en `CIFRAS.md` §23):
+
+- **A→A (la extracción sobre sí misma): funciona.** ΔE máximo 1.625–2.115 en los dos looks,
+  por debajo de 3.0. Esto descarta que el problema esté en `invertir_grado` en sí — la función
+  reconstruye bien el par del que extrajo el grado, tal y como cabía esperar.
+- **A→B con disparidad de contenido real (B1–B5, 10 de los 12 pares): falla en el 100%.** ΔE
+  máximo entre 4.116 y 10.882, ninguno de los 10 baja de 3.0. El peor caso (look "global",
+  B5 "opuesta") llega a 10.88 — **peor** que el peor de T5 el día 4 (5.921), aunque la
+  comparación no es exactamente igual (T5 barre 6 escenas A distintas y aquí sólo 1, la
+  referencia externa por definición es una sola imagen).
+- **El único par que baja de 3.0 es B0** ("misma paleta, otra toma" — básicamente la misma
+  distribución de color, no una disparidad de verdad): 2.449–2.584 en los dos looks. No es una
+  excepción a la regla: confirma que lo único que hace bajar el ΔE es que el contenido casi no
+  cambie, justo lo contrario de lo que sería una referencia externa real (una película distinta
+  al material del colorista).
+
+**Veredicto: sale mal, igual que T5 el día 4 — y para el caso de un solo par externo, si
+acaso, algo peor.** No hay matiz que lo salve: ni un solo par con disparidad de contenido real
+queda por debajo del umbral, en ninguno de los 2 looks. **No se construye ninguna interfaz
+para "aplicar un look desde una imagen de referencia externa"** con lo que hay hoy. Ni
+`core/reverse/invertir.py` ni ningún otro archivo de `core/` o `gui/` se han tocado — esto es
+sólo la medida, con el código que ya existe.
+
+**Propuestas que quedan en prosa, sin implementar (eso decide Mario, no esta sesión):**
+
+- Podría funcionar sólo con contenido muy parecido al de la referencia (B0 lo sugiere), pero
+  eso reduce el caso de uso a "una referencia que ya se parece a lo que vas a rodar", que es
+  un supuesto fuerte y no verificable de antemano sin el propio detector de desajuste de
+  contenido (`core.matching.contenido.desajuste_de_contenido`) delante.
+- Haría falta más de un par para robustecer la extracción — pero por definición una referencia
+  externa NO tiene "otros planos del mismo trabajo": esto apunta a que el caso de uso tal y
+  como está descrito en el encargo (una sola imagen de referencia) puede no ser viable con
+  esta arquitectura, más que a que falte iterar el mismo enfoque.
+- Separar exposición/contraste del resto podría ayudar si el grueso del error viniera de ahí,
+  pero esto NO se ha medido: sería la primera pieza real de una fase 3, no una conclusión de
+  esta medición.
+
+**Lo que haría falta para una fase 3 (si Mario decide seguir adelante pese al resultado de
+arriba) — NO EMPEZADO, PENDIENTE DE DECISIÓN, nada de esto se ha tocado esta noche:**
+
+1. Separar la parte de exposición/contraste (probablemente en el CDL) de la parte puramente
+   cromática, para poder hornear SÓLO la parte cromática a un `.cube` — hoy `invertir_grado`
+   devuelve un CDL y un LUT combinados sin esa separación explícita.
+2. QC de esa separación con una imagen HALD, para verificar que lo horneado reproduce el look
+   dentro de tolerancia antes de dejarlo tocar material real.
+3. Bloqueo por desajuste de contenido con `core.matching.contenido.desajuste_de_contenido`
+   ANTES de dejar aplicar nada — el encargo lo señala explícitamente para bloquear el caso "la
+   referencia y el material no tienen nada que ver", que es justamente el escenario B3–B5 de
+   esta medición.
+4. Sólo después de 1–3 tendría sentido diseñar una interfaz de "aplicar look desde imagen de
+   referencia" — y el resultado de esta medición (fase 1) es que, sin 1–3, no hay nada que
+   aplicar de forma fiable.
+
+`pytest tests/test_referencia_externa_look.py -q` verde (2 tests, sin material real ni
+`/Volumes`, sin conexión a Resolve) y `ruff check tests/test_referencia_externa_look.py`
+limpio.

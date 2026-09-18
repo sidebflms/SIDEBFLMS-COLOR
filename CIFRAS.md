@@ -800,3 +800,53 @@ la diagonal neutra que ya sugería §21.
 No se ha tocado `core/io/qc.py::_monotonia()` ni ningún umbral de `core/umbrales.py`: es sólo
 la medida que Mario pidió hoy. Nombres completos de los 36 archivos en el `assert` del test
 (`nombres_eje_propio`) y en `BITACORA.md` D9-0.
+
+---
+
+## 23 · Referencia externa → look (día 9): medido ANTES de construir nada
+
+Encargo del bloque 2 de la noche: antes de construir cualquier interfaz para "aplicar un look
+extraído de una imagen de referencia EXTERNA" (un fotograma de otra película, no material del
+propio rodaje del colorista), medir si la idea siquiera funciona. Es el mismo problema que T5
+(§8, día 4) pero más estrecho: una referencia externa es, por definición, UN SOLO PAR
+(imagen + imagen ya con el look) — no hay "otros planos del mismo trabajo" que promediar o de
+los que sacar más cobertura, que es lo que el flujo de hoy sí puede hacer con material real
+del propio proyecto. Medido contra el código **VIVO** de hoy (a propósito, no contra la copia
+congelada de `v0.3.0` de T5 — `core.reverse.invertir_grado` ha tenido varias rondas de
+arreglos entre el día 4 y el día 7), reutilizando el material de T5
+(`tests/fuera_de_plano/t5_material.py`, sin ninguna dependencia de la copia congelada) con una
+sola escena A (paleta "A2 interior cálido", la que T5 calibró contra el plano real) y las 6
+escenas B de `paletas_b`, para los 2 looks sintéticos que ofrece `tabla_look`.
+
+```bash
+.venv/bin/python -m pytest tests/test_referencia_externa_look.py -q -s
+```
+
+| Cifra | Valor | Montaje | Fecha |
+|---|---|---|---|
+| **ΔE máximo, pares A→B que SÍ son disparidad de contenido (B1–B5, 10 de 12)** | **4.116 – 10.882; 0 de 10 bajo 3.0** | escena A2 → 5 escenas B (B1–B5) × 2 looks | 18-09 |
+| ΔE máximo, B0 ("misma paleta, otra toma" — casi sin disparidad) | 2.449 – 2.584; 2 de 2 bajo 3.0 | ídem, B0 × 2 looks | 18-09 |
+| ΔE máximo, los 12 pares A→B juntos (incluyendo B0) | **2/12 bajan de 3.0** | ídem | 18-09 |
+| Peor ΔE máximo de todos (look "global", B5 opuesta) | **10.882** | look global, B5 | 18-09 |
+| Mejor ΔE máximo entre los que fallan (look "secundarias", B2 parecida) | 4.116 | look secundarias, B2 | 18-09 |
+| ΔE máximo de la extracción sobre sí misma (A→A, la propia referencia) | 1.625 – 2.115; 2 de 2 bajo 3.0 | ídem, ambos looks | 18-09 |
+| Para comparar: T5 (v0.3.0, día 4, §8) | 3.593 – 5.921; 0 de 12 bajo 3.0 | 6 escenas A × 6 B × 2 looks | 16-09 |
+
+**Lo que dicen juntas:** la extracción `invertir_grado(A, A')` funciona bien SOBRE SÍ MISMA
+(ΔE máximo 1.6–2.1, por debajo del umbral) — el problema no es que la función esté rota, es
+exactamente lo que T5 ya había separado: el grado extraído no generaliza a contenido distinto,
+ni con el código vivo de hoy. En cuanto hay disparidad de contenido real entre la referencia y
+el material (B1–B5), el ΔE máximo se dispara muy por encima de 3.0 en el 100% de los casos
+(10 de 10) — y con cifras **peores** que las de T5 el día 4 (hasta 10.88 frente al 5.92 de
+entonces, aunque no es una comparación directa: T5 barre 6 escenas A y aquí sólo 1). El único
+par que baja de 3.0 (B0, "misma paleta, otra toma") no es un caso de disparidad de verdad —
+es casi la misma imagen — así que no cuenta como una excepción a la regla, la confirma: la
+única condición bajo la que el ΔE se mantiene bajo es cuando el contenido apenas cambia,
+justo lo contrario de lo que sería una referencia externa real. Conclusión clara: **el mismo
+fallo de T5 sigue con el código de hoy, y para el caso "un solo par externo" es, si acaso,
+más severo.** No se construye ninguna interfaz para "aplicar un look desde una referencia
+externa" a partir de esto. Ver `BITACORA.md` D9-1 para la discusión completa y lo que haría
+falta (no implementado) para una fase 3.
+
+`pytest tests/test_referencia_externa_look.py -q` verde (2 tests) y
+`ruff check tests/test_referencia_externa_look.py` limpio.
