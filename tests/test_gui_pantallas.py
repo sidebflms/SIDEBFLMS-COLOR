@@ -277,6 +277,160 @@ def test_comparar_pinta_los_numeros_del_match_y_el_cdl_entero():
         v.close()
 
 
+def test_comparar_pinta_el_panel_del_tutor_con_caracteristica_y_umbral():
+    """Día 8, tarea 2.6: modo avanzado enseña `Frase` entera (texto +
+    característica + umbral + validación), no sólo el texto — al contrario
+    que el modo fácil (`gui/pantalla_facil.py::_PanelTutor`)."""
+    from gui.pantalla_comparar import _permitir_partir
+    from gui.tutor_datos import frases_de_clip
+
+    est = demo()
+    v = ventana(est)
+    try:
+        v.ir_a(1)
+        comparar = v.p_comparar
+        clip = comparar.clip_actual()
+        assert clip is not None
+        asentar(2)
+        frases = frases_de_clip(est, clip)
+        assert frases, "el clip de demo tiene que dar alguna frase del tutor"
+        texto = comparar.texto_tutor.text()
+        for frase in frases:
+            assert frase.texto in texto
+            # `_permitir_partir`: los `_`/`/` de la característica se
+            # cambian por espacios en pantalla para que un identificador
+            # largo (p.ej. "lut_plano") pueda partirse en vez de cortarse
+            # en silencio — comparar contra la MISMA transformación, no
+            # contra el string crudo.
+            assert _permitir_partir(frase.caracteristica) in texto
+            assert frase.validacion in texto
+    finally:
+        v.close()
+
+
+def test_un_umbral_largo_del_tutor_no_se_corta_en_silencio_en_el_panel():
+    """Bug real encontrado con el detector de texto cortado
+    (`tests/test_gui_texto.py`), no a ojo: `SUELO_NEGRO_VISIBLE_TUTOR`
+    —25 caracteres sin ni un espacio— no cabía en los 161px de la columna
+    lateral de `PantallaComparar`. `QLabel.setMinimumWidth(0)` no evita
+    esto (Qt sólo respeta un mínimo explícito si es positivo, así que con 0
+    el layout seguía usando el ancho de la palabra entera como suelo) y
+    encima, dentro del `QScrollArea` nuevo del día 8, el sobrante quedaba
+    recortado por el viewport SIN ninguna barra para alcanzarlo — peor que
+    el corte silencioso de siempre. Arreglado en dos sitios:
+    `_ANCHO_MINIMO_ETIQUETA_LATERAL` (un suelo positivo de verdad) y
+    `_permitir_partir` (cambia `_`/`/` por espacios para que la línea pueda
+    partirse donde hace falta)."""
+    from core.umbrales import SUELO_NEGRO_VISIBLE_TUTOR
+    from gui.pantalla_comparar import _ANCHO_MINIMO_ETIQUETA_LATERAL, _permitir_partir
+    from tests.test_gui_texto import revisar
+
+    assert len(f"SUELO_NEGRO_VISIBLE_TUTOR = {SUELO_NEGRO_VISIBLE_TUTOR}") > 20, (
+        "si el nombre de la constante cambia y se acorta, este test ya no prueba "
+        "el caso largo que encontró el bug — revísalo, no lo borres sin mirar"
+    )
+    assert " " in _permitir_partir("SUELO_NEGRO_VISIBLE_TUTOR")
+    assert "_" not in _permitir_partir("SUELO_NEGRO_VISIBLE_TUTOR")
+
+    est = demo()
+    v = ventana(est)
+    try:
+        v.ir_a(1)
+        comparar = v.p_comparar
+        assert comparar.texto_tutor.minimumWidth() == _ANCHO_MINIMO_ETIQUETA_LATERAL
+        # Fuerza el umbral largo en el panel, sin depender de que el clip de
+        # demo dispare justo esa regla hoy.
+        from core.tutor.catalogo import Frase
+
+        frase_larga = Frase(
+            regla_id="prueba",
+            texto="Frase de prueba.",
+            caracteristica="característica de prueba",
+            valor_medido="valor de prueba",
+            umbral=f"SUELO_NEGRO_VISIBLE_TUTOR = {SUELO_NEGRO_VISIBLE_TUTOR}",
+            validacion="descriptiva",
+            cifras_ref="—",
+        )
+        import gui.pantalla_comparar as pc
+
+        original = pc.frases_de_clip
+        pc.frases_de_clip = lambda *_a, **_k: (frase_larga,)
+        try:
+            comparar._cambio()
+            asentar(2)
+            problemas = revisar(v, donde="umbral largo del tutor")
+        finally:
+            pc.frases_de_clip = original
+        assert not problemas, "\n".join(problemas)
+        assert "SUELO NEGRO VISIBLE TUTOR" in comparar.texto_tutor.text()
+    finally:
+        v.close()
+
+
+def test_comparar_pinta_el_panel_por_que_con_las_lecciones_minimas():
+    """Tarea 2.4: las dos lecciones obligatorias (LUT de conversión/look/
+    grade, y por qué la exposición nunca va dentro de un look) tienen que
+    verse en algún sitio de la pantalla — este es ese sitio."""
+    est = demo()
+    v = ventana(est)
+    try:
+        v.ir_a(1)
+        comparar = v.p_comparar
+        asentar(2)
+        texto = comparar.texto_ensenar.text()
+        assert "LUT de conversión" in texto or "conversión" in texto.lower()
+        assert "exposición" in texto.lower()
+    finally:
+        v.close()
+
+
+def test_el_panel_por_que_no_se_queda_con_el_texto_del_clip_anterior():
+    """Bug real encontrado al revisar el cableado, no en un test previo:
+    `_actualizar_tutor` rellenaba `texto_ensenar` DESPUÉS de un `return`
+    temprano para el caso "sin frases" — un clip sin nada que diagnosticar
+    dejaba el panel "por qué" con el texto del clip anterior en vez de
+    actualizarse. `lecciones_de_clip` siempre da algo (las dos lecciones
+    mínimas del encargo), así que el panel nunca debería quedarse vacío ni
+    obsoleto."""
+    est = demo()
+    v = ventana(est)
+    try:
+        v.ir_a(1)
+        comparar = v.p_comparar
+        asentar(2)
+        assert comparar.texto_ensenar.text() != "—"
+        for clip in est.clips:
+            if clip.original is None:
+                continue
+            comparar.seleccionar(clip.clip_id)
+            asentar(1)
+            assert comparar.texto_ensenar.text() != "—", clip.clip_id
+            assert "exposición" in comparar.texto_ensenar.text().lower()
+    finally:
+        v.close()
+
+
+def test_cambiar_de_clip_en_comparar_actualiza_el_panel_del_tutor():
+    est = demo()
+    v = ventana(est)
+    try:
+        v.ir_a(1)
+        comparar = v.p_comparar
+        primero = comparar.clip_actual().clip_id
+        asentar(2)
+
+        otro = next(c for c in est.clips if c.clip_id != primero and c.original is not None)
+        comparar.seleccionar(otro.clip_id)
+        asentar(2)
+        assert comparar.clip_actual().clip_id == otro.clip_id
+        # No exige que el texto cambie (dos clips podrian dar el mismo
+        # diagnostico), pero si tiene que reflejar el clip nuevo: no puede
+        # quedarse en el "-" inicial ni lanzar.
+        assert comparar.texto_tutor.text() != "—"
+    finally:
+        v.close()
+
+
 def test_comparar_no_arranca_ensenando_la_referencia_contra_si_misma():
     est = demo()
     v = ventana(est)

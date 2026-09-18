@@ -287,3 +287,31 @@ El detector no ve esto, porque vigilarlo sin ruido no ha sido posible:
 `assert cosas, "no hay nada que comprobar: <por qué podría estar vacío>"`.
 Si al ponerla el test se pone rojo, **eso es un hallazgo**: se deja rojo, se marca
 `xfail(strict=True, raises=AssertionError)` con la cifra y el comando, y se dice.
+
+---
+
+## Ningún supuesto nuevo sin su fila en `SUPUESTOS.md` — añadida el día 8
+
+**Ningún supuesto se hace sin anotarlo en `SUPUESTOS.md` el mismo día que se hace.**
+
+Día 8: Mario decidió seguir construyendo por delante de la validación contra Resolve
+real — el probe no se ejecuta por ahora, y eso está asumido a propósito. Es una
+decisión legítima **sólo si el riesgo se inventaría en vez de acumularse invisible**.
+`SUPUESTOS.md` es ese inventario: una fila por cada cosa que el proyecto da por
+cierta sin haberla comprobado, con de dónde sale (documentación oficial / material
+real observado / inferencia nuestra / foro), qué depende de ella, qué costaría
+rehacer si es falsa, y cómo se verificaría el día que se pueda.
+
+**Por qué el mismo día y no "cuando dé tiempo":** un supuesto sin fila es exactamente
+tan peligroso como un umbral sin verlo contra material real (la regla de arriba) o
+una cifra sin su fila en `CIFRAS.md` — parece que no está, hasta que falla en
+producción y nadie recuerda que era una suposición. La disciplina es idéntica a la de
+las cifras: se escribe en el mismo movimiento en que se construye, no después.
+
+**Qué cuenta como supuesto nuevo:** cualquier decisión de diseño que dependa de algo
+no confirmado contra la realidad que decide — un nombre de clave de la API de
+Resolve que nadie ha visto en una respuesta real, un comportamiento de una función
+del puente sin probar, una relación entre dos cosas que "parece razonable" pero no
+se ha medido. Si dudas si algo cuenta, la pregunta es: *¿qué pasa si esto es falso, y
+cómo me entero?* — si no tienes una respuesta a las dos partes, es un supuesto y
+necesita su fila.

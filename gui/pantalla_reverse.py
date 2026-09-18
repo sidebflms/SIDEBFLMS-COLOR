@@ -414,6 +414,9 @@ class PantallaReverse(QWidget):
         )
         self.texto_sustituto = QLabel("")
         self.texto_sustituto.setWordWrap(True)
+        # Riesgo conocido y no arreglado (`gui/NOTAS.md`): 0 no es un mínimo
+        # positivo, así que sólo funciona mientras esta etiqueta no viva
+        # dentro de un contenedor con scroll horizontal apagado.
         self.texto_sustituto.setMinimumWidth(0)
         self.texto_sustituto.setStyleSheet(f"color: {idn.BRAND_400};")
         self.aviso_sustituto.caja.addWidget(self.texto_sustituto)
@@ -424,6 +427,7 @@ class PantallaReverse(QWidget):
         self.aviso_no_disponible.caja.addWidget(Rotulo("módulo no disponible", acento=True))
         self.texto_no_disponible = QLabel("")
         self.texto_no_disponible.setWordWrap(True)
+        # Mismo riesgo sin arreglar que arriba — ver `gui/NOTAS.md`.
         self.texto_no_disponible.setMinimumWidth(0)
         self.aviso_no_disponible.caja.addWidget(self.texto_no_disponible)
         caja.addWidget(self.aviso_no_disponible)
@@ -516,6 +520,8 @@ class PantallaReverse(QWidget):
         self.datos_lut = QLabel("—")
         self.datos_lut.setObjectName("cifraApagada")
         self.datos_lut.setFont(idn.fuente_cifra(11))
+        # Riesgo conocido y no arreglado (`gui/NOTAS.md`) si esto entra algún
+        # día en una columna con scroll horizontal apagado.
         self.datos_lut.setMinimumWidth(0)
         self.datos_lut.setWordWrap(True)
         panel_lut.caja.addWidget(self.datos_lut)
@@ -523,6 +529,7 @@ class PantallaReverse(QWidget):
         panel_lut.caja.addWidget(Rotulo("control de calidad del lut"))
         self.texto_qc = QLabel("—")
         self.texto_qc.setWordWrap(True)
+        # Mismo riesgo sin arreglar — ver `gui/NOTAS.md`.
         self.texto_qc.setMinimumWidth(0)
         panel_lut.caja.addWidget(self.texto_qc)
         col.addWidget(panel_lut)
@@ -772,6 +779,41 @@ class PantallaReverse(QWidget):
         self.insignia.setVisible(False)
         self.origen_texto.setText("no disponible")
         self.texto_diag.setPlainText(SIN_VEREDICTO)
+        self._limpiar_resultados()
+
+    def _limpiar_resultados(self) -> None:
+        """Vacía TODO lo que sólo `_pintar()` rellena.
+
+        `division.setEnabled(False)` (en `_sin_modulo`) no basta: los
+        widgets de pintado propio (`VistaMapa`, `TiraParches`) no miran
+        `isEnabled()` en su `paintEvent`, así que sin esto seguían enseñando
+        el mapa de cobertura, el residuo y los parches de un cálculo
+        ANTERIOR a pantalla completa, con el aviso de "no disponible" puesto
+        encima — el resultado de un recálculo que falló se atribuía al
+        resultado bueno de antes. Encontrado en un barrido explícito de la
+        misma clase de bug que el panel "por qué" de `pantalla_comparar.py`.
+        """
+        self.mini_original.poner(None)
+        self.mini_coloreado.poner(None)
+        self.editor.poner(CDL())
+        self.marca_editado.setVisible(False)
+        self.tira_origen.poner(None)
+        self.tira_cdl.poner(None)
+        self.datos_lut.setText("—")
+        self.texto_qc.setText("—")
+        self.texto_qc.setStyleSheet("")
+        self.celdas_cobertura.setText("—")
+        self.cifra_cobertura.setText("—")
+        self.cifra_inventado.setText("—")
+        self.barra_cobertura.set_valor(0.0)
+        self.vista_cobertura.poner(None, vacio="sin datos")
+        self.cifra_repro.setText("—")
+        self.barra_repro.set_valor(0.0)
+        self._de_max.setText("—")
+        self.marca_max.poner(float("nan"), float("nan"))
+        self._de_media.setText("—")
+        self._de_p95.setText("—")
+        self.vista_residuo.poner(None, vacio="sin datos")
 
     def _pintar(self) -> None:
         res = self._resultado

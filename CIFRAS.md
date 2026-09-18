@@ -703,3 +703,60 @@ una sospecha razonable para ellos, no una medida.
 **Decisión explícita, para no arbitrar de más:** ninguno de estos 36 se ha "dado por
 bueno" ni se ha tocado. Quedan como estaban, marcados `NO VALIDABLE TODAVÍA` con la razón
 concreta en su propio comentario de `core/umbrales.py`.
+
+---
+
+## 21 · La prueba del eje (día 8): ¿todo el cubo o sólo la diagonal neutra?
+
+El 70/79 de §19 apenas se movió con `TOL_MONOTONIA_LOOK` (76/79 → 70/79). Hipótesis sin
+probar de Mario: `_monotonia()` exige que el canal `c` suba al mover el eje `c` para
+CUALQUIER combinación fija de los otros dos ejes — recorre las **n² líneas paralelas** de
+cada eje, no sólo la diagonal neutra R=G=B. Pedirle a un canal que suba en TODO el cubo,
+en cualquier zona de tinte, es pedir que no haya mezcla entre canales — y la mezcla entre
+canales es justo lo que hace un look. Encargo de hoy (sesión limpia, sin el sesgo de haber
+diseñado `TOL_MONOTONIA_LOOK`): medir cuántos de los 79 saltan **sólo en su eje propio**,
+operacionalizado como la lectura más estricta que sigue siendo distinta de "todo el cubo":
+sólo a lo largo de la diagonal neutra `(i, i, i)`, con la misma tolerancia por clase.
+
+```bash
+.venv/bin/python -m pytest tests/test_io_qc_reales.py -q -rA -k prueba_del_eje
+```
+
+| Cifra | Valor | Comando | Fecha |
+|---|---|---|---|
+| **`no_monotonia`, regla de hoy (todo el cubo, canal==eje, n² líneas por eje)** — confirma §19 | **70 de 79** (7/8 conversión + 63/71 look) | `test_prueba_del_eje_diagonal_neutra_confirma_la_hipotesis` | 17-09 |
+| **`no_monotonia`, sólo a lo largo de la diagonal neutra R=G=B** (misma tolerancia por clase, `TOL_MONOTONIA` / `TOL_MONOTONIA_LOOK`) | **3 de 79** (0/8 conversión + 3/71 look) | `test_prueba_del_eje_diagonal_neutra_confirma_la_hipotesis` | 17-09 |
+| Los 3 que siguen disparando incluso en su propio gris | `EKTAR 100 REC709 SONY.cube` (rojo, −0,0147), `EKTAR 100 SIDEB SONY.cube` (rojo, −0,0191), `Jota_lut_fitz.cube` (rojo, −0,0298; también verde y azul) — los tres "look", los tres con reversión real en el eje rojo | `test_prueba_del_eje_diagonal_neutra_confirma_la_hipotesis` | 17-09 |
+
+**La hipótesis se confirma, con margen.** 67 de los 79 archivos que disparan `no_monotonia`
+hoy (todo el cubo) NO tienen ninguna reversión real a lo largo de su propio gris: la
+reversión que el detector encuentra vive en una zona de tinte del cubo (una combinación de
+G,B lejos de gris, con R fijo variando), no en la rampa neutra. Eso es exactamente lo que
+un look hace a propósito — mezclar canales fuera del gris — y no lo que Mario pedía
+prohibir, que era que el rojo baje "cuando subes el rojo" en el sentido de la imagen que de
+verdad importa: la escala de grises. `Jota_lut_fitz.cube` es el único caso donde las dos
+cifras coinciden con lo esperado: es el LUT con la reversión más grande de todo el material
+(−0,315, D7-7/§19/§20) Y uno de los 3 que también baja en su propio gris — no es casualidad,
+es la magnitud de su reversión la que la hace sobrevivir incluso al recorte más estricto.
+
+**Lo que esto NO es**: no es una propuesta de arreglo, y `core/io/qc.py::_monotonia()` no
+se ha tocado — sigue recorriendo todo el cubo, como hacía antes de esta medición. Tampoco se
+ha tocado ningún umbral de `core/umbrales.py`. Es sólo la medida que Mario pidió, con la
+tensión que estaba sin resolver ahora resuelta: la causa de que `no_monotonia` dispare en la
+mayoría del material real de "look" **no era la tolerancia** (§19 ya lo mostraba: relajarla
+apenas movía la aguja) — era que el detector compara canal contra eje en **todo el cubo** en
+vez de sólo en el gris. Si se quisiera arreglar de verdad (decisión que no corresponde tomar
+aquí, y que no se ha implementado), la vía que esta medida sugiere es restringir
+`_monotonia()` a la diagonal neutra en vez de a las n² líneas paralelas — no seguir subiendo
+`TOL_MONOTONIA_LOOK`, que ya se demostró en §19 que no tiene más margen sin dejar de cazar
+el LUT roto de T4.
+
+**Aviso sobre el bug del `break` (D7-7, ya corregido en `main`):** ese bug infracontaba
+`total`/`peor` en `metricas`, nunca afectó a si `no_monotonia` se detecta. No se ha mezclado
+con esta medida: el 70/79 de arriba usa `informe.codigos()` (si el código aparece o no),
+exactamente igual que §19, y coincide con §19 porque el bug ya estaba corregido en `main`
+antes de esta medición (confirmado leyendo `core/io/qc.py::_monotonia()` línea por línea: no
+hay ningún `break` en el bucle de los tres ejes).
+
+---
+

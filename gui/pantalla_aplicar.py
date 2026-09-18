@@ -293,6 +293,9 @@ class PantallaAplicar(QWidget):
         izq.caja.addWidget(self.ruta_look)
         self.texto_look = QLabel("")
         self.texto_look.setWordWrap(True)
+        # 0 no arregla nada por sí solo (`gui/NOTAS.md`): hoy no vive dentro
+        # de una columna acotada con scroll horizontal apagado, así que no se
+        # nota — se romperá igual si algún día se mete en algo así.
         self.texto_look.setMinimumWidth(0)
         self.texto_look.setFont(idn.fuente_texto(11))
         izq.caja.addWidget(self.texto_look)

@@ -50,6 +50,7 @@ from gui.asistente_facil import (
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.imagen import a_qimage
 from gui.pantalla_comparar import VisorCortinilla
+from gui.tutor_datos import frases_de_clip
 from gui.widgets import Panel, Rotulo, TextoAjustado, separador
 
 
@@ -232,6 +233,64 @@ class _ListaRepaso(QWidget):
         self.setVisible(bool(candidatos))
 
 
+#: Alto máximo del contenido de `_PanelTutor` — el mismo recurso que
+#: `_ListaRepaso` (más abajo) para la misma razón: sin un tope, con
+#: bastantes frases el panel podía crecer hasta empujar los botones
+#: Deshacer/Siguiente paso fuera de la ventana a la anchura mínima, sin
+#: ninguna barra que avisara de que faltaba contenido (día 8, aviso de
+#: Mario tras el bug del panel "por qué" de `pantalla_comparar.py` — la
+#: misma clase de fallo, aplicada aquí antes de que llegara a pasar).
+#: La CABECERA ("EL TUTOR DICE") vive FUERA del área con tope, así que
+#: siempre se ve aunque el contenido necesite desplazarse.
+ALTO_MAXIMO_PANEL_TUTOR = 140
+
+
+class _PanelTutor(QWidget):
+    """Las frases del tutor sobre el clip que se está mirando ahora — día 8,
+    tarea 2.6. SÓLO el texto: ni ΔE, ni CDL, ni nombre de característica, ni
+    umbral. Eso es lo que enseña el modo avanzado (`gui/pantalla_reverse.py`);
+    aquí `core.tutor.catalogo.Frase.texto` es el único campo que se lee.
+
+    Prioridad vertical del paso "look" a la anchura mínima (día 8): 1) el
+    antes/después, 2) la frase de qué ha hecho la app, 3) los botones de
+    seguir/deshacer — los tres SIEMPRE visibles, nunca comprimidos por este
+    panel — y 4) esto, visible entero si cabe, con scroll (nunca oculto sin
+    aviso) si no. El que cede espacio primero es el visor de antes/después
+    (`VisorCortinilla` tiene un mínimo bajo, 170px, y `stretch=1`), no este
+    panel ni los botones."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._panel = Panel()
+        self._rotulo = Rotulo("EL TUTOR DICE")
+        self._panel.caja.addWidget(self._rotulo)
+        self._area = QScrollArea()
+        self._area.setWidgetResizable(True)
+        self._area.setMaximumHeight(ALTO_MAXIMO_PANEL_TUTOR)
+        self._area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        contenido = QWidget()
+        self._columna = QVBoxLayout(contenido)
+        self._columna.setContentsMargins(0, 0, 0, 0)
+        self._columna.setSpacing(6)
+        self._area.setWidget(contenido)
+        self._panel.caja.addWidget(self._area)
+        capa = QVBoxLayout(self)
+        capa.setContentsMargins(0, 0, 0, 0)
+        capa.addWidget(self._panel)
+        self._etiquetas: list[TextoAjustado] = []
+
+    def poner(self, frases: tuple) -> None:
+        for etiqueta in self._etiquetas:
+            etiqueta.setParent(None)
+        self._etiquetas.clear()
+        for frase in frases:
+            etiqueta = TextoAjustado(f"·  {frase.texto}")
+            etiqueta.setFont(idn.fuente_texto(13))
+            self._columna.addWidget(etiqueta)
+            self._etiquetas.append(etiqueta)
+        self.setVisible(bool(frases))
+
+
 class PantallaFacil(QWidget):
     """El asistente completo. Se construye una vez por `EstadoDemo`."""
 
@@ -274,6 +333,10 @@ class PantallaFacil(QWidget):
         self._pregunta.hide()
         self._panel_texto.caja.addWidget(self._pregunta)
         raiz.addWidget(self._panel_texto)
+
+        self._panel_tutor = _PanelTutor()
+        self._panel_tutor.hide()
+        raiz.addWidget(self._panel_tutor)
 
         self._lista_repaso = _ListaRepaso()
         self._lista_repaso.hide()
@@ -344,6 +407,7 @@ class PantallaFacil(QWidget):
         self._pregunta.hide()
         if ID_PASOS[indice] != "look":
             self._selector_presets.hide()
+            self._panel_tutor.hide()
 
         pid = ID_PASOS[indice]
         if pid == "ordenar":
@@ -394,6 +458,7 @@ class PantallaFacil(QWidget):
                 a_qimage(antes_look) if antes_look is not None else None,
                 a_qimage(despues_look) if despues_look is not None else None,
             )
+            self._panel_tutor.poner(frases_de_clip(self._estado, clip) if clip is not None else ())
         elif pid == "repasar":
             paso_ordenar = self._paso_ordenar or ejecutar_ordenar(self._estado)
             paso = ejecutar_repasar(self._estado, paso_ordenar)

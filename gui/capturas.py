@@ -93,6 +93,24 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
         patron.resize(QSize(minimo, 400))
         _asentar(app, patron)
         alto_minimo = max(alto_minimo, patron.minimumSizeHint().height())
+    # [dia 8] El modo fácil NO estaba en este barrido: medía sólo las cuatro
+    # pantallas del modo avanzado. Con el panel del tutor (paso "look") el
+    # mínimo real del modo fácil puede superar el de las cuatro de arriba —
+    # capturar con un `alto_minimo` más pequeño que el que Qt de verdad
+    # necesita comprime los widgets por debajo de su tamaño natural, que es
+    # justo el fallo que el aviso de Mario pedía que no volviera a pasar.
+    patron_facil = VentanaPrincipal(dd.estado_demo())
+    patron_facil.resize(minimo, 400)
+    patron_facil.show()
+    patron_facil.boton_modo_facil.setChecked(True)
+    _asentar(app, patron_facil)
+    for _ in range(len(ID_PASOS)):
+        patron_facil.resize(QSize(minimo, 400))
+        _asentar(app, patron_facil)
+        alto_minimo = max(alto_minimo, patron_facil.minimumSizeHint().height())
+        patron_facil.p_facil.siguiente()
+        _asentar(app, patron_facil)
+    patron_facil.close()
     patron.close()
 
     anchuras = (*ANCHURAS_NOMINALES, minimo)

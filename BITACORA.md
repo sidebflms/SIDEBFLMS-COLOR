@@ -1489,3 +1489,339 @@ que sabe que es mentira en la mayoría del material real.
 
 Comprobado: `.venv/bin/python -m pytest tests/test_io_qc.py tests/test_io_qc_reales.py
 tests/test_entregables.py -q` en verde entero tras el cambio (ver la salida en el commit).
+
+# DÍA 8 — 17 de septiembre de 2026
+
+## D8-0 · La prueba del eje: la hipótesis de Mario se confirma (70/79 → 3/79)
+
+Encargo de diez minutos, delegado a propósito a una sesión limpia: quien diseñó
+`TOL_MONOTONIA_LOOK` y calibró su valor (D7-1) no es quien debe arbitrar si una hipótesis
+alternativa sobre la causa del mismo problema es correcta. El 70/79 de D7-1 apenas bajó del
+76/79 de D6-2 con la tolerancia por clase — la tolerancia no era el problema, o no todo el
+problema.
+
+**Hipótesis sin probar**: `core/io/qc.py::_monotonia()` recorre los tres ejes y, para cada
+uno, exige que el canal `c` (mismo índice que el eje, siempre — nunca compara canal contra
+un eje distinto) suba al moverse por ese eje, PARA CUALQUIER combinación fija de los otros
+dos ejes: son las n² líneas paralelas a cada eje, todo el cubo. Pedirle a un look —que mezcla
+canales a propósito fuera del gris, eso es lo que hace un viraje de tono— que no tenga ni una
+reversión en NINGÚN punto del cubo es mucho más estricto que pedirle que no la tenga a lo
+largo de la diagonal neutra R=G=B, que es donde "el rojo sube cuando subes el rojo" tiene el
+sentido que de verdad importa (la escala de grises).
+
+**Antes de medir, se leyó `_monotonia()` línea por línea** (no se dio por buena la lectura
+previa de quien delegó el encargo): confirmado que hoy compara canal==eje siempre — nunca
+canal R contra eje G o B, la hipótesis tal cual está escrita ("barre los tres ejes para los
+tres canales") no describe el código literal — pero SÍ recorre las n² líneas paralelas de
+cada eje, no sólo la diagonal. La distinción real está ahí: "monótono en R al mover R, en
+todo el cubo" es mucho más estricto que "monótono en R al mover R, sólo en el gris". También
+se confirmó que el bug del `break` de D7-7 ya estaba corregido en `main` (no hay ningún
+`break` en el bucle de los tres ejes de `_monotonia()`), así que no interfiere con esta
+medida: el 70/79 usa `informe.codigos()`, que nunca dependió del bug.
+
+**Medido** (`tests/test_io_qc_reales.py::test_prueba_del_eje_diagonal_neutra_confirma_la_hipotesis`,
+cifras completas en `CIFRAS.md` §21): sobre los 79 `.cube` reales, con la misma tolerancia
+por clase que usa `qc_lut()` hoy —
+
+- **Todo el cubo** (regla actual): **70 de 79** disparan `no_monotonia`. Confirma D7-1/§19.
+- **Sólo la diagonal neutra R=G=B**: **3 de 79**. `EKTAR 100 REC709 SONY.cube`, `EKTAR 100
+  SIDEB SONY.cube` y `Jota_lut_fitz.cube` — los tres "look", los tres con una reversión real
+  en el eje rojo a lo largo de su propio gris.
+
+**La hipótesis se confirma, con margen claro.** Bajar de 70 a 3 no es "movió un poco la
+aguja" (que es lo que hizo la tolerancia en D7-1): es que 67 de los 79 archivos que disparan
+`no_monotonia` hoy NO tienen ninguna reversión real en su propio gris — la reversión que el
+detector encuentra vive en una zona de tinte lejos del gris, que es exactamente lo que un
+look hace a propósito. `Jota_lut_fitz.cube` (la reversión más grande de todo el material,
+−0,315, D7-7) es el único de los tres donde la magnitud es tan grande que sobrevive incluso
+al recorte más estricto — no es casualidad, es coherente con su cifra ya conocida.
+
+**Lo que esto NO es**: no se ha tocado `core/io/qc.py::_monotonia()` ni ningún umbral de
+`core/umbrales.py` — sigue recorriendo todo el cubo, exactamente como antes de esta medición.
+Esto es sólo la medida que se pidió. **Propuesta, sin implementar, para que Mario decida**:
+la vía que esta cifra sugiere no es seguir tocando `TOL_MONOTONIA_LOOK` (§19 ya demostró que
+no tiene más margen sin dejar de cazar el LUT roto de T4) sino restringir la comprobación de
+monotonía de un "look" a la diagonal neutra en vez de a las n² líneas paralelas del cubo —
+una decisión de diseño del detector, no un umbral, y por eso no es algo que esta medición
+deba arbitrar por su cuenta.
+
+Tests: `tests/test_io_qc_reales.py` (sección 5 nueva, un test) pasa, igual que el resto del
+archivo (94 tests recogidos) y `tests/test_io_qc.py` (53 tests) — comprobado con
+`.venv/bin/python -m pytest tests/test_io_qc_reales.py tests/test_io_qc.py -q`, verde entero.
+`ruff check` limpio sobre `tests/test_io_qc_reales.py`.
+
+## D8-1 · `SUPUESTOS.md`: el inventario del riesgo que se acumula a propósito
+
+Decisión de Mario para hoy en adelante: seguir construyendo sin validar contra Resolve
+real — el probe no se ejecuta por ahora. Legítimo sólo si el riesgo está inventariado, no
+invisible. `SUPUESTOS.md` es ese inventario: una fila por cada cosa que el proyecto da por
+cierta sin haberla comprobado, con de dónde sale (documentación oficial / observación de
+material real / inferencia nuestra / foro), qué depende de ella, qué costaría rehacer si
+es falsa, y cómo se verificaría.
+
+Sembrado con:
+
+- Las nueve preguntas del probe (V-0, F0-1 a F0-8) y la séptima incógnita sin numerar
+  (`AddVersion()` hereda el grafo de nodos o empieza en blanco) — la fila más grave del
+  documento: si es falsa, la app no puede escribir nada en Resolve en absoluto.
+- Los cinco nombres de clave de `GetClipProperty` que usa `core.colormgmt` (`"Camera
+  Manufacturer"`, `"Camera Type"`, `"Gamma Notes"`, `"Camera Notes"`, `"Input Color
+  Space"`) — de foro, nunca confirmados por Blackmagic.
+- El diseño de tres nodos fijos (`NODE_NORMALIZACION`/`BALANCE`/`LOOK`) y su relación con
+  el índice de nodo del `.drx` (que NO es lo mismo, ver D6/`FORMATO-DRX.md` §3.1).
+- Los números de campo del protobuf `.drx` — ingeniería inversa sobre 10 archivos de UNA
+  sola versión de Resolve, sin ningún ejemplo de otra versión con el que comparar.
+- La tabla de espacios de entrada por cámara: primarios y curva de transferencia SÍ salen
+  de documentación oficial de cada fabricante (eso no es un supuesto); el MAPEO de
+  metadata textual a la variante concreta de gamut (p.ej. "sony" + "s-log3" →
+  `S-Gamut3.Cine` y no `S-Gamut3` a secas) sí lo es.
+- Los 36 umbrales de `core/umbrales.py` sin validar contra material real (D7-2/§20),
+  referenciados, no duplicados.
+- Los supuestos hechos hoy mismo construyendo el tutor (ver D8-2 más abajo, sección G).
+
+Regla nueva en `CONTRATOS.md`: ningún supuesto nuevo se hace sin su fila en `SUPUESTOS.md`
+el mismo día — la misma disciplina que las cifras y los umbrales, aplicada a lo que el
+proyecto da por cierto sin medir.
+
+## D8-2 · El tutor: explicar, opciones y enseñar — el paquete `core/tutor`
+
+Estaba a cero desde el día 1. Con el modo fácil redefinido para alguien que sólo sabe
+aplicar un LUT, no es un extra: es casi el producto. Hoy el modo fácil dice qué ha hecho;
+el tutor es lo que le enseña algo. Puro, determinista, sin Resolve y sin red — se apoya en
+`core.analysis` (medido) y en `core.io.qc` (medido y validado el día 7), nunca en el
+puente (`core.resolve`, detrás de incógnitas sin verificar) salvo la única pieza que
+escribe de verdad, `opciones.aplicar_opciones_como_versiones`, y esa por la interfaz.
+
+**El catálogo (`core/tutor/catalogo.py`), y la honestidad cruzada contra el día 7**: cada
+regla es condición sobre una característica medida → frase, con `validacion` puesta a
+mano (`validado` / `descriptiva` / `no_validable`) y referencia a `CIFRAS.md`. Seis
+reglas:
+
+- `look_plano`/`look_gamut` — sobre `core.io.qc.qc_lut()`, VALIDADO (día 7, 0 de 79
+  falsos positivos en material real): pueden afirmar.
+- `punto_negro`/`saturacion_extendida`/`piel_vs_referencia` — DESCRIPTIVAS: reportan un
+  hecho medido, nunca un veredicto. `piel_vs_referencia` compara contra el clip de
+  referencia que Mario ya eligió (paso 2 del modo fácil), nunca contra un "ideal"
+  inventado — no existe ningún locus de piel "correcto" en este proyecto.
+- `contenido_no_coincide` — NO_VALIDABLE (`core.matching` entero sigue en la lista de 36
+  del día 7): hedgeada siempre ("míralo antes de dar el trabajo por bueno"), nunca
+  afirmando. Igual que el paso 5 del modo fácil desde el día 5, ninguna frase del tutor
+  usa la palabra "confianza" — el día 4 midió que esa nota no predice el error
+  (`CALIBRACION-CONFIANZA.md`), y el catálogo entero lo respeta (test dedicado:
+  `test_ninguna_frase_usa_la_palabra_confianza`).
+
+**Reglas que NO se escribieron, con el motivo** (`core/tutor/NOTAS.md`): "exposición
+incorrecta" (no hay umbral de "exposición correcta" sin una referencia externa que no
+existe), "banding en el look" (VALIDADO pero dispara en 79 de 79 — no discrimina nada
+sobre ESTE look), "monotonía del look rota" (la prueba del eje de D8-0 encontró una
+operacionalización que sí discrimina, pero contra una comprobación que
+`core.io.qc._monotonia()` no implementa hoy — escribir la regla duplicaría lógica
+desincronizable), un veredicto de saturación con "mal"/"roto" (no hay umbral validado de
+cuánta saturación es demasiada).
+
+**Un supuesto real que se coló al construir** (`SUPUESTOS.md` G1): `ColorStats` vive en
+`WORKING_SPACE` (`davinci_wg_intermediate`, **logarítmico** — el negro no está en código
+0). Se descubrió probando `saturacion_extendida` contra un primario puro: la saturación
+cae a ~0,48 en código de trabajo, no a 1,0. `punto_negro` se corrigió pasando el valor por
+la curva de cámara Rec.709 antes de mostrarlo como porcentaje; `saturacion_extendida` se
+dejó sin corregir por presupuesto de tiempo — es probablemente conservadora (puede callar
+cuando debería avisar), nunca al revés. Las dos consecuencias están en `SUPUESTOS.md` G1/G2.
+
+**`ensenar()`**: las dos lecciones mínimas del encargo — LUT de conversión / LUT de look /
+grade (con el look que tienes puesto delante, si lo hay) y por qué la exposición nunca va
+dentro de un look, explicado con el diseño de tres nodos de esta MISMA app
+(`core.contracts.NODE_NORMALIZACION/BALANCE/LOOK`), no con teoría genérica — si el look se
+horneara con exposición, dejaría de ser una tabla reutilizable entre clips. Con un
+`MatchResult` de verdad delante, una tercera lección enseña los números concretos de ESE
+CDL.
+
+**`opciones()`**: 3-4 variantes de intensidad del MISMO look (100%/66%/33%, interpolación
+lineal celda a celda entre la identidad y la rejilla del look — la misma técnica que
+"intensidad de LUT" en cualquier NLE, nunca un look nuevo inventado), escritas como
+versiones de Resolve separadas (`SIDEB COLOR — Opción N (X%)`, dentro del prefijo que
+exige la regla de oro) por el ÚNICO camino seguro, `aplicar_grado_seguro` — nunca
+`set_cdl`/`set_lut` a pelo. Depende de `AddVersion()` (SUPUESTOS.md fila A9, sin
+verificar); construido tras la interfaz y probado con `FakeResolve`, así que funciona
+igual el día que haya Resolve real delante. Un fallo en una opción no tumba las demás,
+mismo criterio que `gui/pantalla_aplicar.py::aplicar()`.
+
+**Sin conexión** (`gui/tutor_estilo.py`): la única capa que puede tocar la red, y sólo
+para reescribir la prosa — nunca decide si una regla dispara. Hoy no hay ningún
+reescritor conectado (no hay infraestructura de API externa en este proyecto), así que
+"se pierde el estilo" se traduce, hoy, en "no cambia nada": con o sin red, las frases
+salen idénticas. Demostrado con un test que fuerza `disponible=False`
+(`tests/test_gui_tutor_estilo.py`) en vez de apagar la red física de una máquina
+compartida con otras sesiones activas — determinista y sin arriesgar el trabajo de nadie
+más en este equipo.
+
+**En pantalla**: modo fácil (`gui/pantalla_facil.py::_PanelTutor`, paso "look") enseña
+SÓLO `Frase.texto` — nada de característica, umbral ni validación. Modo avanzado
+(`gui/pantalla_comparar.py`, panel "el tutor") enseña `Frase` entera: texto, qué se midió,
+con qué umbral, y su validación, para poder discutirla. Capturas regeneradas a 1440/1024/
+la anchura mínima real en `capturas/02-comparar-*` y `capturas/05-facil-recorrido-4-look-*`
+— miradas a mano antes de darlas por buenas.
+
+**Bug real encontrado al mirar la primera captura, no en un test**: la columna lateral de
+`PantallaComparar` (`referencia`/`lo que cambia`/`cdl del nodo 2`) nunca había necesitado
+desplazarse — siempre cupo en 900px de alto. El panel "el tutor" nuevo, con dos o tres
+frases largas, la desbordaba: el texto se cortaba a lo bruto contra el borde inferior de la
+ventana, sin barra de desplazamiento ni ningún aviso de que faltaba contenido —
+exactamente el mismo fallo de fondo que D7-3 (el botón de la lista de repaso sin elidir),
+esta vez a nivel de columna entera, no de una fila. Arreglado envolviendo `_lateral()` en
+un `QScrollArea` (vertical únicamente, igual que `_ListaRepaso`/`_SelectorPresets`).
+Confirmado con la misma captura regenerada: ahora aparece la barra de desplazamiento en vez
+de texto cortado.
+
+**Segundo hueco encontrado leyendo las frases seguidas** (tarea 2.6, "lee las frases
+seguidas"): `ensenar()` estaba escrito y probado, pero no cableado en ninguna pantalla —
+las dos lecciones mínimas del encargo nunca llegaban a verse. Arreglado con un panel nuevo,
+"por qué", en la misma columna de `gui/pantalla_comparar.py` (usa vocabulario técnico —CDL,
+nodo— que ya es el idioma de esa pantalla, así que no cabe en el modo fácil). Al cablearlo
+apareció un bug real: `_actualizar_tutor` volvía (`return`) antes de rellenar el panel
+"por qué" cuando un clip no tenía ninguna frase de diagnóstico que enseñar — ese clip se
+quedaba con el texto del clip anterior, no con el suyo. `lecciones_de_clip` siempre da algo
+(las dos lecciones mínimas no dependen de que haya frases), así que se movió fuera del
+`return` temprano. Test de regresión dedicado
+(`test_el_panel_por_que_no_se_queda_con_el_texto_del_clip_anterior`).
+
+**Lo que la lectura seguida SÍ confirmó, sin ser un bug**: en las 7 clips de
+`gui.datos_demo.estado_demo()`, `punto_negro` dispara en las 7 — la misma frase de
+seguimiento ("Conviene comprobar si el material está en log...") se repite palabra por
+palabra siete veces. Es la generación SINTÉTICA (`tests/media/generate.py`), no material
+real: no tiene el mismo peso que "banding dispara en 79 de 79 archivos reales" (día 6/7),
+que sí llevó a sacar esa regla del catálogo — aquí no hay evidencia de que el patrón se
+repita en material real variado, así que la regla se queda, pero el hallazgo se deja dicho
+(`core/tutor/NOTAS.md`) en vez de callado: si algún día hay footage real y el mismo patrón
+se repite ahí, es la señal de que esta regla necesita el mismo tratamiento que banding.
+
+Tests nuevos: `tests/test_tutor_catalogo.py` (17), `tests/test_tutor_ensenar.py` (5),
+`tests/test_tutor_opciones.py` (11), `tests/test_gui_tutor_estilo.py` (6),
+`tests/test_gui_tutor_datos.py` (7), más los de `tests/test_gui_pantalla_facil.py` y
+`tests/test_gui_pantallas.py` (29, incluyendo el panel "por qué" y su regresión) para el
+cableado en pantalla. Todo verde.
+
+## D8-3 · Barrido de estado rancio: la misma clase de bug, buscada a propósito
+
+Mario pidió, tras el bug del panel "por qué": el `return` temprano que dejaba el contenido
+del clip anterior no es un caso suelto, es una CLASE — cualquier método de refresco que
+gobierne varios paneles y tenga una salida que no llegue a todos ellos. Pidió un barrido
+completo de `gui/*.py`, delegado a un agente limpio (Explore) para no auditar mi propio
+cableado del día con mis propios ojos.
+
+**Encontrado un segundo caso real**: `gui/pantalla_reverse.py::PantallaReverse.recalcular()`
+→ `_sin_modulo()`. Si un primer cálculo tiene éxito (rellena ~15 widgets: las dos
+miniaturas del par, el editor de CDL, las dos tiras de parches, los datos del LUT, el QC,
+la cobertura, el residuo, las cuatro cifras de diagnóstico) y un SEGUNDO cálculo revienta
+(`invertir()` lanza), `_sin_modulo()` sólo apagaba `division` (`setEnabled(False)`) y
+ponía el aviso de "no disponible" — pero **los widgets de pintado propio
+(`VistaMapa`, `TiraParches`) no miran `isEnabled()` en su `paintEvent`**, así que seguían
+enseñando el mapa de cobertura, el residuo y los parches del cálculo ANTERIOR a pantalla
+completa, con el aviso de avería puesto encima. Peor que cosmético: es un error de
+atribución — el resultado bueno de antes se le atribuye al intento que acaba de fallar, y
+quien no sabe colorear no tiene forma de notarlo.
+
+**Arreglado** con `_limpiar_resultados()`, que vacía los ~15 widgets a su estado inicial
+("—", `None`, `0.0`, `nan`) — llamado desde `_sin_modulo()`. Test de regresión exacto al
+que pidió Mario: pintar A (un cálculo bueno, con algo en cada widget), pintar B sin datos
+(el siguiente cálculo revienta), comprobar que no queda nada de A — incluidos los widgets
+de pintado propio, mirando su atributo interno (`._img`), no sólo el texto visible
+(`tests/test_gui_reverse.py::test_un_recalculo_que_falla_no_deja_nada_del_resultado_anterior`).
+
+**El resto del barrido, revisado y sin bug** (once agent's full report, condensado):
+`pantalla_facil.py::_mostrar_paso` (los cinco pasos, todas las ramas caen en el mismo
+`self._visor.poner(...)`), `pantalla_clips.py::FichaClip.mostrar`/`PantallaClips._cambio`
+(`mostrar(None)` limpia explícitamente cada campo que posee), `pantalla_aplicar.py`
+(sin `return` que salte hermanos), `ventana.py::ir_a/_aplicar_modo/_refrescar_pie` (las
+dos ramas de cada condicional escriben todo antes de salir),
+`pantalla_reverse.py::_cdl_cambiado`/`_pintar` (el primero con guarda pero sobre un
+parámetro constante-de-constructor que nunca cambia entre llamadas; el segundo sin ningún
+`return` interno). `pantalla_comparar.py::_sin_clips` revisado aparte: sólo dispara cuando
+el combo de clips está vacío desde la construcción, así que no hay estado previo que
+pudiera quedar rancio.
+
+## D8-4 · "El porqué" no puede quedar bajo el borde: la anchura mínima, mirada de verdad
+
+Mario, tras D8-3: la captura del panel del tutor en el paso "look" (modo fácil) exigía
+desplazar la ventana para leerla — a la anchura mínima real (973px) la frase quedaba fuera
+de pantalla, sin ningún aviso. Pidió, en este orden: (1) que le dijera qué había por encima
+del borde a 973px, con la altura de cada bloque; (2) una prioridad vertical explícita para
+el paso "look" del modo fácil — antes/después, luego la frase de qué ha hecho la app y los
+botones de seguir/deshacer SIEMPRE visibles, y el porqué visible-si-cabe con cabecera
+siempre visible si no cabe entero — con la regla de empate "la imagen es la que cede";
+(3) recapturar a 973 y a 1440 y mirarlas él, sin captura desplazada.
+
+**Respuesta a (1)**, medido con `patron_facil.minimumSizeHint()` antes de tocar nada: a
+973px de ancho, por encima del borde de la ventana (altura entonces insuficiente, sin
+`_PanelTutor` acotado) se apilaban el indicador de paso (~12px), el visor antes/después
+(~326px a esa anchura, más alto cuanto más estrecha por el aspecto del vídeo), la frase
+"He aplicado el look..." (~44px) y el panel "EL TUTOR DICE" sin ningún límite de alto —
+con dos o tres frases largas, éste último crecía por debajo del borde inferior de la
+ventana, empujando la fila de botones (Deshacer / Siguiente paso) fuera de la zona visible
+sin ninguna barra ni aviso. Los botones nunca llegaban a estar realmente ocultos porque
+Qt no deja encoger la ventana por debajo de su `minimumSizeHint()` — pero eso sólo movía el
+problema: la ventana crecía más alta que la altura "mínima" que `gui/capturas.py` usaba
+para la captura, y la captura salía recortada exactamente donde Mario la vio.
+
+**Arreglado**: `_PanelTutor` (`gui/pantalla_facil.py`) ahora envuelve su lista de frases en
+un `QScrollArea` con `setMaximumHeight(ALTO_MAXIMO_PANEL_TUTOR)` (140px) — el mismo patrón
+de D7 (`_ListaRepaso`/`_SelectorPresets`): la cabecera "EL TUTOR DICE" siempre visible, el
+contenido visible entero si cabe, con desplazamiento (nunca oculto sin aviso) si no. El
+visor antes/después sigue siendo el que cede espacio primero (mínimo bajo, `stretch=1`),
+tal como pidió la regla de empate. Además, `gui/capturas.py` calculaba `alto_minimo`
+mirando sólo las cuatro pantallas del modo avanzado — el modo fácil, con su panel del
+tutor, nunca entraba en ese barrido, así que la altura de captura podía quedar por debajo
+del mínimo real del paso "look". Corregido añadiendo el recorrido de los cinco pasos del
+modo fácil al mismo barrido.
+
+**Cadena de bugs reales encontrada re-verificando con la batería completa tras el
+rediseño** (cada uno confirmado re-ejecutando el test que fallaba, antes de seguir al
+siguiente): tres literales `0.01` sueltos en `core/tutor/ensenar.py`
+(`test_umbrales_literales.py`) → arreglado con cuatro constantes nuevas en
+`core/umbrales.py` (sección "10. El tutor", día 8); eso dejó sin fila de origen a las
+cuatro en `test_umbrales.py::test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo` → añadidas
+a `SIN_ORIGEN_QUE_ANOTAR` (nacidas aquí, no migradas, mismo criterio que
+`TOL_MONOTONIA_LOOK` de D7). Al envolver la columna lateral de `pantalla_comparar.py` en
+un `QScrollArea` más ancho para el "por qué" nuevo, `test_gui_texto.py` — el test que
+comprueba a propósito que el detector de recorte de texto SIGUE cazando una etiqueta
+corrupta — dejó de fallar en el sentido correcto: el `QScrollArea` sin anchura mínima en
+sus `QLabel` (`setMinimumWidth(0)`, que en Qt NO anula el `minimumSizeHint()` — sólo un
+mínimo explícito POSITIVO lo hace) dejaba contenido genuinamente inalcanzable (sin scroll
+horizontal) en vez de sólo recortado. Arreglado con un mínimo real
+(`_ANCHO_MINIMO_ETIQUETA_LATERAL = 40`) en esas tres etiquetas, y con `_permitir_partir()`
+(cambia `_`/`/` por espacios reales) porque incluso con ese mínimo, un identificador largo
+de verdad (`SUELO_NEGRO_VISIBLE_TUTOR`, 25 caracteres) seguía sin caber en la columna de
+161px — el propio detector de recorte, ya reparado, fue el que lo encontró.
+
+**Un hallazgo más, mirando las capturas regeneradas antes de dárselas a Mario** (no pedido
+explícitamente para esta pantalla, pero de la misma familia): el panel lateral de
+`PantallaComparar` — "el tutor" y "por qué" — necesitaba desplazarse para leerse completo
+incluso después de envolverlo en `QScrollArea`, y la barra de Qt en macOS es una barra
+"overlay": invisible en una imagen estática, así que la captura mostraba el mismo síntoma
+que el bug original — texto cortado a media frase, sin ningún aviso — aunque el contenido
+SÍ era alcanzable con scroll real. Dos frases del tutor (con "medido"/"umbral"/
+"validación", más largas que el modo fácil por diseño de la tarea 2.6) más las dos
+lecciones obligatorias de `ensenar()` (texto educativo largo, no específico de este clip)
+no caben en los ~576px de columna disponibles a ninguna anchura razonable — cerrar esa
+brecha del todo pediría un rediseño más grande (contenido plegable, como el porqué del
+modo fácil) que no estaba en el encargo de hoy. Se ha dejado en mejor estado, no en estado
+final: (a) reordenada la columna para que "el tutor" (la explicación de ESTE clip) vaya
+justo después de "referencia", antes de los números en bruto, y "por qué" (el contenido
+genérico) vaya el último, el que menos penaliza dejar fuera de la pantalla inicial; (b) la
+barra de desplazamiento vertical de esa columna ahora es `ScrollBarAlwaysOn`, no
+"as needed" — una señal real y persistente en vez de una barra invisible. Sigue haciendo
+falta desplazar para leer "por qué" entero en modo avanzado; queda dicho aquí, no callado.
+
+**Verificación real, no sólo tests**: capturas regeneradas a 973 y 1440 para
+`05-facil-recorrido-4-look-*` y `02-comparar-*`, miradas a mano. El paso "look" del modo
+fácil cumple el criterio de Mario a las dos anchuras: visor, frase y botones siempre
+enteros, panel del tutor legible sin desplazar nada — ninguna captura desplazada hizo
+falta para verlo completo.
+
+**Cierre (día 9, con Mario)**: la columna del modo avanzado queda CERRADA, no pendiente.
+El defecto real que había que arreglar era el corte silencioso — contenido inalcanzable
+sin ningún aviso, como si no existiera. Con la barra `ScrollBarAlwaysOn` ya hay una señal
+real y persistente: quien mire la pantalla ve que hay más debajo. En modo avanzado
+desplazar para leer "por qué" es aceptable — es contenido de discusión, no la explicación
+inmediata que exige el modo fácil. Se retira de la lista de cosas por resolver.
+
+Suite completa verde después de cada paso de esta cadena.

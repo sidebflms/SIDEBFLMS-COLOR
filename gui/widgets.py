@@ -183,6 +183,10 @@ class TextoAjustado(QLabel):
     def __init__(self, texto: str = "", parent: QWidget | None = None) -> None:
         super().__init__(texto, parent)
         self.setWordWrap(True)
+        # Ancho 0 a propósito (ver arriba) — pero un llamador que meta esta
+        # etiqueta dentro de una columna con scroll horizontal apagado hereda
+        # el riesgo de `gui/NOTAS.md` («la trampa de minimumSizeHint»): sin un
+        # mínimo POSITIVO, la palabra más larga sin espacios manda igual.
         self.setMinimumWidth(0)
         self._alto_visto = -1
 

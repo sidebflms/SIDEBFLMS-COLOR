@@ -269,6 +269,8 @@ class FichaClip(QWidget):
         self.razones = QLabel("—")
         self.razones.setWordWrap(True)
         self.razones.setObjectName("apagado")
+        # Riesgo conocido y no arreglado (`gui/NOTAS.md`) si esto entra algún
+        # día en una columna con scroll horizontal apagado.
         self.razones.setMinimumWidth(0)
         self.razones.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.razones.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
@@ -283,6 +285,7 @@ class FichaClip(QWidget):
         self.bloque_desajuste.caja.addLayout(cab)
         self.texto_desajuste = QLabel("")
         self.texto_desajuste.setWordWrap(True)
+        # Mismo riesgo sin arreglar — ver `gui/NOTAS.md`.
         self.texto_desajuste.setMinimumWidth(0)
         self.bloque_desajuste.caja.addWidget(self.texto_desajuste)
         caja.addWidget(self.bloque_desajuste)
@@ -471,6 +474,7 @@ class PantallaClips(QWidget):
         )
         t.setWordWrap(True)
         t.setObjectName("apagado")
+        # Mismo riesgo sin arreglar — ver `gui/NOTAS.md`.
         t.setMinimumWidth(0)
         panel.caja.addWidget(t)
         panel.caja.addStretch(1)

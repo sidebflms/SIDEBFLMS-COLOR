@@ -940,3 +940,71 @@ visible, que es el estado correcto del código actual.
 ningún modo de antialiasing ni se cambió la fuente — no hacía falta, y tocar el renderizado sin
 que haya un problema medido habría sido la misma clase de invención que el resto del proyecto
 evita.
+
+---
+
+## La trampa de `minimumSizeHint()` en Qt (día 8→9, tercera vez que se repite)
+
+Esta misma trampa se ha pisado tres veces, cada vez con un síntoma distinto y cada vez sin
+reconocerla a la primera: el botón de la lista de repaso (día 7), la etiqueta del tutor en
+`pantalla_comparar.py` (día 8), y el panel del tutor sin tope en el paso "look" (día 8→9).
+Se escribe aquí una vez, de forma permanente, para que la cuarta vez se reconozca en el
+acto en vez de investigarse desde cero.
+
+**La regla, completa:**
+
+1. El `sizeHint()`/`minimumSizeHint()` NATURAL de un widget (calculado por Qt a partir de
+   su contenido — la palabra más larga sin espacios en un `QLabel` con `wordWrap`, el texto
+   del botón en un `QPushButton`) se propaga HACIA ARRIBA por el árbol de layouts y se salta
+   cualquier tope puesto en un contenedor más arriba (un `QScrollArea.setMaximumHeight`, un
+   `setMaximumWidth` en un padre), a menos que el widget en sí tenga una política de tamaño
+   que permita encogerse (`QSizePolicy::Ignored` o un mínimo explícito más pequeño) Y el
+   layout que lo contiene sea el que de verdad manda en su tamaño (por ejemplo, dentro de un
+   `QScrollArea` con `setWidgetResizable(True)`, el contenido SÍ puede quedar más pequeño que
+   su `sizeHint()` en la práctica, pero un `QPushButton` con política `Minimum` en horizontal
+   IGNORA un `minimumSizeHint()` más pequeño que se le intente forzar, porque para esa
+   política Qt usa el propio `sizeHint()` como suelo — ver el arreglo de `_BotonRepaso`,
+   día 7: hubo que desacoplar los dos Y cambiar la política a `Preferred`).
+2. `QLabel.setMinimumWidth(0)` **no hace lo que parece.** Qt (`qSmartMinSize`, dentro de
+   `QLayout`) sólo trata un mínimo explícito como el que manda cuando ese mínimo es
+   POSITIVO. Con `0`, Qt lo interpreta como "no hay mínimo explícito" y vuelve a calcular
+   `minimumSizeHint()`, que para un `QLabel` con `wordWrap` está gobernado por su PALABRA
+   MÁS LARGA SIN ESPACIOS — así que un identificador largo de verdad
+   (`SUELO_NEGRO_VISIBLE_TUTOR`, 25 caracteres) puede forzar una anchura de layout mucho
+   mayor de la que parece, y dentro de un `QScrollArea` con el scroll horizontal
+   desactivado, eso es contenido genuinamente INALCANZABLE — peor que necesitar scroll,
+   porque no hay ninguna barra que lo revele.
+3. La combinación de (1) y (2) es lo que ha costado tres arreglos por separado: un
+   contenedor de arriba pone un tope (alto o ancho) creyendo que eso basta, y un widget de
+   abajo, con su tamaño natural sin domar, se lo salta o deja contenido inalcanzable sin
+   ningún aviso visible — silencioso, no un error ni un test rojo.
+
+**Qué hacer la próxima vez que se toque un layout con texto largo o dinámico:**
+
+* Si el contenido puede crecer sin límite (una lista, un catálogo de frases): envolver en
+  `QScrollArea` con `setWidgetResizable(True)` + `setMaximumHeight`/`setMaximumWidth` +
+  `ScrollBarAlwaysOff` en el eje que no debe moverse — patrón ya usado en
+  `_ListaRepaso`/`_SelectorPresets` (día 7), `_PanelTutor` y `_lateral()` (día 8).
+* Si el eje acotado es el que tiene el scroll desactivado (típicamente el ancho, dentro de
+  una columna lateral estrecha): dar a las etiquetas de esa columna un `setMinimumWidth`
+  POSITIVO (no `0`) y, si el texto puede traer identificadores largos sin espacios,
+  pasarlos por un separador como `_permitir_partir()` (`gui/pantalla_comparar.py`) antes de
+  pintarlos, para que `wordWrap` tenga dónde partir.
+* Un botón (`QPushButton`) con texto dinámico y política horizontal por defecto
+  (`Minimum`): desacoplar `sizeHint()` de `minimumSizeHint()` y poner la política a
+  `Preferred` si necesita poder encogerse — no basta con llamar a `setMinimumWidth` más
+  pequeño.
+* El detector de recorte de texto de la batería (`tests/test_gui_apoyo.py::linea_que_no_cabe`)
+  atrapa el recorte DENTRO de una etiqueta, pero no distingue "recortado visiblemente" de
+  "inalcanzable sin scroll horizontal" dentro de un `QScrollArea` — si se toca un layout así,
+  comprobarlo con una captura real, no sólo con la batería.
+
+**Los sitios detectados con `setMinimumWidth(0)` y NO arreglados** (funcionan hoy porque
+ninguno vive todavía dentro de un contenedor con anchura acotada y scroll horizontal
+desactivado — pero se romperán exactamente igual el día que alguno se meta dentro de algo
+así, sin ningún test que lo avise de antemano): están marcados uno a uno con un comentario
+que apunta aquí, en `gui/widgets.py:186` (la base `TextoAjustado`, uso general — el ancho a
+0 es la política declarada del widget, no un descuido, pero un llamador que lo meta en una
+columna estrecha con scroll horizontal apagado hereda el mismo riesgo), `gui/pantalla_aplicar.py`
+(líneas 296, 322, 340), `gui/pantalla_reverse.py` (líneas 417, 427, 519, 526, 692) y
+`gui/pantalla_clips.py` (líneas 272, 286, 474).

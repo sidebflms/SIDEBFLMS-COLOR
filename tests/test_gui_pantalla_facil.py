@@ -104,6 +104,83 @@ def test_paso_look_sin_biblioteca_no_muestra_selector():
     assert not p._selector_presets.isVisible()
 
 
+def test_paso_look_muestra_el_panel_del_tutor_con_frases_del_catalogo():
+    """Día 8, tarea 2.6: el modo fácil sólo enseña `Frase.texto`, nunca la
+    característica ni el umbral (eso es el modo avanzado)."""
+    app_qt()
+    p = PantallaFacil(dd.estado_demo())
+    p.show()
+    for _ in range(3):
+        p.siguiente()
+    assert p.paso_actual() == "look"
+    assert p._panel_tutor.isVisible()
+    assert p._panel_tutor._etiquetas, "el clip de demo tiene que dar alguna frase del tutor"
+
+
+def test_panel_del_tutor_nunca_empuja_los_botones_fuera_de_la_ventana(monkeypatch):
+    """Día 8, aviso de Mario: "la imagen es la que cede" y los botones
+    Deshacer/Siguiente SIEMPRE visibles, pase lo que pase con el contenido
+    del tutor. Fabrica muchas frases largas (más de las que el catálogo
+    real produciría nunca) y comprueba que, a la anchura Y ALTURA mínimas
+    reales de la ventana, los botones siguen dentro del rectángulo visible
+    — no que "quepan de casualidad" con las dos frases cortas de la demo."""
+    import gui.pantalla_facil as pf
+    from core.tutor import Frase
+
+    frases_falsas = tuple(
+        Frase(
+            regla_id=f"falsa_{i}",
+            texto=(
+                f"Frase de prueba número {i}, deliberadamente larga para forzar que el "
+                "panel del tutor necesite más espacio vertical del que cabría de sobra "
+                "con las dos frases cortas de la demo real."
+            ),
+            caracteristica="característica de prueba",
+            valor_medido="valor de prueba",
+            umbral=None,
+            validacion="descriptiva",
+            cifras_ref="—",
+        )
+        for i in range(8)
+    )
+    monkeypatch.setattr(pf, "frases_de_clip", lambda estado, clip: frases_falsas)
+
+    p = PantallaFacil(dd.estado_demo())
+    p.show()
+    minimo_ancho = p.anchura_minima() if hasattr(p, "anchura_minima") else 973
+    for _ in range(3):
+        p.siguiente()
+    assert p.paso_actual() == "look"
+    asentar()
+    alto_minimo = p.minimumSizeHint().height()
+    p.resize(minimo_ancho, alto_minimo)
+    asentar()
+
+    assert len(p._panel_tutor._etiquetas) == len(frases_falsas)
+    # El panel tiene tope: no puede crecer sin límite aunque haya 8 frases largas.
+    from gui.pantalla_facil import ALTO_MAXIMO_PANEL_TUTOR
+
+    assert p._panel_tutor._area.height() <= ALTO_MAXIMO_PANEL_TUTOR
+    # Y los botones siguen dentro de la ventana, a su propia altura mínima real.
+    abajo_boton = p.boton_deshacer.geometry().bottom()
+    assert abajo_boton <= p.height(), (
+        f"el botón Deshacer queda en y={abajo_boton}, fuera de una ventana de "
+        f"{p.height()}px de alto"
+    )
+    assert p.boton_deshacer.isVisible() and p.boton_siguiente.isVisible()
+
+
+def test_panel_del_tutor_se_oculta_fuera_del_paso_look():
+    app_qt()
+    p = PantallaFacil(dd.estado_demo())
+    p.show()
+    for _ in range(3):
+        p.siguiente()
+    assert p._panel_tutor.isVisible()
+    p.siguiente()  # pasa a "repasar"
+    assert not p._panel_tutor.isVisible()
+
+
 def test_paso_look_con_biblioteca_muestra_selector_y_permite_elegir(tmp_path):
     from core.contracts import LUT3D
     from core.io.biblioteca import sembrar_desde_carpeta

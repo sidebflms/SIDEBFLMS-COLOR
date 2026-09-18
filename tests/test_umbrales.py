@@ -117,7 +117,23 @@ def test_las_rampas_de_confianza_no_se_movieron():
 #:   `VALORES_DE_ORIGEN` con su propio valor actual no afirmaría nada (sería
 #:   comparar el número consigo mismo); lo honesto es excluirla aquí, con el
 #:   motivo dicho, no fingir una migración que no ocurrió.
-SIN_ORIGEN_QUE_ANOTAR: frozenset[str] = frozenset({"RAMPAS_DE_CONFIANZA", "TOL_MONOTONIA_LOOK"})
+#: - `SUELO_NEGRO_VISIBLE_TUTOR`, `SUELO_SATURACION_ALTA_TUTOR`,
+#:   `UMBRAL_OFFSET_MENCIONABLE_TUTOR`, `UMBRAL_SLOPE_MENCIONABLE_TUTOR`
+#:   (día 8): la misma historia que `TOL_MONOTONIA_LOOK` — nacieron aquí, al
+#:   construir `core/tutor/`, moviendo literales sueltos que el barrido de
+#:   `test_umbrales_literales.py` encontró en `core/tutor/catalogo.py` y
+#:   `core/tutor/ensenar.py`. Sin módulo disperso de origen, sin valor que
+#:   anotar.
+SIN_ORIGEN_QUE_ANOTAR: frozenset[str] = frozenset(
+    {
+        "RAMPAS_DE_CONFIANZA",
+        "TOL_MONOTONIA_LOOK",
+        "SUELO_NEGRO_VISIBLE_TUTOR",
+        "SUELO_SATURACION_ALTA_TUTOR",
+        "UMBRAL_OFFSET_MENCIONABLE_TUTOR",
+        "UMBRAL_SLOPE_MENCIONABLE_TUTOR",
+    }
+)
 
 
 def test_la_tabla_de_origen_cubre_todo_lo_que_se_mudo():

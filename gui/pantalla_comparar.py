@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -41,11 +42,48 @@ from PySide6.QtWidgets import (
 from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.imagen import a_qimage
+from gui.tutor_datos import frases_de_clip, lecciones_de_clip
 from gui.widgets import Cifra, EtiquetaElidida, InsigniaConfianza, MarcaDesajuste, Panel, Rotulo
 
 #: Cuanto se mueve la cortinilla con una flecha, y con Shift+flecha.
 PASO_FLECHA = 0.02
 PASO_FINO = 0.005
+
+#: Ancho mínimo, en px, de las etiquetas de texto DENTRO de la columna
+#: lateral con desplazamiento (`_lateral()`, día 8). **No es 0 a propósito**:
+#: un `QLabel.setMinimumWidth(0)` no hace lo que parece — Qt sólo trata un
+#: mínimo explícito como "de verdad puesto" si es positivo; con 0, el layout
+#: sigue usando `minimumSizeHint()` (que para un `QLabel` con `wordWrap`
+#: puede ser tan ancho como su palabra más larga sin espacios). Sin un suelo
+#: positivo de verdad, una etiqueta con una palabra larga empujaba la
+#: columna entera más ancha que el `QScrollArea` que la contiene — y como
+#: esa área tiene el scroll horizontal desactivado (sólo se desplaza en
+#: vertical), el sobrante quedaba recortado por el viewport SIN ninguna
+#: barra para alcanzarlo: peor que el corte silencioso de siempre, porque ni
+#: siquiera había un desplazamiento que lo revelara. Encontrado por
+#: `tests/test_gui_texto.py::test_el_test_falla_si_un_qlabel_normal_se_queda_corto`,
+#: que dejó de detectar el corte fabricado a propósito el día que se añadió
+#: el `QScrollArea` — la señal de que esto había dejado de ser un mínimo de
+#: verdad.
+_ANCHO_MINIMO_ETIQUETA_LATERAL = 40
+
+
+def _permitir_partir(texto: str) -> str:
+    """`SUELO_NEGRO_VISIBLE_TUTOR` -> `SUELO NEGRO VISIBLE TUTOR`.
+
+    Un identificador de `core.umbrales` no tiene ni un espacio de verdad,
+    así que para `QLabel.setWordWrap` (que sólo parte por espacios, igual
+    que el detector de `tests/test_gui_apoyo.py::linea_que_no_cabe`) es UNA
+    sola palabra — y una palabra de 25 caracteres no cabe en los 161px de la
+    columna lateral, se corta en silencio (visto de verdad, no en teoría:
+    `SUELO_NEGRO_VISIBLE_TUTOR` es justo el caso que lo encontró). Un
+    espacio de ancho cero (U+200B) no sirve aquí porque el propio detector
+    compartido sólo entiende el espacio de verdad — así que se usa un
+    espacio de verdad: el identificador se sigue reconociendo igual de bien
+    con guiones bajos cambiados por espacios, y ahora Qt tiene dónde
+    partirlo.
+    """
+    return texto.replace("_", " ").replace("/", " ")
 
 
 class VisorCortinilla(QWidget):
@@ -313,10 +351,13 @@ class PantallaComparar(QWidget):
         return panel
 
     def _lateral(self) -> QWidget:
-        lateral = QWidget()
-        lateral.setMinimumWidth(200)
-        lateral.setMaximumWidth(300)
-        col = QVBoxLayout(lateral)
+        # Día 8: el panel "el tutor" (abajo) puede traer varias frases y
+        # empujar la columna más alto que la ventana — sin `QScrollArea` el
+        # contenido se corta silenciosamente contra el borde inferior, sin
+        # ninguna barra que avise de que falta texto. Antes de hoy la
+        # columna siempre cabía sin desplazarse; ya no es verdad en general.
+        contenido = QWidget()
+        col = QVBoxLayout(contenido)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(12)
 
@@ -329,6 +370,28 @@ class PantallaComparar(QWidget):
         self.nombre_ref.setFont(idn.fuente_texto(12))
         panel_ref.caja.addWidget(self.nombre_ref)
         col.addWidget(panel_ref)
+
+        # Día 8, tarea 2.6: modo avanzado enseña la frase Y lo que hay
+        # detrás — característica medida, umbral, validación — para poder
+        # discutirla. El modo fácil (`gui/pantalla_facil.py::_PanelTutor`)
+        # sólo enseña `Frase.texto`; aquí se enseña `Frase` entera.
+        #
+        # Va justo después de "referencia" y ANTES de los números en bruto
+        # (ΔE, CDL): es la explicación concreta de este clip, así que es lo
+        # primero que debe verse al entrar en la columna, con el mismo
+        # criterio de prioridad del modo fácil (día 8, corrección de
+        # usuario). No basta para que quepa sin desplazar a la anchura
+        # mínima — con dos frases ya no cabe en 576px de alto disponibles
+        # (medido) — pero al menos es lo primero que se lee.
+        panel_tutor = Panel(margenes=(14, 12, 14, 12), espaciado=4)
+        panel_tutor.caja.addWidget(Rotulo("el tutor", acento=True))
+        self.texto_tutor = QLabel("—")
+        self.texto_tutor.setObjectName("apagado")
+        self.texto_tutor.setFont(idn.fuente_texto(11))
+        self.texto_tutor.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
+        self.texto_tutor.setWordWrap(True)
+        panel_tutor.caja.addWidget(self.texto_tutor)
+        col.addWidget(panel_tutor)
 
         panel_cifras = Panel(margenes=(14, 12, 14, 12))
         panel_cifras.caja.addWidget(Rotulo("lo que cambia", acento=True))
@@ -355,13 +418,44 @@ class PantallaComparar(QWidget):
         self.texto_cdl = QLabel("—")
         self.texto_cdl.setObjectName("cifraApagada")
         self.texto_cdl.setFont(idn.fuente_cifra(11))
-        self.texto_cdl.setMinimumWidth(0)
+        self.texto_cdl.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_cdl.setWordWrap(True)
         panel_cdl.caja.addWidget(self.texto_cdl)
         col.addWidget(panel_cdl)
 
+        # Tarea 2.4: el "porqué" de las decisiones (`core.tutor.ensenar`),
+        # aparte de las frases sobre ESTE clip — usa vocabulario técnico
+        # (CDL, nodo) que ya es el idioma de esta pantalla, así que no
+        # cabe en el modo fácil (`gui/pantalla_facil.py::_PanelTutor`).
+        # Va el último a propósito: es contenido educativo genérico (las dos
+        # lecciones obligatorias de la tarea 2.4 no cambian de un clip a
+        # otro), no una lectura sobre EL clip que tienes delante — así que es
+        # lo que menos penaliza dejar fuera de la pantalla inicial.
+        panel_ensenar = Panel(margenes=(14, 12, 14, 12), espaciado=4)
+        panel_ensenar.caja.addWidget(Rotulo("por qué", acento=True))
+        self.texto_ensenar = QLabel("—")
+        self.texto_ensenar.setObjectName("apagado")
+        self.texto_ensenar.setFont(idn.fuente_texto(11))
+        self.texto_ensenar.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
+        self.texto_ensenar.setWordWrap(True)
+        panel_ensenar.caja.addWidget(self.texto_ensenar)
+        col.addWidget(panel_ensenar)
+
         col.addStretch(1)
-        return lateral
+
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setWidget(contenido)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # `ScrollBarAsNeeded` en macOS es una barra "overlay": invisible en
+        # una imagen estática (una captura, o un pantallazo mientras no se
+        # interactúa), que es exactamente la señal que la corrección de
+        # usuario del día 8 pide no perder ("nunca fuera de pantalla sin
+        # ninguna señal"). `AlwaysOn` la deja pintada de verdad.
+        area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        area.setMinimumWidth(200)
+        area.setMaximumWidth(320)
+        return area
 
     # -- datos -------------------------------------------------------------
 
@@ -382,6 +476,8 @@ class PantallaComparar(QWidget):
         self.marca.setVisible(False)
         self.visor.poner(None, None, mensaje="No hay clips que comparar.")
         self.nombre_ref.setText("—")
+        self.texto_tutor.setText("—")
+        self.texto_ensenar.setText("—")
 
     def _cambio(self) -> None:
         clip = self.clip_actual()
@@ -413,6 +509,34 @@ class PantallaComparar(QWidget):
             self.mini_ref.poner(a_qimage(self._estado.referencia_img))
         ref = self._estado.por_id(self._estado.referencia_id or "")
         self.nombre_ref.setText(ref.nombre if ref else "referencia del proyecto")
+        self._actualizar_tutor(clip)
+
+    def _actualizar_tutor(self, clip: ClipDemo) -> None:
+        frases = frases_de_clip(self._estado, clip)
+        if not frases:
+            self.texto_tutor.setText("Nada que decir sobre este clip por ahora.")
+        else:
+            bloques = []
+            for frase in frases:
+                partes = [
+                    frase.texto,
+                    f"medido: {_permitir_partir(frase.caracteristica)} → "
+                    f"{_permitir_partir(frase.valor_medido)}",
+                ]
+                if frase.umbral is not None:
+                    partes.append(f"umbral: {_permitir_partir(frase.umbral)}")
+                partes.append(f"validación: {frase.validacion} ({frase.cifras_ref})")
+                bloques.append("\n".join(partes))
+            self.texto_tutor.setText("\n\n".join(bloques))
+
+        # `lecciones_de_clip` siempre da algo (las dos mínimas del encargo,
+        # aunque no haya frases de diagnóstico) — por eso va SIEMPRE, no
+        # dentro del `if frases` de arriba: si no, un clip sin nada que
+        # diagnosticar dejaba este panel con el texto del clip anterior.
+        lecciones = lecciones_de_clip(self._estado, clip)
+        self.texto_ensenar.setText(
+            "\n\n".join(f"{leccion.titulo}\n{leccion.texto}" for leccion in lecciones)
+        )
 
     def _primero_util(self) -> int:
         """El primer clip que NO sea la referencia.

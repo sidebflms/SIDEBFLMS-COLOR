@@ -103,6 +103,16 @@ la tolerancia con la propia medida real por delante se puede limpiar más del
 SÍ resistieron intactos. No se ha podido extender el barrido a los 36
 restantes por falta de metraje, así que no se sabe si el patrón es igual de
 fuerte ahí — es la pregunta abierta más grande que deja este día.
+
+AÑADIDO EL DÍA 8: CUATRO CONSTANTES MÁS, FUERA DE LA AUDITORÍA DE ARRIBA
+---------------------------------------------------------------------------
+Los recuentos de arriba (44 constantes, 8 validadas) son del día 7 y se
+dejan tal cual — son una foto de ese día, no una cifra que se reescriba cada
+vez que se añade algo. `SUELO_NEGRO_VISIBLE_TUTOR`, `SUELO_SATURACION_ALTA_TUTOR`,
+`UMBRAL_OFFSET_MENCIONABLE_TUTOR` y `UMBRAL_SLOPE_MENCIONABLE_TUTOR` se
+sumaron el día 8, al construir `core/tutor/`, y caen en NO VALIDABLE por
+inferencia nuestra: no calibradas contra material real, ver `SUPUESTOS.md`
+fila G3. El módulo tiene 48 constantes en total a partir de hoy.
 """
 
 from __future__ import annotations
@@ -127,6 +137,8 @@ __all__ = [
     "RAMPAS_DE_CONFIANZA",
     "SALTO_MINIMO_BANDING",
     "SUELO_GANANCIA_LOCAL",
+    "SUELO_NEGRO_VISIBLE_TUTOR",
+    "SUELO_SATURACION_ALTA_TUTOR",
     "TOL_GAMUT",
     "TOL_MONOTONIA",
     "TOL_MONOTONIA_LOOK",
@@ -142,6 +154,7 @@ __all__ = [
     "UMBRAL_MONOTONIA_RADIAL",
     "UMBRAL_MOVIMIENTO_NULO",
     "UMBRAL_NEUTRA_TOTAL",
+    "UMBRAL_OFFSET_MENCIONABLE_TUTOR",
     "UMBRAL_PERFIL_EXPLICABLE",
     "UMBRAL_R2_LINEAL",
     "UMBRAL_R2_RADIAL",
@@ -149,6 +162,7 @@ __all__ = [
     "UMBRAL_RECORRIDO_LINEAL",
     "UMBRAL_RECORRIDO_LUT_PLANO",
     "UMBRAL_REPRODUCIBLE_PURO",
+    "UMBRAL_SLOPE_MENCIONABLE_TUTOR",
     "UMBRAL_SOMBRAS",
     "UMBRAL_SUBNOTA_EXPLICABLE",
     "UMBRAL_TEXTURA",
@@ -899,3 +913,59 @@ PIXELES_COMPARTIDOS_MINIMOS_LOTE: int = 200
 #: y `UMBRAL_DISCREPANCIA_LOTE`: necesita varios planos reales. Ver `CIFRAS.md`
 #: §20.
 PENA_LOTE_INCOHERENTE: float = PENA_DESAJUSTE
+
+
+# ===========================================================================
+# 10. El tutor (día 8) — cuándo hay algo que vale la pena decir
+# ===========================================================================
+#
+# Los cuatro de aquí abajo NO son umbrales de "esto está mal" — el catálogo
+# del tutor (`core/tutor/catalogo.py`) los usa en reglas marcadas
+# `"descriptiva"`: nunca afirman un veredicto, sólo deciden cuándo una
+# característica medida vale la pena convertirse en una frase. Aun así viven
+# aquí y no como literales sueltos en `core/tutor/`, por el mismo motivo que
+# el resto del archivo: deciden algo que Mario lee en pantalla (criterio 3
+# de la cabecera de este módulo), así que es un criterio de decisión, aunque
+# la decisión sea "¿hablo o me callo?" y no "¿esto pasa o no pasa?".
+
+
+#: **Unidad: fracción 0..1**, sobre el punto negro (percentil 1) ya pasado
+#: por la curva de cámara Rec.709 (`core.tutor.catalogo._porcentaje_rec709`).
+#: Por debajo de esto, `_regla_punto_negro` no dice nada: no hay negro
+#: levantado que valga la pena mencionar.
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO.** Es una décima de la resolución de un
+#: `uint8` (1/255), elegida a ojo para no reportar ruido de cuantización
+#: como si fuera un negro levantado de verdad — no calibrada contra material
+#: real. Ver `SUPUESTOS.md`, fila G3.
+SUELO_NEGRO_VISIBLE_TUTOR: float = 0.02
+
+#: **Unidad: fracción 0..1** del histograma de saturación
+#: (`ColorStats.saturation_hist`) que hace falta en el cuarto de bins más
+#: alto para que `_regla_saturacion_extendida` diga algo.
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO.** Elegido a ojo (un cuarto del
+#: histograma), no calibrado. Además se mide sobre `WORKING_SPACE`
+#: (logarítmico), así que es probablemente CONSERVADOR — ver
+#: `core/tutor/NOTAS.md` y `SUPUESTOS.md`, fila G1/G3.
+SUELO_SATURACION_ALTA_TUTOR: float = 0.05
+
+#: **Unidad: valores de CDL `offset`** (en `WORKING_SPACE`, el mismo espacio
+#: en el que vive el CDL del contrato). Por debajo de esto, un ajuste de
+#: exposición no vale la pena mencionarlo en las lecciones del tutor
+#: (`core.tutor.ensenar._leccion_exposicion_no_va_en_el_look`,
+#: `_leccion_cdl`) — el mismo umbral en los dos sitios, es la misma pregunta
+#: ("¿este offset es ruido o un ajuste de verdad?") hecha dos veces.
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO.** Elegido a ojo, no calibrado contra
+#: material real. Ver `SUPUESTOS.md`, fila G3.
+UMBRAL_OFFSET_MENCIONABLE_TUTOR: float = 0.01
+
+#: **Unidad: desviación típica entre los tres canales de `CDL.slope`.** Por
+#: debajo de esto, `core.tutor.ensenar._leccion_cdl` no menciona el balance
+#: de color: los tres canales están lo bastante juntos como para no ser un
+#: ajuste real.
+#:
+#: **NO SE SABE POR QUÉ VALE ESTO**, misma historia que
+#: `UMBRAL_OFFSET_MENCIONABLE_TUTOR`. Ver `SUPUESTOS.md`, fila G3.
+UMBRAL_SLOPE_MENCIONABLE_TUTOR: float = 0.01

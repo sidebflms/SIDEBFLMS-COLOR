@@ -249,6 +249,65 @@ def test_sin_par_que_invertir_la_pantalla_no_afirma_nada():
         p.close()
 
 
+def test_un_recalculo_que_falla_no_deja_nada_del_resultado_anterior(monkeypatch):
+    """Barrido del día 8 (clase de bug del panel "por qué" de
+    `pantalla_comparar.py`, aplicada aquí): pintar A (un cálculo bueno),
+    pintar B sin datos (el siguiente cálculo revienta) — nada de A puede
+    quedar en pantalla, ni en los widgets de pintado propio que no miran
+    `isEnabled()` (`VistaMapa`, `TiraParches`)."""
+    app_qt()
+    original, coloreado = _par()
+    p = PantallaReverse(original, coloreado)
+    p.resize(1100, 700)
+    p.show()
+    asentar()
+    try:
+        # Paso A: un cálculo bueno de verdad, con algo pintado en cada sitio.
+        assert p.datos_lut.text() != "—"
+        assert p.mini_original.vista._img is not None
+        assert p.mini_coloreado.vista._img is not None
+        assert p.vista_cobertura._img is not None
+        assert p.vista_residuo._img is not None
+        assert p.celdas_cobertura.text() != "—"
+        assert p._de_max.text() != "—"
+
+        # Paso B: el siguiente recálculo revienta.
+        import gui.pantalla_reverse as pr
+
+        def explota(*a, **k):
+            raise _Reventon("avería simulada del módulo en el recálculo")
+
+        monkeypatch.setattr(pr, "invertir", explota)
+        p.recalcular()
+        asentar()
+
+        assert p.aviso_no_disponible.isVisible()
+        assert p.origen_texto.text() == "no disponible"
+        # Nada de A puede sobrevivir, aunque `division` esté deshabilitado:
+        # los widgets de pintado propio no miran `isEnabled()`.
+        assert p.datos_lut.text() == "—"
+        assert p.texto_qc.text() == "—"
+        assert p.mini_original.vista._img is None
+        assert p.mini_coloreado.vista._img is None
+        assert p.vista_cobertura._img is None
+        assert p.vista_residuo._img is None
+        assert p.tira_origen._img is None
+        assert p.tira_cdl._img is None
+        assert p.celdas_cobertura.text() == "—"
+        assert p.cifra_cobertura.text() == "—"
+        assert p.cifra_inventado.text() == "—"
+        assert p.cifra_repro.text() == "—"
+        assert p._de_max.text() == "—"
+        assert p._de_media.text() == "—"
+        assert p._de_p95.text() == "—"
+        assert p.barra_cobertura._valor == 0.0
+        assert p.barra_repro._valor == 0.0
+        assert not p.marca_editado.isVisible()
+        assert not p.marca_max.medido()
+    finally:
+        p.close()
+
+
 # ---------------------------------------------------------------------------
 # Que no haya mas umbrales redefinidos en gui/
 # ---------------------------------------------------------------------------
