@@ -55,7 +55,6 @@ import numpy as np
 
 from core.color import delta_e2000
 from core.contracts import (
-    CDL,
     LUT3D,
     WORKING_SPACE,
     CoverageMap,
@@ -350,16 +349,6 @@ def invertir(
     )
 
 
-def cdl_a_numeros(cdl: CDL) -> list[tuple[str, float]]:
-    """Los diez numeros del CDL con su nombre, en el orden del estandar ASC."""
-    return [
-        ("slope R", cdl.slope[0]), ("slope G", cdl.slope[1]), ("slope B", cdl.slope[2]),
-        ("offset R", cdl.offset[0]), ("offset G", cdl.offset[1]), ("offset B", cdl.offset[2]),
-        ("power R", cdl.power[0]), ("power G", cdl.power[1]), ("power B", cdl.power[2]),
-        ("sat", cdl.saturation),
-    ]
-
-
 __all__ = [
     "COBERTURA_BAJA_AVISO",
     "DESTAQUE_MINIMO_BLOQUE",
@@ -371,6 +360,5 @@ __all__ = [
     "SIN_VEREDICTO",
     "Inversion",
     "TAM_REJILLA_PANEL",
-    "cdl_a_numeros",
     "invertir",
 ]

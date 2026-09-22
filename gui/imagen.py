@@ -13,7 +13,7 @@ hasta aqui; **el recorte ocurre solo en el ultimo paso, el de pintar**.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QImage
 
 from core.color import from_working
 from core.contracts import ColorSpaceName
@@ -55,10 +55,6 @@ def a_qimage(img: np.ndarray, *, espacio_origen: ColorSpaceName | None = None) -
     return qimg.copy()
 
 
-def a_qpixmap(img: np.ndarray, *, espacio_origen: ColorSpaceName | None = None) -> QPixmap:
-    return QPixmap.fromImage(a_qimage(img, espacio_origen=espacio_origen))
-
-
 def tira_de_color(colores: np.ndarray, *, ancho: int = 240, alto: int = 26) -> QImage:
     """Una tira horizontal de parches a partir de (N, 3) en espacio de trabajo.
 
@@ -73,4 +69,4 @@ def tira_de_color(colores: np.ndarray, *, ancho: int = 240, alto: int = 26) -> Q
     return a_qimage(np.tile(fila[None, :, :], (alto, 1, 1)))
 
 
-__all__ = ["ESPACIO_PANTALLA", "a_qimage", "a_qpixmap", "a_uint8", "tira_de_color"]
+__all__ = ["ESPACIO_PANTALLA", "a_qimage", "a_uint8", "tira_de_color"]

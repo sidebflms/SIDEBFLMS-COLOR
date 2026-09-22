@@ -116,7 +116,6 @@ def color(hex_color: str, alpha: float = 1.0) -> QColor:
 #: color de texto de la paleta. Ver NOTAS.md: la identidad no trae un token de
 #: texto apagado ni de borde, y un gris inventado (#71717b y compania) esta
 #: reservado al inventario.
-TEXTO = BRAND_50
 TEXTO_APAGADO_A = 0.62
 TEXTO_TENUE_A = 0.40
 BORDE_A = 0.12
@@ -513,7 +512,6 @@ __all__ = [
     "PANEL",
     "RELLENO_CABECERA_PX",
     "SUPERFICIES",
-    "TEXTO",
     "TEXTO_APAGADO_A",
     "TEXTO_TENUE_A",
     "FormaConfianza",

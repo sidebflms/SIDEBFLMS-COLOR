@@ -25,7 +25,6 @@ import math
 from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import (
     QBrush,
-    QColor,
     QFont,
     QFontMetrics,
     QPainter,
@@ -633,10 +632,6 @@ class BarraProporcion(QWidget):
         p.end()
 
 
-def color_texto(alpha: float = 1.0) -> QColor:
-    return idn.color(idn.BRAND_50, alpha)
-
-
 __all__ = [
     "INSIGNIA_ALTO",
     "INSIGNIA_ANCHO",
@@ -649,7 +644,6 @@ __all__ = [
     "Panel",
     "Rotulo",
     "TextoAjustado",
-    "color_texto",
     "fila_dato",
     "pintar_insignia_confianza",
     "separador",
