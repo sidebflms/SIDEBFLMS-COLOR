@@ -2225,3 +2225,109 @@ haya esa cifra, esta caché sí merece hacerse con datos delante, no antes.
 
 `pytest tests/test_rendimiento_lote.py -q -s` verde (3 tests, cifras impresas en cada
 ejecución), `ruff check tests/test_rendimiento_lote.py` limpio.
+
+---
+
+# CIERRE DEL DÍA — noche del 8 al 9 + revisión de la mañana del día 9
+
+Escrito para alguien que se acaba de levantar y no ha visto nada de esto todavía.
+
+## Semáforo, un bloque por línea
+
+- **Bloque 0** (cerrar el día 8): **terminado.** `v0.8.0`.
+- **Bloque 1** (prueba del eje propio, barrido de estado rancio generalizado, panel
+  vacío): **terminado.** `v0.8.1`. La prueba del eje propio da un resultado intermedio
+  (36/79) — no es un "no llegó", es la medida, dicha tal cual.
+- **Bloque 2** (referencia externa → look, medir antes de construir): **terminado, con
+  el resultado que tocaba.** `v0.8.2`. Falla, igual que T5 el día 4. No se construyó
+  ninguna interfaz, tal como pedía el encargo si salía mal.
+- **Bloque 3** (ronda de caminos de error): **terminado con reservas.** `v0.8.3`. Seis
+  de ocho escenarios cerrados (dos arreglados de verdad, dos ya cubiertos y verificados,
+  dos que no aplican con la arquitectura de hoy). Dos siguen abiertos a propósito — ver
+  "sin resolver" más abajo.
+- **Bloque 4** (rendimiento con timeline larga): **terminado.** `v0.8.4`. Aplicar es
+  rápido (21 ms/500 clips); el riesgo real de cuelgue está en la fase de análisis, que
+  hoy no existe como botón todavía.
+- **Revisión completa de la aplicación + seguridad** (pedida por Mario esta mañana, ya
+  con los cinco bloques cerrados): **terminada.** Cuatro revisiones en paralelo
+  (seguridad, motor, interfaz, salud del proyecto) → 15 hallazgos accionables, los 15
+  arreglados con su test, más dos correcciones de documentación. Seguridad: sin
+  hallazgos. Detalle completo más abajo.
+
+**Todo commiteado y subido a GitHub.** `origin/main` estaba parado en el commit de "Dia
+4" desde hace días — se ha empujado todo (14 commits) y las 12 etiquetas que tampoco
+habían salido nunca del disco de Mario.
+
+## Las cifras nuevas de esta sesión, con su comando
+
+- **36/79** LUT reales disparan `no_monotonia` con la regla "eje propio, centro del
+  cubo" (D9-0, `CIFRAS.md` §22) — `pytest tests/test_io_qc_reales.py -q -k prueba_del_eje_propio`.
+- **Referencia externa → look: falla en 10 de 12 pares** con disparidad de contenido
+  real (ΔE máx 4,1–10,9), sólo pasa el par de disparidad casi nula (D9-1, `CIFRAS.md`
+  §23) — `pytest tests/test_referencia_externa_look.py -q -s`.
+- **Rendimiento**: aplicar 500 clips tarda 21 ms; `estado_muchos(500)` (emparejamiento
+  real) tarda 17,5 s; 12,0 llamadas al puente por clip, constante en las tres escalas
+  medidas (D9-3, `CIFRAS.md` §24) — `pytest tests/test_rendimiento_lote.py -q -s`.
+
+## Qué puede tocar esta mañana, con el comando exacto
+
+- **El orquestador de análisis de timeline, con estado reanudable** (Bloque 3, punto 1
+  — sigue sin existir). Si se construye, la medición de rendimiento ya hecha
+  (`tests/test_rendimiento_lote.py`) es la plantilla a seguir: cada tamaño en su propio
+  subproceso, contar llamadas al puente vía `FakeResolve._llamadas`.
+- **La caché de `open_page`/`project_info` en `aplicar_grado_seguro`** (D9-3,
+  `BITACORA.md` más arriba) — un ahorro real de 2 de las 12 llamadas por clip, pero sin
+  medir contra Resolve real todavía no se sabe si importa. No tocar sin esa cifra
+  delante.
+- **Tarea 3 del encargo original del día 8** (referencia-imagen → look, la interfaz):
+  **no la empieces.** Bloque 2 ya midió que la base falla (D9-1). Si se retoma esta idea
+  algún día, hace falta resolver primero lo que D9-1 deja escrito: separar exposición/
+  contraste, hornear sólo lo cromático, QC con HALD, bloqueo por `desajuste_de_contenido`
+  — y eso sigue sin ninguna medida que diga que merece la pena.
+
+## Qué decidí yo solo, y podría querer cambiarse
+
+- **`gui/pantalla_reverse.py:268`, la fila "sat" del editor de CDL**: revisado con una
+  captura real (`capturas/04-reverse-1440.png`), decidido que NO es un bug — un campo
+  único bajo la columna "R" sin centrar, aceptable para un valor que no es por canal. No
+  se tocó. Si Mario lo mira y no le convence, es un cambio de una línea
+  (`rejilla.addWidget(campo, 4, 1, 1, 3)` con alineación centrada).
+- **No se ha tocado `core/io/qc.py::_monotonia()` ni su recorte compartido
+  (`MAX_PROBLEMAS_POR_CODIGO`)**, documentado como hallazgo en D9-0 y todavía sin
+  arreglar: hay (o había) otra sesión de Claude Code con un nombre que sonaba al mismo
+  sitio. Si esa sesión ya no existe o ya cerró, este hueco queda libre para cogerlo.
+- **Se ha empujado TODO a GitHub de golpe** (14 commits, 12 tags), incluidos los cinco
+  bloques de la noche que llevaban sin subir varios días. Decisión tomada al ver que
+  `origin/main` estaba parado en el commit de "Dia 4" y que Mario pidió explícitamente
+  comprobar que GitHub estuviera al día — si prefieres revisarlo por partes la próxima
+  vez, dilo y se sube con más cuidado.
+- **Los seis "menores" de la revisión** (código muerto en `gui/`, la fila G3 de
+  `SUPUESTOS.md`, `CIFRAS.md` §20) se arreglaron directamente sin preguntar, por ser de
+  bajo riesgo y alta confianza — no inventan nada, sólo corrigen lo que ya estaba mal
+  escrito.
+
+## Sin resolver
+
+- **No existe ningún orquestador de "analiza esta timeline entera"** (Bloque 3, punto
+  1). Sin él no hay nada que reanudar si ffmpeg falla a mitad de 200 clips — el hueco es
+  real y de arquitectura, no una tarde de trabajo.
+- **No hay forma de cancelar `aplicar()` a mitad** (Bloque 3, punto 8). Con las cifras
+  del bloque 4 delante (21 ms para 500 clips) no es urgente hoy, pero sigue siendo
+  cierto que un lote mucho más grande, o Resolve real con latencia de verdad por
+  llamada, lo haría falta. Es la misma pieza de arquitectura que el punto anterior:
+  ejecución por trozos con un punto de cancelación entre clip y clip.
+- **El probe sigue sin ejecutarse contra Resolve real.** Sigue siendo la razón de fondo
+  de casi todos los "no se puede medir esto todavía" de esta sesión (la caché de
+  llamadas al puente, los cinco supuestos nuevos de `core/resolve/live.py`, la fila A9
+  de `AddVersion()`).
+
+## Índice de capturas de esta sesión
+
+- `capturas/05-facil-recorrido-4-look-973.png` / `-1440.png`: el paso "look" del modo
+  fácil con la prioridad vertical nueva (bloque 0), miradas a mano, sin scroll.
+- `capturas/02-comparar-973.png` / `-1440.png`: la columna lateral del modo avanzado
+  reordenada, con `ScrollBarAlwaysOn` (bloque 0), miradas a mano.
+- El resto de `capturas/` no cambió esta sesión — regeneradas de paso al tocar
+  `gui/capturas.py`, sin contenido nuevo que mirar.
+
+**Tag de cierre del conjunto: `v0.9.0`.**
