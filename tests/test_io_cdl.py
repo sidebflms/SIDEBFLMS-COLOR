@@ -299,3 +299,16 @@ def test_directorio_que_no_existe(tmp_path):
 def test_lista_vacia(tmp_path):
     with pytest.raises(ErrorFormatoCDL):
         escribir_cdls([], tmp_path / "x.ccc")
+
+
+def test_si_no_puede_crear_la_carpeta_da_errorformatocdl(tmp_path, monkeypatch):
+    """Bug real encontrado en revisión: `ruta.parent.mkdir(...)` no estaba
+    protegido, a diferencia de `core.io.cube.escribir_cube`."""
+    from pathlib import Path
+
+    def _mkdir_que_falla(self, *a, **k):
+        raise OSError("permiso denegado")
+
+    monkeypatch.setattr(Path, "mkdir", _mkdir_que_falla)
+    with pytest.raises(ErrorFormatoCDL, match="no puedo crear la carpeta"):
+        escribir_cdl(CDL.identity(), tmp_path / "no" / "existe" / "x.cc", crear_directorios=True)

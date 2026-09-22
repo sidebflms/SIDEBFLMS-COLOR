@@ -68,6 +68,39 @@ def test_exportar_anade_extension_si_falta(tmp_path: Path):
     assert destino.name == "sin_extension.sidebcolor"
 
 
+def test_exportar_preset_si_no_puede_crear_la_carpeta_da_errorbundle(tmp_path: Path, monkeypatch):
+    """Bug real encontrado en revisión: `destino.parent.mkdir(...)` no estaba
+    protegido (a diferencia de `core.io.cube.escribir_cube`, que sí lo está)
+    — un permiso denegado o un volumen que se cae en ese instante salía como
+    `OSError` crudo en vez de `ErrorBundle`."""
+    lut = _lut_de_prueba()
+    preset = Preset(id="x", nombre="X", tamano_rejilla=lut.size, ruta_origen="/nada")
+
+    def _mkdir_que_falla(self, *a, **k):
+        raise OSError("disco de red desconectado")
+
+    monkeypatch.setattr(Path, "mkdir", _mkdir_que_falla)
+    with pytest.raises(ErrorBundle, match="no puedo crear la carpeta"):
+        exportar_preset(preset, lut, tmp_path / "una_carpeta_que_no_existe" / "mi_look",
+                         crear_directorios=True)
+
+
+def test_exportar_preset_si_falla_la_escritura_del_zip_da_errorbundle(tmp_path: Path, monkeypatch):
+    """Igual que arriba, pero para el propio `zipfile.ZipFile(...).writestr`:
+    no tenía try/except, a diferencia de su gemela `guardar_sesion`."""
+    import zipfile
+
+    lut = _lut_de_prueba()
+    preset = Preset(id="x", nombre="X", tamano_rejilla=lut.size, ruta_origen="/nada")
+
+    def _writestr_que_falla(self, *a, **k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(zipfile.ZipFile, "writestr", _writestr_que_falla)
+    with pytest.raises(ErrorBundle, match="no puedo escribir"):
+        exportar_preset(preset, lut, tmp_path / "mi_look")
+
+
 def test_miniatura_viaja_en_el_bundle(tmp_path: Path):
     lut = _lut_de_prueba()
     miniatura = generar_miniatura(lut)
@@ -118,6 +151,22 @@ def test_abrir_preset_con_zip_slip_lo_rechaza(tmp_path: Path):
         zf.writestr("preset.json", "{}")
         zf.writestr("look.cube", "LUT_3D_SIZE 2\n")
     with pytest.raises(ErrorBundle):
+        abrir_preset(ruta)
+
+
+def test_abrir_preset_con_el_cube_corrupto_en_utf8_da_errorbundle_claro(tmp_path: Path):
+    """Bug real encontrado en revisión: el `.cube` embebido se decodificaba
+    con `errors="replace"`, que sustituye en silencio los bytes inválidos en
+    vez de decir que el fichero está corrupto — a diferencia de
+    `core.io.bundle._lut`, que usa `errors="strict"` para el mismo tipo de
+    dato y por eso SÍ lo detecta."""
+    import zipfile
+
+    ruta = tmp_path / "cube_corrupto.sidebcolor"
+    with zipfile.ZipFile(ruta, "w") as zf:
+        zf.writestr("preset.json", '{"id": "x", "nombre": "X", "tamano_rejilla": 2}')
+        zf.writestr("look.cube", b"LUT_3D_SIZE 2\n\xff\xfe no es utf-8 valido")
+    with pytest.raises(ErrorBundle, match="UTF-8"):
         abrir_preset(ruta)
 
 

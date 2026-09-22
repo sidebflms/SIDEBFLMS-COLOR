@@ -91,6 +91,23 @@ def test_bytes_que_SI_son_protobuf_valido_se_parsean_recursivamente():
     assert campos(sub, 1)[0].valor == 99
 
 
+def test_anidamiento_patologico_no_revienta_la_pila_de_python():
+    """Bug real encontrado en revisión: `_intentar_submensaje` es recursivo, y
+    un `.drx` hostil con cientos de niveles de bytes anidados-que-parecen-
+    protobuf-válido (la propia heurística del módulo los acepta como
+    submensajes) daba `RecursionError` crudo en vez de degradar a bytes
+    crudos como hace cualquier otro intento de submensaje fallido."""
+    interior = _campo_varint(1, 99)
+    for _ in range(300):  # muy por encima de _PROFUNDIDAD_MAXIMA_SUBMENSAJE (40)
+        interior = _campo_bytes(1, interior)
+    msg = parsear_mensaje(interior)
+    assert len(msg) == 1
+    # No hace falta que sepa CUÁNTOS niveles llegó a interpretar como
+    # submensaje antes de rendirse; sólo que no revienta y que el resultado
+    # es uno de los dos tipos válidos de campo length-delimited.
+    assert msg[0].es_submensaje or isinstance(msg[0].valor, bytes)
+
+
 def test_mensaje_raiz_mal_formado_lanza():
     """A diferencia de un submensaje (que se degrada a bytes en silencio), el
     mensaje de nivel superior SI lanza: si esto no es protobuf, hay que

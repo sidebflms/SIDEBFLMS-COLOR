@@ -145,6 +145,22 @@ def test_inspeccionar_binario_de_verdad_no_lanza(tmp_path: Path):
     assert info.advertencias
 
 
+def test_inspeccionar_drx_que_no_existe_no_lanza(tmp_path: Path):
+    """Bug real encontrado en revisión: el docstring de `inspeccionar_drx`
+    prometía "nunca lanza por forma inesperada", pero un fichero inexistente
+    (borrado, disco desmontado entre sembrar la biblioteca y elegir el
+    preset) reventaba con `FileNotFoundError` crudo — un error de LECTURA,
+    no de forma, pero la misma respuesta práctica para quien llama."""
+    info = inspeccionar_drx(tmp_path / "no_existe.drx")
+    assert not info.es_xml
+    assert info.advertencias
+    assert "no se puede leer" in info.advertencias[0]
+
+
+def test_buscar_rutas_referenciadas_en_fichero_que_no_existe_no_lanza(tmp_path: Path):
+    assert buscar_rutas_referenciadas(tmp_path / "no_existe.drx") == ()
+
+
 # ---------------------------------------------------------------------------
 # Deriva de versión de Resolve (día 7, tarea 4): avisar, no leer mal en
 # silencio, cuando el `.drx` viene de una versión nunca comprobada.

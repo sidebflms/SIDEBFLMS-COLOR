@@ -189,7 +189,10 @@ def guardar_sesion(
                 f"la carpeta '{ruta.parent}' no existe; créala tú o llama con "
                 "crear_directorios=True"
             )
-        ruta.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            ruta.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ErrorBundle(f"no puedo crear la carpeta '{ruta.parent}': {exc}") from exc
 
     adjuntos: dict[str, bytes] = {}
 

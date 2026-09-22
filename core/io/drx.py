@@ -226,22 +226,47 @@ def _parsear_xml_sin_namespaces(datos: bytes) -> ET.Element:
 
 
 def _profundidad(elem: ET.Element) -> int:
-    hijos = list(elem)
-    if not hijos:
-        return 1
-    return 1 + max(_profundidad(h) for h in hijos)
+    """Iterativo a propósito, no recursivo: un `.drx` hostil con miles de
+    niveles de anidamiento (sigue siendo XML válido, `inspeccionar_drx` no
+    tiene por qué rechazarlo) daría `RecursionError` crudo con la versión
+    recursiva — justo lo que este módulo existe para no dejar pasar."""
+    maxima = 0
+    pila = [(elem, 1)]
+    while pila:
+        actual, profundidad = pila.pop()
+        maxima = max(maxima, profundidad)
+        pila.extend((hijo, profundidad + 1) for hijo in actual)
+    return maxima
 
 
 def _contar_etiquetas(elem: ET.Element, contador: dict[str, int]) -> None:
-    contador[elem.tag] = contador.get(elem.tag, 0) + 1
-    for hijo in elem:
-        _contar_etiquetas(hijo, contador)
+    """Iterativo por la misma razón que `_profundidad`."""
+    pila = [elem]
+    while pila:
+        actual = pila.pop()
+        contador[actual.tag] = contador.get(actual.tag, 0) + 1
+        pila.extend(actual)
 
 
 def inspeccionar_drx(ruta: str | Path) -> InfoDRX:
-    """Lee la capa XML de `ruta`. Nunca lanza por forma inesperada."""
+    """Lee la capa XML de `ruta`. Nunca lanza — ni por forma inesperada, ni
+    porque el fichero no se pueda leer (no existe, es una carpeta, sin
+    permisos): desde fuera "no se pudo leer" y "el archivo es raro" son la
+    misma respuesta práctica, igual que ya hace `_parsear_xml_sin_namespaces`
+    más abajo para un XML que no parsea."""
     p = Path(ruta)
-    datos = p.read_bytes()
+    try:
+        datos = p.read_bytes()
+    except OSError as exc:
+        return InfoDRX(
+            ruta=str(p),
+            es_xml=False,
+            tag_raiz=None,
+            vocabulario=(),
+            profundidad_maxima=0,
+            tamano_bytes=0,
+            advertencias=(f"no se puede leer: {exc}.",),
+        )
     advertencias: list[str] = []
 
     try:
@@ -350,9 +375,14 @@ def buscar_rutas_referenciadas(ruta: str | Path) -> tuple[str, ...]:
     Si el archivo no tiene la forma esperada (no es XML, no hay `<Body>`, no
     descomprime, no parsea como protobuf) devuelve una tupla vacía: no lanza,
     porque "no encontré nada" y "el archivo es raro" son, para quien sólo
-    quiere saber qué archivos hacen falta, la misma respuesta práctica.
+    quiere saber qué archivos hacen falta, la misma respuesta práctica. Y
+    tampoco lanza si el archivo no se puede ni leer (no existe, sin permisos,
+    disco desmontado): esa es la misma respuesta práctica también.
     """
-    texto = Path(ruta).read_text(encoding="utf-8", errors="replace")
+    try:
+        texto = Path(ruta).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ()
     cuerpos = re.findall(r"<Body>([0-9a-f]*)</Body>", texto)
     if not cuerpos:
         return ()

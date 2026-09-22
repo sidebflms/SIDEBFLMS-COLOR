@@ -224,6 +224,21 @@ def test_directorio_que_no_existe(tmp_path):
     assert destino.is_file()
 
 
+def test_si_no_puede_crear_la_carpeta_da_errorbundle(tmp_path, monkeypatch):
+    """Bug real encontrado en revisión: `ruta.parent.mkdir(...)` no estaba
+    protegido, a diferencia de `core.io.cube.escribir_cube`."""
+    from pathlib import Path
+
+    def _mkdir_que_falla(self, *a, **k):
+        raise OSError("disco de red desconectado")
+
+    monkeypatch.setattr(Path, "mkdir", _mkdir_que_falla)
+    ses = ColorSession(project_name="p", created_at="x", app_version="0.1.0", reference_clip_id=None)
+    destino = tmp_path / "no" / "existe" / "s.sidebcolor"
+    with pytest.raises(ErrorBundle, match="no puedo crear la carpeta"):
+        guardar_sesion(ses, destino, crear_directorios=True)
+
+
 def test_no_guarda_un_lut_con_nan(tmp_path):
     from core.io import lut_con_nan
 

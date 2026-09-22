@@ -296,7 +296,10 @@ def exportar_preset(
                 f"la carpeta '{destino.parent}' no existe; créala tú o llama con "
                 "crear_directorios=True"
             )
-        destino.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            destino.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ErrorBundle(f"no puedo crear la carpeta '{destino.parent}': {exc}") from exc
 
     metadatos = {
         "formato_version": FORMATO_VERSION_PRESET,
@@ -308,11 +311,16 @@ def exportar_preset(
         "clasificacion": preset.clasificacion,
     }
 
-    with zipfile.ZipFile(destino, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(_NOMBRE_PRESET_JSON, json.dumps(metadatos, indent=2, ensure_ascii=False))
-        zf.writestr(_NOMBRE_LUT, cube_a_texto(lut, decimales=None))
-        if miniatura is not None:
-            zf.writestr(_NOMBRE_MINIATURA, _miniatura_a_png(miniatura))
+    try:
+        with zipfile.ZipFile(destino, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(_NOMBRE_PRESET_JSON, json.dumps(metadatos, indent=2, ensure_ascii=False))
+            zf.writestr(_NOMBRE_LUT, cube_a_texto(lut, decimales=None))
+            if miniatura is not None:
+                zf.writestr(_NOMBRE_MINIATURA, _miniatura_a_png(miniatura))
+    except PermissionError as exc:
+        raise ErrorBundle(f"no tengo permiso para escribir en '{describe_ruta(destino)}'") from exc
+    except OSError as exc:
+        raise ErrorBundle(f"no puedo escribir '{describe_ruta(destino)}': {exc}") from exc
     return destino
 
 
@@ -347,9 +355,15 @@ def abrir_preset(ruta: str | Path) -> PresetAbierto:
             clasificacion=metadatos.get("clasificacion"),
         )
 
-        cube_texto = _leer_entrada(zf, _NOMBRE_LUT, nombre=nombre, tope=64 * 1024 * 1024).decode(
-            "utf-8", errors="replace"
-        )
+        # `errors="strict"`, no "replace": un `.cube` corrupto tiene que
+        # decirlo como corrupto, no colarse con caracteres de reemplazo que
+        # luego fallan (si fallan) con un mensaje de sintaxis que no dice
+        # cuál es la causa real. Mismo criterio que `core/io/bundle.py::_lut`.
+        crudo_lut = _leer_entrada(zf, _NOMBRE_LUT, nombre=nombre, tope=64 * 1024 * 1024)
+        try:
+            cube_texto = crudo_lut.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ErrorBundle(f"'{nombre}': {_NOMBRE_LUT} no es UTF-8 válido -> {exc}") from exc
         lut = cube_desde_texto(cube_texto, nombre=f"{nombre}:{_NOMBRE_LUT}")
 
         miniatura = None

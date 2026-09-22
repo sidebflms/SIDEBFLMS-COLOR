@@ -145,6 +145,27 @@ def test_el_gamut_dice_por_que_lado_se_sale():
     assert not informe.hay_errores, "salirse de gamut es un aviso, no un error"
 
 
+def test_un_nan_aislado_no_apaga_el_banding_real_del_resto_del_canal():
+    """Bug real encontrado en revisión: `escala` se calculaba con `np.median`
+    (no `np.nanmedian`) sobre el canal/eje ENTERO — un solo NaN en ese canal
+    contaminaba `escala` a NaN, y de ahí `limite` también a NaN. Como
+    `abs_d2 > NaN` es SIEMPRE False, el banding real en el RESTO del mismo
+    canal (no sólo cerca del NaN) quedaba callado en silencio."""
+    tabla = np.array(lut_con_banding(17, eje=2, salto=0.3).table, dtype=np.float32, copy=True)
+    # El escalón de `lut_con_banding` está en las celdas 7/8 del eje 2; se
+    # envenena una celda lejos de ahí, en el mismo canal (2), para que el
+    # NaN no borre el propio escalón (eso ya lo cubre `test_el_nan_es_un_error`)
+    # sino que sólo contamine el cálculo de escala del canal entero.
+    tabla[1, 1, 1, 2] = np.nan
+    informe = qc_lut(LUT3D(table=tabla, title="Banding + NaN aislado"))
+    assert CODIGO_NO_FINITO in informe.codigos()
+    assert CODIGO_BANDING in informe.codigos(), (
+        "un NaN aislado en el canal ha apagado la deteccion de banding del resto del canal"
+    )
+    celdas_banding = {p.celda[2] for p in informe.por_codigo(CODIGO_BANDING)}
+    assert celdas_banding == {7, 8}
+
+
 def test_el_nan_es_un_error_y_dice_la_celda():
     p = qc_lut(lut_con_nan(17, celda=(3, 4, 5), canal=1)).por_codigo(CODIGO_NO_FINITO)[0]
     assert p.gravedad == "error"

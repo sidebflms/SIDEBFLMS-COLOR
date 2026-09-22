@@ -98,7 +98,10 @@ def _leer_texto(ruta: Path) -> str:
         raise ErrorFormatoCDL(f"no existe el fichero '{ruta}'")
     if ruta.is_dir():
         raise ErrorFormatoCDL(f"'{nombre}' es una carpeta, no un fichero CDL")
-    tam = ruta.stat().st_size
+    try:
+        tam = ruta.stat().st_size
+    except OSError as exc:  # pragma: no cover - depende del sistema de ficheros
+        raise ErrorFormatoCDL(f"no puedo consultar '{nombre}': {exc}") from exc
     if tam == 0:
         raise ErrorFormatoCDL(f"el fichero '{nombre}' está vacío")
     if tam > MAX_BYTES_CDL:
@@ -323,7 +326,10 @@ def escribir_cdls(
                 f"la carpeta '{ruta.parent}' no existe; créala tú o llama con "
                 "crear_directorios=True"
             )
-        ruta.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            ruta.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise ErrorFormatoCDL(f"no puedo crear la carpeta '{ruta.parent}': {exc}") from exc
     try:
         with open(ruta, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(texto)

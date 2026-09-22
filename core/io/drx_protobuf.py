@@ -33,6 +33,17 @@ class ErrorProtobuf(ValueError):
     """El wire format no es válido: un tag con wire_type fuera de {0,1,2,5}."""
 
 
+#: `_intentar_submensaje` es recursivo (cada campo length-delimited que
+#: parece un submensaje se parsea llamándose a sí mismo). Un `.drx` hostil
+#: puede tener bytes que "parecen" cientos de submensajes anidados sin serlo
+#: de verdad (la heurística de arriba lo admite: "un 'submensaje' espurio...
+#: no contendrá ningún string reconocible", pero SÍ puede reventar la pila
+#: de Python antes de llegar a esa conclusión). Un grafo de color real no
+#: pasa de unos pocos niveles (nodo -> parámetros -> valores); 40 es generoso
+#: de sobra y muy por debajo del límite de recursión de Python.
+_PROFUNDIDAD_MAXIMA_SUBMENSAJE = 40
+
+
 @dataclass(frozen=True)
 class Campo:
     """Un campo del wire format. `valor` es `int` (varint/64bit/32bit como
@@ -67,7 +78,7 @@ def leer_varint(b: bytes, i: int) -> tuple[int, int]:
         despl += 7
 
 
-def _parsear_campos(b: bytes) -> tuple[Campo, ...]:
+def _parsear_campos(b: bytes, profundidad: int = 0) -> tuple[Campo, ...]:
     """Parsea `b` entero como una secuencia de campos. Lanza `ErrorProtobuf`
     si algo no cuadra — es la señal que usa `_intentar_submensaje` para saber
     que estos bytes NO eran un submensaje."""
@@ -92,7 +103,7 @@ def _parsear_campos(b: bytes) -> tuple[Campo, ...]:
                 raise ErrorProtobuf("length-delimited truncado")
             crudo = b[i : i + longitud]
             i += longitud
-            sub = _intentar_submensaje(crudo)
+            sub = _intentar_submensaje(crudo, profundidad + 1)
             valor = sub if sub is not None else crudo
         elif wire_type == 5:
             if i + 4 > n:
@@ -105,11 +116,18 @@ def _parsear_campos(b: bytes) -> tuple[Campo, ...]:
     return tuple(out)
 
 
-def _intentar_submensaje(b: bytes) -> tuple[Campo, ...] | None:
+def _intentar_submensaje(b: bytes, profundidad: int = 0) -> tuple[Campo, ...] | None:
     if not b:
         return None
+    if profundidad > _PROFUNDIDAD_MAXIMA_SUBMENSAJE:
+        # Ni ErrorProtobuf ni RecursionError: esto no es "el wire format esta
+        # mal" (podria seguir siendolo formalmente cientos de niveles mas
+        # adentro), es "dejo de intentar interpretar esto como un submensaje
+        # anidado" — se degrada a bytes crudos, exactamente como cualquier
+        # otro intento de submensaje que no cuaja.
+        return None
     try:
-        return _parsear_campos(b)
+        return _parsear_campos(b, profundidad)
     except ErrorProtobuf:
         return None
 

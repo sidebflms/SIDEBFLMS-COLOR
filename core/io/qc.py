@@ -117,6 +117,7 @@ sitio. Así que:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -411,7 +412,20 @@ def _banding(
             d2 = np.diff(d1, axis=eje)
             if d2.size == 0:
                 continue
-            escala = float(np.median(np.abs(d1)))
+            # `nanmedian`, no `median`: un solo NaN en el canal (que
+            # `_no_finitos` ya cuenta aparte) contamina `np.median` entero a
+            # NaN, y de ahi `limite` sale NaN — `abs_d2 > NaN` es SIEMPRE
+            # False, asi que el banding real en el RESTO del mismo canal
+            # queda callado en silencio, no solo cerca del NaN. Mismo
+            # criterio que ya usa `_lut_plano` con `ptp` para esto mismo.
+            with warnings.catch_warnings():
+                # "All-NaN slice encountered" es exactamente el caso de abajo
+                # (`not np.isfinite(escala)`), ya manejado a propósito — no
+                # hace falta que numpy lo repita como ruido en cada test.
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                escala = float(np.nanmedian(np.abs(d1)))
+            if not np.isfinite(escala):
+                continue  # todo el eje/canal es NaN: no hay nada que comparar
             limite = umbral * max(escala, _PISO_ESCALA)
             abs_d2 = np.abs(d2)
             mal = (abs_d2 > limite) & (abs_d2 > salto_minimo)
