@@ -604,6 +604,21 @@ def invertir_grado_lote(
             + ", ".join(nombres[p] for p in coherencia.discrepantes)
             + "."
         )
+        # El `cdl` de la Capa 1 (arriba) se ajustó con TODOS los planos,
+        # incluidos los que se acaban de excluir — si no se recalcula aquí,
+        # el CDL que de verdad sale en el `ReverseResult` (el que escribe
+        # `aplicar_grado_seguro` en el nodo 2 de Resolve) sigue contaminado
+        # por los planos que la nota de arriba dice haber dejado fuera. Se
+        # reajusta sólo con `usados`, y se reaplica a esos planos antes de
+        # ajustar el LUT y de medir nada de aquí en adelante — el LUT es un
+        # residuo SOBRE el CDL, así que tiene que ser el residuo sobre el
+        # CDL bueno, no sobre el contaminado.
+        cdl = _cdl_del_lote([todos_src[p] for p in usados], [todos_dst[p] for p in usados])
+        for p in usados:
+            todas_fuentes[p] = cdl.apply(todos_src[p])
+            estadisticos_plano[p] = estadisticos_de_correspondencias(
+                todas_fuentes[p], todos_dst[p], n, con_gram=True
+            )
     notas.extend(coherencia.avisos)
     if coherencia.planos and n_planos > 1:
         notas.append(

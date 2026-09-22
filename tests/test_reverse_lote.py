@@ -313,6 +313,57 @@ def test_excluir_discrepantes_ajusta_sin_ellos():
 
 
 @pytest.mark.lento
+def test_excluir_discrepantes_recalcula_el_cdl_sin_el_plano_que_deja_fuera():
+    """Bug real: `excluir_discrepantes=True` dejaba el plano fuera del LUT pero
+    el CDL (Capa 1) seguía siendo el ajustado con TODOS los planos, incluido el
+    discrepante — la nota "he dejado FUERA del ajuste" era falsa a medias. El
+    CDL devuelto tiene que ser, bit a bit, el que sale de ajustar SÓLO con los
+    planos usados — no sólo "distinto del contaminado", sino el mismo que
+    ajustar el lote limpio desde cero."""
+    cdl, lut = look_conocido()
+    originales = proyecto(8)
+    coloreados = [colorear(o, cdl, lut) for o in originales]
+    coloreados[5] = colorear(correccion_escalada("mas_frio", 1.0).apply(originales[5]), cdl, lut)
+    nombres = [nombre_de_plano(i) for i in range(8)]
+    pares = list(zip(originales, coloreados, strict=True))
+
+    con_exclusion = invertir_grado_lote(
+        pares, nombres=nombres, excluir_discrepantes=True, diagnosticar_planos=False
+    )
+    assert con_exclusion.confidence.metrics["lote_planos_usados"] == 7.0
+
+    limpio = [p for i, p in enumerate(pares) if i != 5]
+    nombres_limpio = [n for i, n in enumerate(nombres) if i != 5]
+    sin_el_discrepante = invertir_grado_lote(
+        limpio,
+        nombres=nombres_limpio,
+        verificar_coherencia=False,  # ya se sabe que estos 7 son coherentes entre si
+        diagnosticar_planos=False,
+    )
+
+    for campo in ("slope", "offset", "power"):
+        np.testing.assert_allclose(
+            getattr(con_exclusion.cdl, campo),
+            getattr(sin_el_discrepante.cdl, campo),
+            atol=1e-9,
+            err_msg=f"CDL.{campo}: excluir_discrepantes no ha recalculado el CDL sin el plano 5",
+        )
+
+    contaminado = invertir_grado_lote(
+        pares, nombres=nombres, excluir_discrepantes=False, diagnosticar_planos=False
+    )
+    diferencia = max(
+        float(np.max(np.abs(np.array(getattr(con_exclusion.cdl, campo))
+                             - np.array(getattr(contaminado.cdl, campo)))))
+        for campo in ("slope", "offset", "power")
+    )
+    assert diferencia > 1e-6, (
+        "el CDL con excluir_discrepantes=True es indistinguible del CDL contaminado con "
+        "todos los planos: la recomputacion no esta teniendo ningun efecto"
+    )
+
+
+@pytest.mark.lento
 def test_con_vineta_el_aviso_dice_que_puede_ser_algo_espacial():
     """El límite conocido: una viñeta común a todos hace que el mismo color salga
     distinto según dónde esté. Si eso marca planos, el aviso tiene que decir que
