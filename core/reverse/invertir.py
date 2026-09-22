@@ -63,6 +63,7 @@ from core.contracts import (
     ColorSpaceName,
     Confidence,
     CoverageMap,
+    ReverseDiagnosis,
     ReverseResult,
     confidence_level,
 )
@@ -483,8 +484,6 @@ def _resultado_vacio(
         variance=np.zeros((n, n, n), dtype=np.float32),
         min_samples=int(min_muestras),
     )
-    from core.contracts import ReverseDiagnosis
-
     return ReverseResult(
         cdl=CDL.identity(),
         lut=LUT3D.identity(n),

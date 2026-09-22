@@ -332,15 +332,26 @@ class LiveResolve(BaseResolveBridge):
 
     # -- grupos de color -------------------------------------------------------
 
+    def _nombre_grupo(self, grupo) -> str | None:
+        # SIN VERIFICAR: `colorGroup.GetName()` no esta en la lista
+        # verificada. Si no existe, este grupo no se puede identificar por
+        # nombre — se salta en vez de reventar con AttributeError.
+        if not hasattr(grupo, "GetName"):
+            return None
+        return str(grupo.GetName())
+
     def _grupo(self, name: str):
-        # SIN VERIFICAR: `colorGroup.GetName()` no esta en la lista verificada.
         for grupo in self._proyecto().GetColorGroupsList() or []:
-            if str(grupo.GetName()) == name:
+            if self._nombre_grupo(grupo) == name:
                 return grupo
         raise GrupoNoEncontrado(f"no existe el grupo de color {name!r}")
 
     def color_groups(self) -> list[str]:
-        return [str(g.GetName()) for g in (self._proyecto().GetColorGroupsList() or [])]
+        return [
+            nombre
+            for g in (self._proyecto().GetColorGroupsList() or [])
+            if (nombre := self._nombre_grupo(g)) is not None
+        ]
 
     def add_color_group(self, name: str) -> bool:
         if not name.strip():

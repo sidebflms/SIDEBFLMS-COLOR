@@ -12,9 +12,11 @@ import pytest
 
 from core.reverse.confianza_destino import FeaturesDestino
 from core.reverse.orden_repaso import (
+    _DESV_MINIMA,
     _ESTADISTICAS_POR_CLASE,
     CandidatoOrden,
     ClaseMaterial,
+    _z,
     orden_de_repaso,
 )
 
@@ -172,3 +174,47 @@ def test_todas_las_clases_calibradas_tienen_desviaciones_no_negativas(clave):
     assert desv_cob >= 0.0
     assert desv_mue >= 0.0
     assert desv_pla >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# Bug real encontrado en revisión de calidad (día 9): una clase con
+# desviación calibrada ~0 (p.ej. `planos_acumulados` constante en la
+# calibración, ver el comentario de `_DESV_MINIMA`) no puede dejar que UN
+# candidato con un valor real distinto de la media calibrada dispare un
+# z-score del orden de 1e6 que anule las otras dos señales.
+# ---------------------------------------------------------------------------
+
+
+def test_z_con_desviacion_cero_no_inventa_una_magnitud_arbitraria():
+    """El z-score de una señal sin variación calibrada tiene que ser 0, sea
+    cual sea el valor real — no `diferencia / _DESV_MINIMA`, que sólo daba 0
+    quien la media y el valor coincidieran por casualidad."""
+    assert _z(valor=100.0, media=0.693147, desv=0.0) == 0.0
+    assert _z(valor=0.693147, media=0.693147, desv=0.0) == 0.0
+    assert _z(valor=-50.0, media=0.693147, desv=_DESV_MINIMA / 2) == 0.0
+    # Con desviacion de verdad (por encima del suelo), la formula normal sigue
+    # funcionando igual que siempre.
+    assert _z(valor=1.0, media=0.0, desv=1.0) == pytest.approx(1.0)
+
+
+def test_un_planos_acumulados_atipico_en_clase_de_desviacion_cero_no_domina_el_orden():
+    """`(17, False, False)` tiene `desv_log_planos == 0.0` en la calibración
+    (sólo vio extracciones de un fotograma). Antes del arreglo, un candidato
+    con `planos_acumulados` muy distinto de 1 (lo normal viniendo de
+    `invertir_grado_lote`) se llevaba un z-score gigante que invertía el
+    orden esperado por cobertura, sin importar cuánta peor cobertura tuviera."""
+    clave = (17, False, False)
+    assert _ESTADISTICAS_POR_CLASE[clave][5] == 0.0, "este test necesita una clase con desv_log_planos == 0"
+    clase = ClaseMaterial(tam_rejilla=17, compresion=False, recorte=False)
+
+    peor_cobertura_pero_muchos_planos = CandidatoOrden(
+        id="peor_pero_atipico", features=_features(0.30, planos=50), clase=clase
+    )
+    mejor_cobertura_normal = CandidatoOrden(
+        id="mejor_normal", features=_features(0.90, planos=1), clase=clase
+    )
+    orden = orden_de_repaso([mejor_cobertura_normal, peor_cobertura_pero_muchos_planos])
+    assert orden == ["peor_pero_atipico", "mejor_normal"], (
+        "un planos_acumulados atipico en una clase sin variacion calibrada "
+        "esta dominando el orden por encima de la cobertura"
+    )

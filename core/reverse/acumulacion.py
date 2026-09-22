@@ -107,12 +107,20 @@ DOMINIO_MAX: float = 1.0
 
 
 def pesos_trilineales(origen: np.ndarray, n: int) -> tuple[np.ndarray, np.ndarray]:
-    """`(M, 3)` de colores -> `(8, M)` indices planos y `(8, M)` pesos.
+    """`(..., 3)` de colores -> `(8, M)` indices planos y `(8, M)` pesos.
 
     Los indices son sobre el cubo aplanado de `n**3` celdas con el orden
     `[ri, gi, bi]` de la convencion 4. Los ocho pesos de cada pixel suman 1.
     """
-    px = np.asarray(origen, dtype=np.float64).reshape(-1, 3)
+    arr = np.asarray(origen, dtype=np.float64)
+    if arr.ndim < 1 or arr.shape[-1] != 3:
+        # Mismo criterio que `core.reverse.alineado.alinear`: sin esto,
+        # `.reshape(-1, 3)` deja pasar una entrada con la ultima dimension
+        # distinta de 3 (p.ej. RGBA por error) en silencio si el numero
+        # total de elementos es casualidad divisible por 3 -- colores
+        # mal emparejados, no un error que se note.
+        raise ValueError(f"esperaba (..., 3) de color, llego {arr.shape}")
+    px = arr.reshape(-1, 3)
     t = np.clip((px - DOMINIO_MIN) / (DOMINIO_MAX - DOMINIO_MIN), 0.0, 1.0)
     pos = t * (n - 1)
     i0 = np.clip(np.floor(pos).astype(np.int64), 0, n - 2)

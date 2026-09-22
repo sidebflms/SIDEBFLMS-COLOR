@@ -172,7 +172,14 @@ def base_afin(
     # Lo que la cresta dice, en castellano: **en las direcciones que los datos
     # no fijan no me invento un grado, dejo la identidad.**
     objetivo = np.eye(4, 3)  # M = I, c = 0
-    mayor = float(np.linalg.eigvalsh(ata)[-1])
+    try:
+        mayor = float(np.linalg.eigvalsh(ata)[-1])
+    except np.linalg.LinAlgError:
+        # Misma caida que `solve` mas abajo: si ni siquiera se puede sacar el
+        # autovalor mayor de `ata` (matriz mal formada, no converge), no hay
+        # cresta razonable que calcular — a la identidad, que es justo lo que
+        # promete el docstring de esta funcion.
+        return entradas.copy()
     lam = max(RIDGE_BASE * mayor, 1e-12)
     ata = ata + lam * np.eye(4)
     atb = atb + lam * objetivo

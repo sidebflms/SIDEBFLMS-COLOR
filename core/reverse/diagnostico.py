@@ -662,11 +662,16 @@ def diagnosticar(
     que un residuo alto puede ser falta de cobertura y no algo espacial, que son
     dos enfermedades distintas con el mismo sintoma.
     """
+    # Misma fórmula que `mapa_de_residuo` — reutilizada, no duplicada a mano,
+    # para que un cambio aquí (espacio de color, orden de argumentos de
+    # `delta_e2000`) no pueda quedarse desincronizado entre las dos.
+    residuo, movimiento = mapa_de_residuo(original, coloreado, cdl, lut, space=space)
+    # `analizar_espacial`, más abajo, necesita la predicción y el coloreado
+    # tal cual (no sólo su ΔE) — se recalculan aparte porque
+    # `mapa_de_residuo` sólo promete `(residuo, movimiento)`.
     orig = np.asarray(original, dtype=np.float64)
     col = np.asarray(coloreado, dtype=np.float64)
     prediccion = lut.apply(cdl.apply(orig))
-    residuo = np.asarray(delta_e2000(prediccion, col, space), dtype=np.float64)
-    movimiento = np.asarray(delta_e2000(orig, col, space), dtype=np.float64)
     h, w = residuo.shape
     notas: list[str] = []
 

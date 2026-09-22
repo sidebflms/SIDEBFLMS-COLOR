@@ -95,8 +95,20 @@ __all__ = ["ClaseMaterial", "CandidatoOrden", "orden_de_repaso"]
 
 #: Unidad: adimensional (guarda de división). Ninguna clase con desviación 0
 #: (p.ej. `planos_acumulados` constante dentro de una clase que sólo vio
-#: extracciones de un solo fotograma) puede dividir por 0; con la diferencia
-#: también en 0 en ese caso, el z-score sale 0 sin inventar una escala.
+#: extracciones de un solo fotograma) puede dividir por 0.
+#:
+#: Arreglado (día 9, revisión de calidad): la guarda original dividía por
+#: `max(desv, _DESV_MINIMA)` en vez de cortar por completo — funcionaba
+#: mientras el VALOR real coincidiera con la media calibrada (diferencia
+#: también 0), pero varias clases de `_ESTADISTICAS_POR_CLASE` tienen
+#: `desv_log_planos == 0` porque su calibración sólo vio extracciones de UN
+#: fotograma (`planos_acumulados` constante = 1 en esa calibración). Un
+#: candidato real de `invertir_grado_lote` con `planos_acumulados=5` no
+#: coincide con esa media, y dividir por `1e-6` daba un z-score del orden de
+#: 10⁶ que anulaba por completo las otras dos señales de `_puntuacion_interna`
+#: — justo lo que el comentario original decía que no podía pasar. Ver
+#: `_z`: ahora, si no hay variación calibrada para esa señal en esa clase,
+#: esa señal no puntúa (0), en vez de inventar una magnitud arbitraria.
 _DESV_MINIMA = 1e-6
 
 
@@ -195,7 +207,13 @@ def _clave_calibrada(clase: ClaseMaterial) -> tuple[int, bool | None, bool | Non
 
 
 def _z(valor: float, media: float, desv: float) -> float:
-    return (float(valor) - media) / max(desv, _DESV_MINIMA)
+    if desv <= _DESV_MINIMA:
+        # Sin variación calibrada para esta señal en esta clase: no hay
+        # escala con la que interpretar cuánto se aleja `valor` de `media`,
+        # así que la señal no puntúa, en vez de dividir por un suelo
+        # arbitrario y dejar que domine a las otras dos z-scores.
+        return 0.0
+    return (float(valor) - media) / desv
 
 
 def _puntuacion_interna(features: FeaturesDestino, clase: ClaseMaterial) -> float:
