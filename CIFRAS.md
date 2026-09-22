@@ -850,3 +850,32 @@ falta (no implementado) para una fase 3.
 
 `pytest tests/test_referencia_externa_look.py -q` verde (2 tests) y
 `ruff check tests/test_referencia_externa_look.py` limpio.
+
+## 24 · Rendimiento con timeline larga (día 9): 50, 200 y 500 clips contra FakeResolve
+
+Comando: `pytest tests/test_rendimiento_lote.py -q -s`. Cada tamaño corre en su propio
+subproceso limpio (ver el docstring del fichero: `ru_maxrss` es un máximo histórico del
+proceso, medirlos todos en el mismo proceso habría contaminado la cifra de memoria).
+
+| n | construir (s) | ms/clip construir | aplicar (s) | ms/clip aplicar | llamadas al puente | llamadas/clip | pico RSS (MB) |
+|---|---|---|---|---|---|---|---|
+| 50 | 2.889 | 57.78 | 0.002 | 0.03 | 601 | 12.02 | 295.7 |
+| 200 | 7.846 | 39.23 | 0.008 | 0.04 | 2401 | 12.01 | 289.4 |
+| 500 | 17.536 | 35.07 | 0.021 | 0.04 | 6001 | 12.00 | 303.2 |
+
+**"construir"** = `gui.datos_demo.estado_muchos(n)`, que sí hace emparejamiento real
+(`core.matching.empareja`) — es la cifra más parecida a "analizar N clips" que hay hoy en el
+repo (no existe un orquestador de análisis real, ver `BITACORA.md` D9-2, punto 1). **"aplicar"**
+= `gui.pantalla_aplicar.aplicar()`, el camino real de escritura contra el puente.
+
+**Ni rastro de escalado cuadrático.** El coste por clip de "aplicar" sube de 0,035 a 0,042
+ms/clip entre n=50 y n=500 — una razón de 1,21x (el umbral de alarma puesto en el test es
+2,5x; un O(n²) real habría multiplicado por ~10x). El coste por clip de "construir" incluso
+BAJA con n (58 → 35 ms/clip), porque el trabajo de preparación de una sola vez
+(`look_de_demostracion()`, `qc_lut()`) se amortiza entre más clips.
+
+**Llamadas al puente: exactamente constantes, 12,0/clip, en los tres tamaños** — sin ninguna
+lectura que crezca con el tamaño del lote. Desglose de la secuencia por clip (medido aparte con
+n=5, ver `BITACORA.md` D9-3): `open_page` ×1, `version_names` ×1, `add_version` ×1,
+`current_version` ×4, `list_nodes` ×1, `project_info` ×1, `set_cdl` ×1, `set_lut` ×1,
+`get_lut` ×1 (más `refresh_lut_list` ×1, pero UNA VEZ por lote entero, no por clip).

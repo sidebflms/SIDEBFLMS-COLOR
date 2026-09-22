@@ -2163,3 +2163,65 @@ Todo lo tocado esta noche (`gui/asistente_facil.py`, `gui/pantalla_facil.py`,
 `tests/test_gui_asistente_facil.py`, `tests/test_gui_estados.py`,
 `tests/test_gui_pantalla_facil.py`) verde en sus ficheros y en la batería completa
 (`pytest -q`, ver el comando exacto en el resumen del amanecer), `ruff check` limpio.
+
+## D9-3 · Bloque 4: rendimiento con timeline larga, medido por primera vez
+
+La investigación inicial avisó de que cada llamada a Resolve es un ida y vuelta entre
+procesos y de que iterar clips podía escalar mal. Nadie lo había medido nunca — ni una sola
+cifra en todo el proyecto sobre cuánto tarda o cuánta memoria usa un lote grande. Medido
+esta noche con `tests/test_rendimiento_lote.py`, contra `FakeResolve`, 50/200/500 clips.
+Cifras completas en `CIFRAS.md` §24.
+
+**El titular que más importa para el producto: aplicar un lote de 500 clips tarda 21
+milisegundos.** No hay cuelgue de interfaz que temer en la fase de ESCRITURA (el camino que
+usa hoy "Aplicar al lote"), a ninguna de las tres escalas medidas. Esto matiza el punto 8 de
+`D9-2` (bloque 3): el hueco de "no se puede cancelar `aplicar()` a mitad" sigue siendo real y
+sigue sin arreglar, pero con estas cifras delante NO es urgente — a 500 clips, `aplicar()`
+termina antes de que nadie llegue a pulsar "cancelar". El hueco importa para el día que un
+lote sea mucho más grande, o que Resolve real tarde de verdad en cada llamada (ver el aviso
+de abajo), no hoy con `FakeResolve`.
+
+**Donde SÍ hay un riesgo de cuelgue real, medido y sin resolver**: `gui.datos_demo.estado_muchos(n)`
+— que hace emparejamiento REAL, `core.matching.empareja`, no lo finge — tarda 17,5 segundos
+para 500 clips. Hoy esto vive sólo en datos de demostración, nunca detrás de un botón real
+(el punto 1 de `D9-2` ya dejó dicho que no existe ningún orquestador de "analizar la
+timeline"). Pero el día que se construya ese orquestador y se llame de forma síncrona desde
+la interfaz, 17,5 segundos congelados es exactamente el "fallo de producto, no de
+rendimiento" que pedía Mario que se vigilara. Queda como advertencia concreta, con cifra,
+para cuando se diseñe esa pieza — no se ha intentado arreglar nada esta noche porque no hay
+nada construido todavía que arreglar.
+
+**Nada escala mal.** El coste por clip de aplicar sube 1,21x entre n=50 y n=500 (el umbral
+puesto en el test para sospechar de un `O(n²)` es 2,5x) — lineal, dentro de ruido. El coste
+por clip de construir el estado incluso BAJA al crecer n (58→35 ms/clip): el montaje de una
+sola vez (`look_de_demostracion()`, `qc_lut()`) se reparte entre más clips. Memoria: pico de
+proceso estable en ~290-303 MB en los tres tamaños — dominado por el arranque de
+Python/numpy/PySide6, no por el número de clips (la diferencia entre 50 y 500 clips es de
+apenas ~16 KB/clip).
+
+**Llamadas al puente: constantes, 12,0 por clip, sin ninguna que crezca con el tamaño del
+lote** — no hay ningún patrón cuadrático ni ninguna relectura redundante que dependa de
+cuántos clips hay en total. Desglosada la secuencia de UN clip (`aplicar_grado_seguro`):
+`open_page`, `version_names`, `add_version`, `current_version` ×4, `list_nodes`,
+`project_info`, `set_cdl`, `current_version`, `set_lut`, `current_version`, `get_lut` — más
+`refresh_lut_list`, pero ESA una sola vez por lote entero, no por clip (ya estaba bien
+hecho).
+
+**Hallazgo real, no arreglado — «decidí yo»**: dos de esas llamadas por clip
+(`open_page`/`pagina_actual` y `project_info`) piden un dato que NO cambia entre clips
+dentro del mismo lote — son datos de PROYECTO, no de clip. Pedirlos 500 veces en vez de una
+es, en teoría, un ahorro real: cachear el resultado de la primera llamada y reutilizarlo para
+el resto del lote. No lo he tocado esta noche por dos razones, las dos concretas: (1)
+`aplicar_grado_seguro` es la única función que escribe de verdad
+(`core/resolve/bridge.py:589`), la usan dos caminos distintos
+(`gui/pantalla_aplicar.py::aplicar()` y `core/tutor/opciones.py`) y está fuertemente probada
+— tocarla a estas horas por una ganancia que hoy no se nota (12 vs. 10 llamadas/clip, con
+`FakeResolve` a coste casi cero) es más riesgo que beneficio; (2) y esto es lo que de verdad
+importa: **`FakeResolve` responde en microsegundos, así que esta medición no puede decir si
+2 llamadas de menos por clip importan de verdad contra Resolve real** — eso depende de la
+latencia real del puente COM/socket entre procesos, que sigue sin medirse porque el probe no
+ha corrido nunca contra Resolve real (el mismo "falta ejecutar el probe" de siempre). Cuando
+haya esa cifra, esta caché sí merece hacerse con datos delante, no antes.
+
+`pytest tests/test_rendimiento_lote.py -q -s` verde (3 tests, cifras impresas en cada
+ejecución), `ruff check tests/test_rendimiento_lote.py` limpio.
