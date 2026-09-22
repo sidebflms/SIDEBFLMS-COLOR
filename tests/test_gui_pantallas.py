@@ -32,6 +32,7 @@ from gui import identidad as idn  # noqa: E402
 from gui.datos_demo import (  # noqa: E402
     ClipDemo,
     EstadoDemo,
+    estado_muchos,
     match_con_desajuste_y_confianza_alta,
 )
 from gui.pantalla_aplicar import construir_plan  # noqa: E402
@@ -598,6 +599,45 @@ def test_el_contador_del_plan_cuenta_los_que_de_verdad_se_pueden():
         asentar(2)
         assert v.p_aplicar.seleccionados() == []
         assert not v.p_aplicar.btn_lote.isEnabled()
+    finally:
+        v.close()
+
+
+def test_cambiar_de_fila_en_aplicar_no_reconstruye_el_plan_del_lote_entero():
+    """Bug real encontrado en revisión: `_estado_botones()`, llamado desde
+    `currentRowChanged` (sólo cambia qué fila tiene el foco, no lo que está
+    marcado), reconstruía el plan del LOTE COMPLETO —`construir_plan()` sobre
+    todos los clips marcados, 3 llamadas al puente por clip— sólo para
+    decidir el estado de `btn_lote`, que ni siquiera depende del foco. Con
+    muchos clips marcados eso son muchas llamadas de más por cada clic de
+    navegación en la lista, invisibles con `FakeResolve` (barato) pero no
+    contra Resolve real. Ahora `btn_lote` reutiliza el último plan calculado
+    (`self._ultimo_plan`); sólo la comprobación de `btn_uno` (para el clip
+    concreto con el foco) sigue llamando al puente, y eso no escala con el
+    tamaño del lote."""
+    est = estado_muchos(30)
+    v = ventana(est)
+    try:
+        v.ir_a(2)
+        asentar(2)
+        aplicar = v.p_aplicar
+        assert aplicar.lista.count() >= 2, "hacen falta al menos dos filas para navegar entre ellas"
+
+        antes = len(est.puente._llamadas)
+        aplicar.lista.setCurrentRow(1)
+        asentar(1)
+        aplicar.lista.setCurrentRow(2)
+        asentar(1)
+        llamadas_por_navegacion = len(est.puente._llamadas) - antes
+
+        # El único trabajo legítimo por cada cambio de fila es la comprobación
+        # de btn_uno para ESE clip (unas pocas llamadas, fijas); no debería
+        # acercarse ni de lejos a "3 llamadas por cada uno de los 30 clips
+        # marcados" (~90), que es lo que hacía antes del arreglo.
+        assert llamadas_por_navegacion < 15, (
+            f"{llamadas_por_navegacion} llamadas al puente por dos cambios de fila — "
+            "parece que _estado_botones sigue reconstruyendo el plan del lote entero"
+        )
     finally:
         v.close()
 

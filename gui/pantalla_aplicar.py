@@ -239,6 +239,9 @@ class PantallaAplicar(QWidget):
     def __init__(self, estado: EstadoDemo, parent=None) -> None:
         super().__init__(parent)
         self._estado = estado
+        # Ver `_estado_botones`: el último plan de LOTE calculado, para no
+        # reconstruirlo entero sólo porque cambió la fila con el foco.
+        self._ultimo_plan: Plan = Plan()
         caja = QVBoxLayout(self)
         caja.setContentsMargins(0, 0, 0, 0)
         caja.setSpacing(12)
@@ -431,6 +434,7 @@ class PantallaAplicar(QWidget):
 
     def refrescar_plan(self) -> None:
         plan = self.plan_actual()
+        self._ultimo_plan = plan
         conectado = not plan.error_global
         self._banda(conectado, plan.error_global)
         self.contador.setText(f"{len(plan.aplicables)} de {len(self.seleccionados())} clips")
@@ -450,8 +454,18 @@ class PantallaAplicar(QWidget):
             self.texto_banda.setText(error or "No hay conexión con DaVinci Resolve.")
 
     def _estado_botones(self, plan: Plan | None = None) -> None:
-        plan = plan if plan is not None else self.plan_actual()
-        hay = bool(plan.aplicables)
+        """`plan=None` (llamado desde `currentRowChanged`) significa "sólo ha
+        cambiado la fila con el foco, no lo que está marcado" — `btn_lote`
+        depende de `seleccionados()` (las casillas), no del foco, así que se
+        reutiliza `self._ultimo_plan` en vez de reconstruir el plan del lote
+        entero. Antes de este arreglo, cada clic para mirar otro clip en la
+        lista disparaba `construir_plan()` sobre TODOS los clips marcados
+        (3 llamadas al puente por clip) sólo para decidir el estado de un
+        botón que el foco ni siquiera afecta — con 200 clips marcados, unas
+        600 llamadas a la API de Resolve por cada clic de navegación."""
+        if plan is not None:
+            self._ultimo_plan = plan
+        hay = bool(self._ultimo_plan.aplicables)
         self.btn_lote.setEnabled(hay)
         enfocado = self.clip_enfocado()
         self.btn_uno.setEnabled(
