@@ -663,6 +663,15 @@ hoy. Pasarlos por los 79 `.cube` o los 10 `.drx` no demostraría nada sobre lo q
 inventar un montaje sintético nuevo para colarlos como "validados" sería justo el error
 que este encargo pide evitar.
 
+**Corrección (día 9, encontrada en revisión de calidad): esta tabla se quedó congelada en
+43/7.** `TOL_MONOTONIA_LOOK` se calibró EN PARALELO ese mismo día 7 (§19, la nota de arriba
+ya avisa "otro agente trabajaba eso en paralelo hoy mismo") y se fusionó después de que
+esta sección se escribiera — `core/umbrales.py` tiene hoy **44 constantes, 8 validadas**
+(las 7 de aquí + `TOL_MONOTONIA_LOOK`), tal como dicen `CONTRATOS.md` y el propio docstring
+de `core/umbrales.py`. Se deja la tabla original tal cual se midió ese día en vez de
+reescribirla — sólo se anota el desfase para que quien lea sólo §20 no se lleve un número
+distinto del que dan los otros dos documentos de la misma auditoría.
+
 ### Los 7 movidos o confirmados hoy, con su cifra
 
 Todos re-verificados hoy, 17-09, con el mismo comando (79 archivos, carpeta ignorada por

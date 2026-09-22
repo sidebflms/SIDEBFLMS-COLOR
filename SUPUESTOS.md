@@ -434,16 +434,19 @@ sentado y de dónde sale, sin duplicar la explicación.
 
 ### G3 · Los "suelos" de las reglas descriptivas son arbitrarios, no medidos
 
-- **Qué suponemos:** que `_SUELO_NEGRO_VISIBLE = 0.02` (2%) y
-  `_SUELO_SATURACION_ALTA = 0.05` (5% del histograma en el cuarto más alto) son puntos
+- **Qué suponemos:** que `SUELO_NEGRO_VISIBLE_TUTOR = 0.02` (2%) y
+  `SUELO_SATURACION_ALTA_TUTOR = 0.05` (5% del histograma en el cuarto más alto) son puntos
   razonables de "aquí hay algo que merece una frase" — no umbrales de "esto está mal": las
   dos reglas son `"descriptiva"` a propósito (`core/tutor/catalogo.py`), nunca afirman un
   veredicto.
 - **De dónde sale:** INFERENCIA NUESTRA — números elegidos por sentido común (una décima
   de la resolución de un `uint8`, un cuarto del histograma), no calibrados contra material
-  real. No están en la auditoría de `CIFRAS.md` §20 porque no son umbrales de
-  `core/umbrales.py`: son puramente de "cuándo vale la pena decir algo", parte del
-  contrato de la regla, no un criterio de calidad.
+  real. Corrección (día 9): estas dos constantes SÍ viven hoy en `core/umbrales.py`
+  ("El tutor (día 8)", en `SIN_ORIGEN_QUE_ANOTAR` — nacidas ahí, no migradas de otro
+  sitio); lo que es cierto es que no están en la auditoría de `CIFRAS.md` §20, porque esa
+  auditoría es una foto fija del día 7 y estas constantes se añadieron el día 8 — son
+  puramente de "cuándo vale la pena decir algo", parte del contrato de la regla, no un
+  criterio de calidad que la auditoría tuviera que validar.
 - **Qué depende de ella:** las dos reglas descriptivas del catálogo del tutor.
 - **Qué cambia si es falsa:** las reglas podrían hablar de más (ruido, si el suelo es
   demasiado bajo) o de menos (silencio cuando debería decir algo, si es demasiado alto) —
@@ -461,3 +464,90 @@ No es un supuesto nuevo — es la fila A9 de la sección A, aplicada aquí: cada
 (`core/tutor/opciones.py::aplicar_opciones_como_versiones`), y esa escritura entera
 depende de que `AddVersion()` herede el árbol de nodos. Se referencia aquí en vez de
 duplicarse porque es exactamente la misma incógnita, no una nueva.
+
+## H · `core/resolve/live.py`, sin estrenar contra Resolve real
+
+Encontrado en una revisión de calidad (día 9): el propio `live.py` marca estos cinco
+puntos como `SIN VERIFICAR` en comentarios inline y en el docstring de la clase ("Sin
+estrenar"), pero ninguno tenía su fila aquí — la regla del día 8 en `CONTRATOS.md` dice
+"ningún supuesto nuevo sin su fila el mismo día", y este archivo es justo el primero que
+se activa el día que haya Resolve real delante.
+
+### H1 · El id de clip se construye como `pista-posición`, no viene de la API
+
+- **Qué suponemos:** que no existe ningún identificador ESTABLE de clip en la API
+  verificada, así que `LiveResolve._id(track, posicion)` fabrica uno (`f"v{track}-
+  {posicion:03d}"`) a partir de dónde está el clip en el timeline.
+- **De dónde sale:** INFERENCIA NUESTRA — ninguna de las preguntas del probe (sección A)
+  pregunta por esto directamente.
+- **Qué depende de ella:** toda la app: `EstadoDemo`/`ClipDemo` usan `clip_id` como clave
+  primaria en todas partes (comparar, aplicar, el tutor).
+- **Qué cambia si es falsa:** el propio comentario del código ya lo dice — "si alguien
+  reordena el timeline con la app abierta, los ids dejan de cuadrar". La mitigación ya
+  existe (`list_clips()` se vuelve a llamar tras cada edición), pero una ventana entre
+  medias donde un `clip_id` viejo apunte al clip equivocado es un riesgo real de
+  atribución, no sólo de rendimiento.
+- **Cómo se verificaría:** con Resolve real, reordenar el timeline con la app abierta y
+  comprobar que ningún `clip_id` capturado antes de la reordenación se usa después sin
+  refrescar.
+
+### H2 · `GetNodeEnabled` no está en la lista verificada; si no existe, se asume activado
+
+- **Qué suponemos:** que un nodo sin `GetNodeEnabled` (método no expuesto por esta
+  versión de Resolve) está activado — `list_nodes()` cae a `enabled=True` con
+  `hasattr(grafo, "GetNodeEnabled")` como guarda.
+- **De dónde sale:** INFERENCIA NUESTRA, con el comentario propio del código: "es lo que
+  pasa el 99% de las veces".
+- **Qué depende de ella:** `core/resolve/bridge.py::verificar_estructura_nodos`, que
+  decide si el plan de "aplicar" puede escribir en un clip.
+- **Qué cambia si es falsa:** un nodo REALMENTE desactivado, en una versión de Resolve
+  sin `GetNodeEnabled`, se trataría como activado — la app podría dar por buena la
+  estructura de tres nodos cuando el nodo 2 o 3 está apagado y el grado, aunque escrito,
+  no se vería en el render.
+- **Cómo se verificaría:** `probe/api_probe.py` no pregunta por esto hoy; habría que
+  añadir una pregunta específica, o comprobarlo a mano la primera vez que se conecte a
+  Resolve real con un nodo desactivado a propósito.
+
+### H3 · `colorGroup.GetName()` no está en la lista verificada
+
+- **Qué suponemos:** que los objetos que devuelve `GetColorGroupsList()` tienen un método
+  `GetName()` que da el nombre del grupo — con guarda (`hasattr`, arreglada en la misma
+  revisión que encontró este hueco): si no existe, ese grupo se salta en vez de reventar.
+- **De dónde sale:** INFERENCIA NUESTRA, por analogía con `GetName()` en `Project`/
+  `Timeline`/`MediaPoolItem`, que sí están verificados.
+- **Qué depende de ella:** `_grupo()`/`color_groups()` — la función de `core.tutor`/
+  modo avanzado que agrupa LUTs de look por grupo de color de Resolve (si se llega a
+  cablear; hoy no lo está, ver `BITACORA.md` D9-2).
+- **Qué cambia si es falsa:** los grupos de color quedan invisibles para la app (se
+  saltan en vez de listarse), no hay ninguna escritura de por medio que se pueda hacer
+  mal.
+- **Cómo se verificaría:** `probe/api_probe.py` no pregunta por esto hoy.
+
+### H4 · `GetAlbumName` no está en la lista verificada
+
+- **Qué suponemos:** que los álbumes de la galería de PowerGrades tienen un
+  `GetAlbumName()` legible — con guarda: si no existe, se usa el texto fijo
+  `"(álbum actual)"`.
+- **De dónde sale:** INFERENCIA NUESTRA.
+- **Qué depende de ella:** `gallery_albums()`, sólo informativo (elegir qué álbum mostrar
+  en un selector).
+- **Qué cambia si es falsa:** los álbumes se listan sin nombre legible; no bloquea nada.
+- **Cómo se verificaría:** `probe/api_probe.py` no pregunta por esto hoy.
+
+### H5 · `ExportStills` devuelve `bool`, no la lista de ficheros escritos
+
+- **Qué suponemos:** que `ExportStills(...)` de la API de Resolve sólo dice si la
+  exportación tuvo éxito (`bool`), no qué ficheros escribió — así que
+  `export_stills()` tiene que averiguarlo por su cuenta (comparando el listado del
+  directorio de salida antes y después de la llamada).
+- **De dónde sale:** INFERENCIA NUESTRA — ninguna pregunta del probe cubre esto.
+- **Qué depende de ella:** todo el flujo de "still exportado" que alimenta F0-1/F0-2
+  (fila A1/A2): el nombre real de cada fichero exportado se deduce por diferencia de
+  directorio, no lo dice la API.
+- **Qué cambia si es falsa:** si `ExportStills` en realidad SÍ devuelve algo más útil (una
+  lista, un dict), el truco de comparar el directorio antes/después seguiría funcionando
+  pero sería innecesariamente fragil — frágil de verdad si dos procesos escriben al mismo
+  directorio a la vez (poco probable en el flujo real, pero no imposible si Resolve
+  escribe de forma asíncrona).
+- **Cómo se verificaría:** `probe/api_probe.py`, junto con F0-1 (exportar un still de
+  verdad y mirar qué devuelve `ExportStills` en la consola de Resolve).
