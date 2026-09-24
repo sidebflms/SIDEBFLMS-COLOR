@@ -2389,3 +2389,46 @@ no la interfaz.
 
 24 tests nuevos (`tests/test_looks_generador.py`), suite completa verde, `ruff check`
 limpio.
+
+---
+
+# DÍA 9 (continuación 2) — ajustes tras mirar las capturas: el recorte silencioso cerca del blanco
+
+Mario miró el contacto de capturas de la sección anterior y pidió cuatro ajustes:
+
+1. **Bug real, no sólo de gusto**: recortando el cielo casi blanco de `exterior` de cerca
+   (`zoom_exterior.png`), el tinte de luces de `teal_naranja_clasico` casi no se notaba
+   pese a tener un parámetro no-cero. Causa: `_empuje_por_zona` sumaba el empuje y
+   recortaba a `[0,1]` al final — justo donde un píxel ya está cerca del techo/suelo, el
+   recorte borra el efecto en silencio, sin avisar, exactamente donde más se nota un
+   tinte de luces (cielos, altas luces) o de sombras (negros).
+   **Arreglo**: `_empuje_por_zona` ahora escala el empuje por el margen que le queda a
+   CADA píxel hacia el límite en la dirección en la que se mueve (`x + peso·e·(1-x)`
+   subiendo, `x + peso·e·x` bajando — aritmética de blend "screen"/"multiply"): pleno en
+   el centro del rango, cero exacto en el borde, nunca lo tapa un recorte final. Mismo
+   criterio aplicado también a `_aplicar_secundaria` (el empuje de una ventana de matiz,
+   por ejemplo calentar la piel, tenía el mismo problema sin protección). Sigue dando la
+   identidad exacta cuando el empuje es cero — no se tocó esa garantía.
+   Dos tests (`test_tinte_de_sombras_no_toca_las_luces`,
+   `test_tinte_de_luces_no_toca_las_sombras`) tuvieron que cambiar de celda de prueba: la
+   celda que usaban antes tenía tan poco margen que el empuje nuevo, correcto, daba un
+   número menor que el umbral viejo — no es que el arreglo esté mal, es que esa celda ya
+   no es un buen sitio para medir un empuje que ahora depende del margen disponible.
+2. **Las tres presets subidas ~2-3x** en `presets.py` (contraste, tintes de zona,
+   compresión de croma alta): a ojo, en la primera versión el efecto era casi invisible
+   en las capturas.
+3. **`calido_suelo_alto` como referencia de magnitud visible**: era el preset mejor
+   diferenciado en la primera ronda, así que se subió menos (~1.5x) que los otros dos.
+4. **`teal_naranja_clasico`, ventana "piel/naranjas" reforzada**: `desplazamiento_saturacion`
+   0.12 → 0.45, y se le añadió un `empuje` cálido propio (0.035, 0.010, -0.025) que antes
+   no tenía — sólo subía saturación, no calentaba el tono. Es el efecto de firma del
+   estilo (piel naranja / sombras-luces teal) y era el más débil de los tres presets en
+   la primera ronda.
+
+Capturas nuevas (mismo recorte de cara y de cielo/hierba que la ronda anterior, para
+comparar directamente) miradas de cerca antes de dar el cambio por bueno: el cielo ahora
+cambia de tono de verdad entre presets, y la piel en `teal_naranja_clasico` es claramente
+naranja en vez de apenas perceptible.
+
+24 tests (mismo fichero, dos reescritos con celda de prueba nueva, no debilitados),
+`ruff check` limpio, suite completa verde.

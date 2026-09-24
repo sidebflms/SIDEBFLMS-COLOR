@@ -146,13 +146,28 @@ def _empuje_por_zona(
     encima) — mismo criterio que `t5_material.py::tabla_look`
     (`1.0 - _suave(...)` para sombras, `_suave(...)` tal cual para altas).
     Sin este `invertido`, "zona_sombras" pesaba MÁS cuanto más clara era la
-    celda — justo al revés de lo que dice el nombre."""
+    celda — justo al revés de lo que dice el nombre.
+
+    EL EMPUJE SE ATENÚA ÉL SOLO CERCA DEL TECHO/SUELO, no se suma a pelo y se
+    recorta después. Arreglado el día 9 mirando una captura real: el tinte de
+    luces desaparecía sin avisar sobre un cielo casi blanco, porque sumar y
+    luego recortar a 1.0 borra el empuje justo donde más se nota (highlights
+    de verdad). La fórmula (`x + peso·e·(1-x)` subiendo, `x + peso·e·x`
+    bajando — la misma aritmética que un blend "screen"/"multiply") dosifica
+    el empuje según cuánto margen le queda a CADA píxel en la dirección en
+    la que se mueve: pleno en el centro del rango, cada vez menos cerca del
+    borde, CERO exacto en el borde — nunca lo tapa un recorte final, y sigue
+    siendo cero cuando `empuje` es cero, que es lo que mantiene el "sin
+    parámetros da la identidad" de `ParametrosLook()`."""
     if empuje == (0.0, 0.0, 0.0):
         return rgb
     peso = _suave(luma, zona[0], zona[1])
     if invertido:
         peso = 1.0 - peso
-    return rgb + peso[..., None] * np.asarray(empuje, dtype=np.float64)
+    empuje_arr = np.asarray(empuje, dtype=np.float64)
+    margen = np.where(empuje_arr > 0.0, 1.0 - rgb, rgb)
+    margen = np.clip(margen, 0.0, 1.0)
+    return rgb + peso[..., None] * empuje_arr * margen
 
 
 def _comprimir_croma_alta(
@@ -189,8 +204,18 @@ def _aplicar_secundaria(rgb: np.ndarray, luma: np.ndarray, ventana: VentanaSecun
 
     factor_sat = 1.0 + ventana.desplazamiento_saturacion * dentro
     dif = dif * factor_sat[..., None]
-    dif = dif + dentro[..., None] * np.asarray(ventana.empuje, dtype=np.float64)
-    return luma[..., None] + dif
+    resultado = luma[..., None] + dif
+
+    empuje_arr = np.asarray(ventana.empuje, dtype=np.float64)
+    if (empuje_arr != 0.0).any():
+        # Mismo criterio de margen que `_empuje_por_zona`: el empuje de una
+        # secundaria (por ejemplo, calentar la piel) también puede caer cerca
+        # del techo/suelo -- sin esto se recortaría en silencio igual que le
+        # pasaba al tinte de luces/sombras antes del día 9.
+        margen = np.where(empuje_arr > 0.0, 1.0 - resultado, resultado)
+        margen = np.clip(margen, 0.0, 1.0)
+        resultado = resultado + dentro[..., None] * empuje_arr * margen
+    return resultado
 
 
 def generar_look(parametros: ParametrosLook, *, n: int = LUT_SIZE_DEFAULT) -> LUT3D:

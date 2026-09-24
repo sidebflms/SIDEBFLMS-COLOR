@@ -587,11 +587,14 @@ internet ese mismo día, no inventada aquí.
 - **Qué suponemos:** que los números concretos de `teal_naranja_clasico`,
   `calido_suelo_alto` y `frio_contrastado` (cuánto tinte, qué anchura de ventana, qué
   fuerza de contraste) son un punto de partida razonable — no que sean "el look
-  correcto". Están dentro del mismo orden de magnitud que
-  `tests/fuera_de_plano/t5_material.py::tabla_look` (mirado con capturas reales el día 9,
-  ver `BITACORA.md`), pero eso los hace "no rotos", no "buenos".
+  correcto". Partieron del mismo orden de magnitud que
+  `tests/fuera_de_plano/t5_material.py::tabla_look`, y se subieron ~2-3x en una segunda
+  ronda (día 9, mismo día) tras mirar capturas reales y verlos demasiado sutiles — ver
+  `BITACORA.md`. Ninguna de las dos rondas los hace "el look correcto", sólo "mirados de
+  cerca al menos una vez".
 - **De dónde sale:** INFERENCIA NUESTRA — elegidos a ojo para que el QC no se queje y el
-  resultado visual (`capturas/`, generadas el día 9) no se vea partido, nada más.
+  resultado visual (`capturas/`, generadas el día 9, dos rondas) no se vea partido, nada
+  más.
 - **Qué depende de ella:** los tres presets de `PRESETS`. `generar_look()` en sí no
   depende de esto — acepta cualquier `ParametrosLook`, estos tres son sólo la semilla.
 - **Qué cambia si es falsa:** nada se rompe (los tests de `test_looks_generador.py`

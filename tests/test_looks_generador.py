@@ -43,30 +43,38 @@ def test_solo_contraste_no_toca_el_pivote():
 
 
 def test_tinte_de_sombras_no_toca_las_luces():
-    sombras = (0.05, 0.0, -0.05)
-    parametros = ParametrosLook(tinte_sombras=sombras, zona_sombras=(0.0, 0.2))
+    # El empuje es proporcional al margen disponible hacia el límite del
+    # canal (0 o 1, según el signo) -- ver _empuje_por_zona. Con una celda
+    # muy oscura (luma 0.0625) el canal que se empuja hacia abajo (azul) ya
+    # casi no tiene margen: se elige una celda con luma media (0.25) dentro
+    # de la zona para que ambos empujes, el que sube y el que baja, tengan
+    # margen real que medir.
+    sombras = (0.1, 0.0, -0.1)
+    parametros = ParametrosLook(tinte_sombras=sombras, zona_sombras=(0.0, 0.6))
     lut = generar_look(parametros, n=17)
     entradas = rejilla_de_entradas(17)
 
-    # Celda claramente en sombras (r=g=b bajo): tiene que moverse hacia el tinte.
-    dif_sombra = lut.table[1, 1, 1] - entradas[1, 1, 1]
+    celda_sombra_con_margen = (4, 4, 4)  # luma = 4/16 = 0.25, dentro de la zona
+    dif_sombra = lut.table[celda_sombra_con_margen] - entradas[celda_sombra_con_margen]
     assert dif_sombra[0] > 0.01
     assert dif_sombra[2] < -0.01
 
-    # Celda claramente en luces: no la toca la zona de sombras (0.0..0.2).
+    # Celda claramente en luces: no la toca la zona de sombras (0.0..0.6).
     np.testing.assert_allclose(lut.table[-1, -1, -1], entradas[-1, -1, -1], atol=1e-4)
 
 
 def test_tinte_de_luces_no_toca_las_sombras():
-    # Zona por debajo de 1.0 a propósito: la celda mas clara de todas (1,1,1)
-    # no puede subir mas y un empuje ahi se recortaria a 0 sin decir nada
-    # sobre si el empuje funciona -- se comprueba en una celda con margen.
-    luces = (0.0, 0.05, 0.0)
-    parametros = ParametrosLook(tinte_luces=luces, zona_luces=(0.5, 0.7))
+    # El empuje es proporcional al margen hacia 1.0 (ver _empuje_por_zona):
+    # ni la celda mas clara de todas (margen cero, el empuje se recortaria a
+    # 0 sin decir nada) ni una celda justo encima de la zona (poco margen)
+    # sirven para medir el empuje -- se usa una celda de luma media con
+    # margen real.
+    luces = (0.0, 0.1, 0.0)
+    parametros = ParametrosLook(tinte_luces=luces, zona_luces=(0.2, 0.4))
     lut = generar_look(parametros, n=17)
     entradas = rejilla_de_entradas(17)
 
-    celda_clara_con_margen = (13, 13, 13)  # luma = 13/16 = 0.8125, por encima de la zona
+    celda_clara_con_margen = (8, 8, 8)  # luma = 8/16 = 0.5, por encima de la zona, con margen
     dif_luz = lut.table[celda_clara_con_margen] - entradas[celda_clara_con_margen]
     assert dif_luz[1] > 0.04
 
