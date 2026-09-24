@@ -20,8 +20,14 @@ from core.umbrales import LUT_SIZE_DEFAULT
 __all__ = ["sembrar_generados"]
 
 
-def _nombre_fichero(clave: str) -> str:
-    return f"{clave}.cube"
+def _nombre_fichero(parametros: ParametrosLook) -> str:
+    """El nombre de fichero es `parametros.nombre`, NO la clave del
+    diccionario (`"teal_naranja_clasico"`): `core.io.biblioteca.nombre_legible`
+    saca el nombre que se enseña en el selector directamente del nombre de
+    fichero (sin extensión, sin des-slugificar guiones bajos) — así que el
+    botón de la GUI enseña "SIDEB COLOR — Teal & Naranja clásico", no
+    "teal_naranja_clasico"."""
+    return f"{parametros.nombre}.cube"
 
 
 def sembrar_generados(
@@ -38,12 +44,13 @@ def sembrar_generados(
     No hace nada con Resolve ni con la biblioteca ya sembrada: sólo escribe
     ficheros. Sembrar de verdad la biblioteca de la app sigue siendo
     `core.io.biblioteca.sembrar_desde_carpeta(carpeta)`, sobre esta misma
-    carpeta, después.
+    carpeta, después — así lo hace `gui.__main__` (ver `BITACORA.md`).
     """
     destino = Path(carpeta)
     destino.mkdir(parents=True, exist_ok=True)
     rutas = []
     for clave in sorted(presets):
-        lut = generar_look(presets[clave], n=n)
-        rutas.append(escribir_cube(lut, destino / _nombre_fichero(clave)))
+        parametros = presets[clave]
+        lut = generar_look(parametros, n=n)
+        rutas.append(escribir_cube(lut, destino / _nombre_fichero(parametros)))
     return rutas

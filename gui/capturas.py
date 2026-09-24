@@ -214,6 +214,36 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
         )
         ventana.close()
 
+    # --- biblioteca de looks GENERADOS (día 9, continuación 3): a
+    # diferencia de la de arriba, no depende de ningún material externo —
+    # `core.looks` genera sus propios .cube en cada arranque de la app
+    # (`gui/__main__.py::_biblioteca_de_desarrollo`), así que esta captura
+    # es reproducible en cualquier máquina, con o sin `tests/luts_reales/`.
+    import tempfile
+
+    from core.looks import sembrar_generados
+
+    carpeta_looks_generados = Path(tempfile.mkdtemp(prefix="sideb-looks-generados-"))
+    sembrar_generados(carpeta_looks_generados)
+    biblioteca_generada = tuple(
+        p for p in sembrar_desde_carpeta(carpeta_looks_generados) if p.clasificacion != "conversion"
+    )
+    ventana = _ventana(app, dd.estado_demo(), 0, biblioteca=biblioteca_generada)
+    ventana.boton_modo_facil.setChecked(True)
+    for _ in range(3):  # avanza hasta el paso 4 (look)
+        ventana.p_facil.siguiente()
+    _asentar(app, ventana)
+    fichero = destino / "05-facil-look-biblioteca-generada-1024.png"
+    _disparar(app, ventana, fichero, 1024, ALTO_NOMINAL)
+    hechas.append(
+        Captura(
+            fichero.name,
+            f"modo fácil, paso 4 (look), biblioteca generada por core.looks ({len(biblioteca_generada)} presets), "
+            "sin material externo · 1024×900",
+        )
+    )
+    ventana.close()
+
     # --- casos frontera -------------------------------------------------
     frontera: list[tuple[str, str, int, object, int, int]] = []
 

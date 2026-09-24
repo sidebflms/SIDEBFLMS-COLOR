@@ -13,6 +13,10 @@ dist/
 # Material sintetico generado: se regenera con tests/media/generate.py
 tests/media/out/
 
+# Looks generados por core.looks: se reescriben en cada arranque de la app
+# (gui/__main__.py). Deterministas y baratos, no hace falta versionarlos.
+generados/
+
 # Informes del probe: los genera Mario al ejecutarlo, no se versionan
 informe_probe_resolve.*
 

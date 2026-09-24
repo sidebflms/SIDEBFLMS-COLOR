@@ -166,7 +166,9 @@ def test_cada_preset_sobrevive_a_escribir_y_releer_un_cube(clave, tmp_path):
 def test_sembrar_generados_escribe_un_cube_por_preset(tmp_path):
     rutas = sembrar_generados(tmp_path, n=9)
     assert len(rutas) == len(PRESETS)
-    assert {r.name for r in rutas} == {f"{clave}.cube" for clave in PRESETS}
+    # El nombre de fichero es el nombre legible del preset (lo que enseña el
+    # selector de la GUI), no la clave interna del diccionario.
+    assert {r.name for r in rutas} == {f"{p.nombre}.cube" for p in PRESETS.values()}
     for ruta in rutas:
         assert ruta.is_file()
 
@@ -183,5 +185,5 @@ def test_lo_sembrado_lo_recoge_sembrar_desde_carpeta_de_verdad(tmp_path):
     biblioteca de la app por el camino que ya existe, sin cableado especial."""
     sembrar_generados(tmp_path, n=9)
     biblioteca = sembrar_desde_carpeta(tmp_path)
-    assert {p.nombre for p in biblioteca} == set(PRESETS)
+    assert {p.nombre for p in biblioteca} == {parametros.nombre for parametros in PRESETS.values()}
     assert all(p.clasificacion == "look" for p in biblioteca)

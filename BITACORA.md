@@ -2432,3 +2432,86 @@ naranja en vez de apenas perceptible.
 
 24 tests (mismo fichero, dos reescritos con celda de prueba nueva, no debilitados),
 `ruff check` limpio, suite completa verde.
+
+---
+
+# DÍA 9 (continuación 3) — `core/looks/` cableado al paso 4 de la GUI
+
+Hasta ahora `core/looks/` era sólo motor, sin interfaz. Mario pidió cablearlo.
+
+**`gui/__main__.py`**: en cada arranque de la app se llama a
+`core.looks.sembrar_generados(generados/looks/)` (carpeta nueva, gitignored —
+determinista y barato de regenerar, ~ms para los tres presets, así que no hace
+falta versionarlos ni arriesgarse a que queden desactualizados tras tocar
+`presets.py`) y esos `.cube` se cargan con el mismo `sembrar_desde_carpeta` de
+siempre. Se combinan con la biblioteca real de Mario cuando existe
+(`reales + generados`, los reales primero para no mover el preset por
+defecto de quien ya tenía `tests/luts_reales/` poblada). Consecuencia real:
+**el selector del paso 4 ya no depende de material privado de Mario** — en un
+checkout limpio, o en otra máquina, o en CI, ahora hay tres looks de verdad
+que elegir, no un selector vacío.
+
+**`core/looks/biblioteca.py`**: el `.cube` generado se escribe con el nombre
+LEGIBLE del preset (`parametros.nombre`, p.ej. "SIDEB COLOR — Teal & Naranja
+clásico"), no la clave interna del diccionario (`teal_naranja_clasico`) —
+`core.io.biblioteca.nombre_legible` saca el nombre del selector directamente
+del nombre de fichero, así que esto es lo que decide qué botón ve Mario.
+
+**Bug real encontrado mirando la captura, no por un test**: con el nombre
+correcto puesto, el botón del selector (`gui/pantalla_facil.py::_SelectorPresets`)
+enseñaba "SIDEB COLOR — Teal_Naranja clásico" — el "&" de "Teal & Naranja"
+desaparecía y el carácter siguiente salía subrayado. Qt trata "&" en el texto
+de un `QPushButton` como marca de mnemotécnico; hace falta escaparlo como
+"&&" para un ampersand literal. Nadie lo había visto porque ningún nombre de
+la biblioteca (ni de Mario ni de la app) llevaba "&" hasta este preset.
+Arreglado en `_SelectorPresets.poner()`, que ahora escapa cualquier "&" del
+nombre antes de ponerlo en el botón — protege también nombres futuros, de
+Mario o generados, que puedan traer uno.
+
+**Verificación real**: script aparte (no toca `capturas/`) que arranca la app
+offscreen, entra en modo fácil, llega al paso 4, y comprueba a ojo (captura
+guardada, mirada de verdad) que aparecen los tres presets por nombre legible,
+que se puede elegir el que lleva "&" y se ve bien, y que la frase y el
+antes/después responden al preset elegido.
+
+**Captura nueva permanente** en `gui/capturas.py`: `05-facil-look-biblioteca-generada-1024.png`,
+paralela a la de la biblioteca real de Mario pero sin depender de
+`tests/luts_reales/` — reproducible en cualquier máquina.
+
+3 tests nuevos (`tests/test_gui_main_biblioteca.py`): sin `tests/luts_reales/`
+la biblioteca no queda vacía, los reales van antes que los generados cuando
+ambos existen, y regenerar dos veces seguidas no rompe nada.
+
+**Un rojo suelto, sin resolver — dicho tal cual, no arbitrado**: en una de las
+cuatro ejecuciones de la suite completa que se hicieron esta tarde (todas
+`pytest -q` sin nada especial), `tests/test_gui_estados.py::test_cero_clips_lo_dice_en_vez_de_quedarse_en_blanco`
+y `test_un_solo_clip_se_ensena_y_se_selecciona` fallaron. Las otras tres
+ejecuciones, incluida una repetición inmediata, salieron limpias:
+
+- Solos (`pytest tests/test_gui_estados.py -q`): verde.
+- Junto con el fichero que va justo antes en orden alfabético
+  (`tests/test_gui_capturas_deterministas.py tests/test_gui_estados.py`, el
+  candidato más obvio porque ese fichero SÍ ejecuta el bloque nuevo de
+  `gui/capturas.py`): verde.
+- Suite completa otras dos veces más: verde las dos.
+- Suite completa contra el código de ANTES de este cableado (`git stash` +
+  `pytest -q` + `git stash pop`): verde también — pero es una sola
+  ejecución, y el fallo ya era intermitente (1 de 3) incluso CON el
+  cableado puesto, así que una sola pasada limpia en la versión vieja no
+  demuestra que el problema no exista sin tocar nada de esto; sólo que no
+  ha salido esa vez.
+
+**No se declara "sólo ruido" aquí a propósito**: quien tocó este código
+(esta sesión) no es quien debería decidir si el rojo que vio no cuenta —
+mismo criterio que ya se aplicó el día 9 con el recorte compartido de
+`core/io/qc.py` (bloque 1). Queda constancia de los cinco datos de arriba
+para quien lo recoja, con el comando exacto para intentarlo de nuevo:
+
+    QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
+
+Si vuelve a salir, el primer sitio donde mirar es el bloque nuevo de
+`gui/capturas.py` (biblioteca generada): es la única pieza de este cableado
+que crea y cierra una `VentanaPrincipal` de verdad dentro de un test marcado
+`lento`, justo antes en orden alfabético del fichero que falló.
+
+Suite completa verde en tres de cuatro pasadas, `ruff check` limpio.

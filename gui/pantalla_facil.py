@@ -108,7 +108,12 @@ class _SelectorPresets(QWidget):
             b.setParent(None)
         self._botones.clear()
         for preset in presets:
-            b = QPushButton(preset.nombre)
+            # Qt trata "&" como marca de mnemotécnico (el siguiente carácter
+            # sale subrayado y desaparece el "&") — un nombre real como
+            # "Teal & Naranja" salía en pantalla como "Teal Naranja"
+            # subrayado, no como el nombre de verdad. "&&" es cómo Qt escribe
+            # un "&" literal.
+            b = QPushButton(preset.nombre.replace("&", "&&"))
             b.setObjectName("navegacion")
             b.setCheckable(True)
             b.setChecked(preset.id == elegido_id)

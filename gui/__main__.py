@@ -18,17 +18,36 @@ from gui.ventana import VentanaPrincipal, crear_app
 #: esa carpeta, la app arranca igual, con la biblioteca vacía.
 _CARPETA_LUTS_DESARROLLO = Path(__file__).resolve().parent.parent / "tests" / "luts_reales"
 
+#: Día 9 (continuación): looks propios de `core.looks`, generados —no
+#: copiados de ningún sitio—. Se reescriben en cada arranque: son
+#: deterministas y baratos (rejilla 33³, unos pocos ms para los tres), así
+#: que no hace falta versionarlos ni arriesgarse a que queden desactualizados
+#: tras cambiar `core/looks/presets.py`. Carpeta gitignored, igual que
+#: `tests/media/out/` para el material sintético.
+_CARPETA_LOOKS_GENERADOS = Path(__file__).resolve().parent.parent / "generados" / "looks"
+
 
 def _biblioteca_de_desarrollo() -> tuple:
     from core.io.biblioteca import sembrar_desde_carpeta
+    from core.looks import sembrar_generados
+
+    sembrar_generados(_CARPETA_LOOKS_GENERADOS)
 
     # El paso 4 es "look": una conversión de espacio de color (día 6,
     # clasificada con core.io.qc.clasificar_lut) no pertenece ahí, es
     # configuración técnica del paso 1 "ordenar la casa". Se filtra aquí, no
     # en `ejecutar_look`, para que la función siga sirviendo genéricamente a
     # cualquier biblioteca que le pasen (una futura carpeta "sólo looks" no
-    # necesitaría este filtro).
-    return tuple(p for p in sembrar_desde_carpeta(_CARPETA_LUTS_DESARROLLO) if p.clasificacion != "conversion")
+    # necesitaría este filtro). Los looks generados van tras los reales de
+    # Mario cuando los hay, para no mover el preset por defecto (índice 0)
+    # de quien ya tenía `tests/luts_reales/` poblada.
+    reales = tuple(
+        p for p in sembrar_desde_carpeta(_CARPETA_LUTS_DESARROLLO) if p.clasificacion != "conversion"
+    )
+    generados = tuple(
+        p for p in sembrar_desde_carpeta(_CARPETA_LOOKS_GENERADOS) if p.clasificacion != "conversion"
+    )
+    return reales + generados
 
 
 def main(argv: list[str] | None = None) -> int:
