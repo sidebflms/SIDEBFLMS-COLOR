@@ -2331,3 +2331,61 @@ habían salido nunca del disco de Mario.
   `gui/capturas.py`, sin contenido nuevo que mirar.
 
 **Tag de cierre del conjunto: `v0.9.0`.**
+
+---
+
+# DÍA 9 (continuación) — el generador paramétrico de looks, `core/looks/`
+
+Mario pidió una librería grande de PowerGrades y, sobre todo, que la app supiera
+**explicar** cómo llegar de un clip a un destino conocido, no adivinar un destino
+desconocido (eso ya se midió que falla, D9-1). Investigado por un agente qué fuentes
+gratuitas de LUTs existen (sólo Lutify.me tiene licencia clara, CC BY-SA 4.0 — el resto,
+IWLTBAP/Cullen Kelly/Juan Melara/RocketStock/Creative Shrimp/dos repos de GitHub, son
+descargables gratis pero sin licencia publicada, así que no entran en una librería
+redistribuible sin pedir permiso antes) y cómo se construye un look de verdad
+(`SUPUESTOS.md` fila I1): en LOG, curva en S con pivote, tinte por zona tonal, compresión
+de croma alta, secundarias por ventana de matiz — y, dato que valida el diseño de la app
+sin buscarlo, que el motivo por el que un mismo look trae una versión por cámara es
+exactamente el diseño de tres nodos que este proyecto ya tiene (normalizar → balance →
+look compartido).
+
+**Contenido ya disponible en el propio Mac, gratis y sin riesgo**, encontrado antes de
+buscar fuera: 190 `.cube` de la instalación de Resolve (la mayoría conversiones de
+cámara), la carpeta "Film Looks" (13 emulaciones reales de negativo, Kodak 2383/Fujifilm
+3513DI, licencia Blackmagic), y un pack comercial que Mario ya tiene comprado ("Secret
+Sauce V2": 10 LUTs con nombre de ciudad + un `.drx` de PowerGrade real).
+
+**`core/looks/` nuevo**, tres ficheros:
+
+- `generador.py` — `ParametrosLook` (+ `VentanaSecundaria`) -> `LUT3D`, determinista y
+  puro. Cada parámetro en su valor por defecto es un no-op: `ParametrosLook()` sin nada
+  da, bit a bit, la identidad — comprobado con test, no sólo dicho.
+- `presets.py` — tres puntos de partida (`teal_naranja_clasico`, `calido_suelo_alto`,
+  `frio_contrastado`), hechos a mano y marcados como tal (`SUPUESTOS.md` fila I2):
+  ninguno se ha visto todavía sobre un plano real de Mario.
+- `biblioteca.py` — `sembrar_generados(carpeta)`: de los presets a `.cube` reales en
+  disco, reutilizando `core.io.cube.escribir_cube` (nada de escritura nueva) y
+  enganchando directamente con `core.io.biblioteca.sembrar_desde_carpeta` — comprobado
+  con un test que siembra y vuelve a leer por el camino real de la app.
+
+**Bug real encontrado por el propio test, no a ojo**: la primera versión de
+`_empuje_por_zona` usaba el mismo peso (`_suave(luma, zona[0], zona[1])`, que crece de 0 a
+1 según sube la luma) tanto para sombras como para luces — así que "zona_sombras" pesaba
+MÁS cuanto más clara era la celda, justo al revés de lo que decía el nombre. Lo cazaron
+tres tests (`test_tinte_de_sombras_no_toca_las_luces` y compañía) al fallar con números
+que no cuadraban; arreglado invirtiendo el peso para sombras (`1 - _suave(...)`), mismo
+criterio que ya usaba `t5_material.py` y que se había perdido al generalizar la función.
+
+**Verificación real, no sólo tests**: los tres presets aplicados a las escenas sintéticas
+de `gui/datos_demo.py` (estudio y exterior) y miradas en contacto de cuatro — sin
+artefactos, sin bandas, diferencias sutiles pero reales entre las tres variantes y el
+original.
+
+**Lo que esto NO es**: no hay ningún colorista de verdad detrás de los tres presets
+(fila I2), y la técnica en sí viene de una síntesis de fuentes externas sin verificación
+de primera mano (fila I1) — dos supuestos nuevos, con su fila el mismo día, como manda
+`CONTRATOS.md`. Tampoco se ha cableado todavía a ninguna pantalla de la GUI: es el motor,
+no la interfaz.
+
+24 tests nuevos (`tests/test_looks_generador.py`), suite completa verde, `ruff check`
+limpio.

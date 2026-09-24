@@ -551,3 +551,72 @@ se activa el día que haya Resolve real delante.
   escribe de forma asíncrona).
 - **Cómo se verificaría:** `probe/api_probe.py`, junto con F0-1 (exportar un still de
   verdad y mirar qué devuelve `ExportStills` en la consola de Resolve).
+
+## I · `core/looks/`, el generador paramétrico de PowerGrades (día 9)
+
+Nace del encargo de tener una librería grande de PowerGrades: en vez de depender sólo de
+conseguir más ficheros ajenos (con sus problemas de licencia, ver I1), se genera contenido
+nuevo con la misma técnica que usan los packs profesionales de verdad — investigada por
+internet ese mismo día, no inventada aquí.
+
+### I1 · La técnica de look-building viene de fuentes externas, resumida por un agente
+
+- **Qué suponemos:** que un look profesional se construye en el espacio LOG (antes de
+  convertir a pantalla), con una curva de contraste en S con pivote, tinte por zona tonal
+  (sombras/luces), compresión de la croma más alta, y ajustes secundarios por ventana de
+  matiz — y que esto es una descripción razonablemente fiel de la técnica real, no una
+  simplificación que se ha inventado por comodidad.
+- **De dónde sale:** FORO/COMUNIDAD e inferencia — un agente de investigación resumió
+  varias fuentes (Pixflow sobre teal & orange, 35mmc sobre curvas características de
+  película, la documentación de OpenColorIO sobre "Look Transforms", ACEScentral sobre
+  CLF) el día 9. Nadie de este equipo es colorista profesional; es una síntesis de lo que
+  dicen fuentes de fuera, no una verificación de primera mano.
+- **Qué depende de ella:** todo `core/looks/generador.py` — el orden de las operaciones
+  (contraste → sombras/luces → croma alta → secundarias) y qué parámetros existen.
+- **Qué cambia si es falsa:** si la técnica real difiere bastante de esto, los looks
+  generados pueden funcionar matemáticamente (son deterministas y pasan el QC) pero no
+  parecerse a lo que un colorista de verdad esperaría de "un look profesional" — el coste
+  de rehacerlo es medio: la forma del módulo (parámetros con nombre, no una tabla
+  quemada) no cambiaría, pero sí el orden o la fórmula de algún paso.
+- **Cómo se verificaría:** que un colorista de verdad (Mario, u otro) mire los looks
+  generados sobre material real y diga si el comportamiento por zona/canal coincide con
+  lo que esperaría de la técnica profesional, o si falta/sobra algún paso.
+
+### I2 · Los tres presets (`core/looks/presets.py`) son hechos a mano, sin calibrar
+
+- **Qué suponemos:** que los números concretos de `teal_naranja_clasico`,
+  `calido_suelo_alto` y `frio_contrastado` (cuánto tinte, qué anchura de ventana, qué
+  fuerza de contraste) son un punto de partida razonable — no que sean "el look
+  correcto". Están dentro del mismo orden de magnitud que
+  `tests/fuera_de_plano/t5_material.py::tabla_look` (mirado con capturas reales el día 9,
+  ver `BITACORA.md`), pero eso los hace "no rotos", no "buenos".
+- **De dónde sale:** INFERENCIA NUESTRA — elegidos a ojo para que el QC no se queje y el
+  resultado visual (`capturas/`, generadas el día 9) no se vea partido, nada más.
+- **Qué depende de ella:** los tres presets de `PRESETS`. `generar_look()` en sí no
+  depende de esto — acepta cualquier `ParametrosLook`, estos tres son sólo la semilla.
+- **Qué cambia si es falsa:** nada se rompe (los tests de `test_looks_generador.py`
+  verifican mecánica, no estética), pero los tres presets podrían no gustarle a nadie
+  hasta que alguien con criterio de colorista los ajuste. Barato de rehacer: son números
+  en un diccionario, no arquitectura.
+- **Cómo se verificaría:** Mario los mira sobre planos reales suyos (no sólo el material
+  sintético de `gui/datos_demo.py`) y dice qué subir/bajar.
+
+### I3 · "Luma"/"matiz"/"croma" del generador son aproximaciones baratas, no fotométricas
+
+- **Qué suponemos:** que aplicar pesos de Rec.709 directamente a valores codificados en
+  `WORKING_SPACE` (logarítmico, `davinci_wg_intermediate`) basta para decidir DÓNDE cae
+  un píxel (sombra/luz/con color) dentro del generador, aunque el número resultante no
+  sea una luminancia o un matiz fotométricamente correctos.
+- **De dónde sale:** INFERENCIA NUESTRA, siguiendo el mismo criterio ya usado en
+  `tests/fuera_de_plano/t5_material.py::tabla_look` y ya advertido en
+  `core/tutor/NOTAS.md` (día 8) para la saturación del tutor — no es un supuesto nuevo en
+  el fondo, es el mismo de siempre aplicado a un módulo nuevo.
+- **Qué depende de ella:** las zonas de `core/looks/generador.py` (`_empuje_por_zona`,
+  `_comprimir_croma_alta`, `_matiz_y_peso`).
+- **Qué cambia si es falsa:** las fronteras entre "esto es sombra" y "esto es luz" no
+  coincidirían exactamente con la percepción real — un empuje pensado para "las sombras"
+  podría notarse un poco más arriba o más abajo de lo esperado. No afecta a que el
+  resultado sea determinista ni a que pase el QC.
+- **Cómo se verificaría:** comparar, sobre material real, dónde cae a ojo "empieza a
+  notarse el tinte" contra dónde lo pone el parámetro `zona_*` — un ajuste de calibración,
+  no de arquitectura.
