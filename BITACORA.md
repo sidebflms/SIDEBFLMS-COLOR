@@ -2807,3 +2807,15 @@ comprobación (sólo lectura, cinco `GetClipProperty` por clip) el día que haya
 un clip RAW/LOG de verdad en un proyecto de Mario — sin eso, sigue sin
 saberse si `REGLAS_DECISION` dispara correctamente con metadata real de
 cámara, sólo que el mecanismo de lectura funciona.
+
+**Un paso más, pedido por Mario ("¿has probado con los clips?")**: no basta
+con leer la metadata — se construyeron 26 `ClipRef` reales con ella y se
+pasaron por la lógica de decisión DE VERDAD de la app,
+`core.colormgmt.detectar_espacios_timeline` + `agrupar_ambiguos` (nunca antes
+probada contra metadata de clips reales, sólo contra datos sintéticos de
+`tests/`). **Resultado: 26 de 26 clasificados "seguro" (Rec.709, porque
+`Input Color Space` ya venía declarado), cero grupos ambiguos formados.** Con
+este material, el paso 1 del modo fácil ("ordenar la casa") no tendría nada
+que preguntarle a Mario — funcionaría limpio de punta a punta. Sigue sin
+probarse el camino contrario (metadata insuficiente, un grupo ambiguo de
+verdad) porque ninguno de los 26 clips lo generó.
