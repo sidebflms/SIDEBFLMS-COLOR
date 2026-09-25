@@ -72,10 +72,21 @@ siempre juntos.
   proyecto por script — sigue asumiendo que quien monta el proyecto ya la ha
   configurado bien, y se limita a avisar si algo no cuadra (que es lo que ya
   hacía `verificar_proyecto`, sin cambios).
-- **Ningún nombre de clave de `GetClipProperty` está confirmado todavía.** Los
-  cinco campos de `ClipRef` son la mejor lectura de foros y documentación de
-  terceros, no de Blackmagic — esto sigue pendiente, F0-7 sólo se probó para
-  `SetClipProperty`, no para `GetClipProperty()` sin argumentos.
+- **Los cinco nombres de clave de `GetClipProperty` — CONFIRMADOS el
+  2026-09-25, contra Resolve Studio 21.1.0.17 real.** `"Camera Manufacturer"`,
+  `"Camera Type"`, `"Gamma Notes"`, `"Camera Notes"`, `"Input Color Space"`
+  existen tal cual, comprobado sobre los 26 clips de vídeo del proyecto de
+  pruebas de Mario ("test color"). El foro acertó el nombre literal.
+  **Hallazgo aparte sobre los VALORES**: en esos 26 clips (aftermovies,
+  multicam ya montado, drone ya exportado — material de ENTREGA, no RAW/LOG
+  de cámara), `Camera Manufacturer`/`Camera Type`/`Gamma Notes`/`Camera Notes`
+  salieron vacíos en el 100% de los casos, mientras que `Input Color Space` ya
+  venía puesto (siempre `"Rec.709 (Scene)"`) en el 100%. Con este tipo de
+  material, `deteccion.REGLAS_DECISION` (que decide por fabricante) no tiene
+  nada que leer — pero tampoco hace falta, porque el espacio ya viene resuelto
+  de fábrica. La heurística seguiría sin probarse contra el caso para el que
+  de verdad se diseñó: un RAW/LOG de cámara sin procesar (un S-Log3, un D-Log
+  de DJI directo de tarjeta). Detalle completo en `SUPUESTOS.md` fila B.
 - **La heurística de "LUT que parece conversión de entrada"**
   (`verificacion._TOKENS_LUT_CONVERSION`) es de nombre de archivo, no de contenido:
   un LUT de conversión con un nombre raro no se detecta, y un look cuyo nombre

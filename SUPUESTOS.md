@@ -166,46 +166,74 @@ ofrece algo que sí podría) en vez de sonoro (la app promete algo que no puede 
 
 ### A9 · La séptima incógnita (sin numerar) — `AddVersion()` hereda el árbol de nodos, o empieza en blanco
 
-- **Qué suponemos:** que `AddVersion()` **hereda** el árbol de nodos del grado
-  anterior. Es el caso nominal que simula `FakeResolve` por defecto
-  (`version_hereda_grafo=True`).
-- **De dónde sale:** INFERENCIA NUESTRA.
+- **CONFIRMADO el 2026-09-25 contra Resolve Studio 21.1.0.17 real: EMPIEZA EN
+  BLANCO, no hereda.** Ya no es un supuesto — es lo que se midió (el probe
+  contó 1 nodo antes de `AddVersion()` y 1 después, sobre un clip de prueba de
+  Mario). Se deja la fila con el histórico completo porque es la más grave de
+  todo este documento y merece quedar visible, no borrada.
+- **Qué se suponía antes de esa fecha:** que `AddVersion()` heredaba el árbol
+  de nodos del grado anterior — el caso nominal, el mismo que sigue simulando
+  `FakeResolve` por defecto (`version_hereda_grafo=True`) por convivencia con
+  el resto de la suite de tests, no porque represente ya la realidad
+  confirmada (ver `core/resolve/NOTAS.md` §4).
+- **De dónde salía:** INFERENCIA NUESTRA, hasta que dejó de serlo.
 - **Qué depende de ella:** el diseño de tres nodos fijos entero (`core.contracts.NODE_NORMALIZACION
   = 1`, `NODE_BALANCE = 2`, `NODE_LOOK = 3`) y todo lo que escribe sobre esa
   numeración — `core/resolve/bridge.py::verificar_estructura_nodos` y quien lo llama.
-- **Qué cambia si es falsa: es la fila más grave de todo este documento.** Si la
-  versión nueva empieza en blanco (un solo nodo) y la API no deja crear nodos —
-  confirmado que no deja, ver `core/resolve/NOTAS.md` §3.2 — **la app no puede
-  escribir nada en absoluto**. No es un supuesto que degrade una función: es la
-  precondición de la que depende que la app sirva para algo. No se ha metido en
-  `Incognitas` (las seis) porque no cambia una sola línea de código — la comprobación
-  "¿hay tres nodos?" es la misma en los dos casos — lo que cambia es si esa
-  comprobación pasa alguna vez.
-- **Cómo se verificaría:** el probe la mide aparte, como pregunta `EXTRA`: cuenta los
-  nodos antes y después de `AddVersion()`. Ver `core/resolve/NOTAS.md` §4 ("La séptima
-  incógnita, la que no está numerada").
+- **Qué significa, confirmado:** sin un PowerGrade de tres nodos de partida
+  (`ApplyGradeFromDRX` — y ahora se sabe que exportar a `.drx` SÍ funciona,
+  F0-1 confirmado el mismo día), **la app no puede montar sola la estructura
+  que necesita para escribir nada** en un clip que no se ha preparado a mano
+  antes. No es un supuesto que degrade una función: es la precondición de la
+  que depende que la app sirva para algo contra un proyecto sin preparar.
+- **Cómo se verificó:** `probe/api_probe.py`, pregunta `EXTRA` — contó los
+  nodos antes y después de `AddVersion()` contra Resolve real. Ver
+  `core/resolve/NOTAS.md` §4 y la sección "DÍA 9 (continuación 5)" de
+  `BITACORA.md` para el detalle completo de esa sesión.
 
 ---
 
 ## B · Los nombres de las claves de `GetClipProperty`
 
-- **Qué suponemos:** que Resolve expone exactamente estas cinco claves, con estos
-  nombres literales: `"Camera Manufacturer"`, `"Camera Type"`, `"Gamma Notes"`,
-  `"Camera Notes"`, `"Input Color Space"`.
-- **De dónde sale:** FORO/COMUNIDAD — "la mejor lectura de foros y documentación de
-  terceros, no de Blackmagic" (`core/colormgmt/NOTAS.md`).
+- **CONFIRMADO el 2026-09-25 contra Resolve Studio 21.1.0.17 real: los cinco
+  nombres son correctos tal cual.** Se llamó a `clip.GetClipProperty(clave)`
+  con las cinco claves, una por una, sobre los 26 clips de vídeo del proyecto
+  de pruebas de Mario ("test color": DRONE, MULTICAM, AFTERMOVIES, MARCAS) —
+  las cinco existen, ninguna lanzó ni devolvió `None`-por-no-existir. El foro
+  acertó el nombre literal.
+- **Qué se suponía antes de esa fecha:** que Resolve expone exactamente estas
+  cinco claves, con estos nombres literales: `"Camera Manufacturer"`, `"Camera
+  Type"`, `"Gamma Notes"`, `"Camera Notes"`, `"Input Color Space"`.
+- **De dónde salía:** FORO/COMUNIDAD — "la mejor lectura de foros y
+  documentación de terceros, no de Blackmagic" (`core/colormgmt/NOTAS.md`),
+  hasta que se verificó contra Resolve real.
+- **Hallazgo aparte, no previsto, sobre los VALORES (no los nombres) en los 26
+  clips de esa sesión**: `Camera Manufacturer`, `Camera Type`, `Gamma Notes` y
+  `Camera Notes` salieron **vacíos en los 26 de 26** — ninguno traía metadata
+  de cámara. `Input Color Space`, en cambio, salió relleno en los 26 de 26,
+  siempre `"Rec.709 (Scene)"`. Explicación más probable: los clips de ese
+  proyecto son material ya entregado/exportado (aftermovies, multicam ya
+  montado, H.264/H.265 a 3840×2160), no originales RAW/LOG de cámara — el tipo
+  de fichero donde SÍ suele venir esa metadata. **No invalida la fila**: los
+  nombres de clave son correctos: la fila B era sobre el NOMBRE, no sobre si
+  el valor viene relleno en cualquier tipo de material. Sí matiza qué tan a
+  menudo `core.colormgmt.deteccion.REGLAS_DECISION` va a tener con qué
+  disparar en el archivo real de SIDEBFLMS tal y como está hoy: con material
+  ya entregado en Rec.709, la detección por fabricante no tiene nada que leer
+  (y tampoco hace falta: `Input Color Space` ya viene puesto). Haría falta
+  repetir esta misma comprobación sobre un clip RAW/LOG de verdad (un S-Log3
+  de Sony, un D-Log de DJI sin procesar) para ver esos cuatro campos rellenos.
 - **Qué depende de ella:** los cinco campos opcionales de `ClipRef`
   (`core/contracts.py`, líneas 481-492) y, por tanto, todo `core.colormgmt` — la
   detección de espacio de entrada por cámara (`core/colormgmt/deteccion.py`) no
   funciona si estas claves no existen o se llaman distinto.
-- **Qué cambia si es falsa:** `core.colormgmt` dejaría de recibir metadata real de
-  Resolve y trataría todos los clips como "sin metadata" — no rompe (el diseño ya
-  trata el `None` como "no se sabe", nunca como Rec.709 por defecto), pero degrada la
-  función entera a "siempre pregunta, nunca detecta sola". El arreglo es sencillo una
-  vez se sepan los nombres reales: son cinco strings en un solo sitio.
-- **Cómo se verificaría:** F0-7 pide explícitamente "listar todas las claves que
-  devuelve `GetClipProperty()` sin argumentos" — cuando llegue la respuesta, volver a
-  `core/colormgmt/NOTAS.md` y corregir los nombres si hace falta.
+- **Qué cambia si es falsa:** ya no aplica — confirmada. El diseño ya trataba
+  el `None`/vacío como "no se sabe" (nunca como Rec.709 por defecto), que es
+  exactamente lo que hace falta para el material real visto hoy.
+- **Cómo se verificó:** script aparte (no `probe/api_probe.py`, que sólo
+  probaba `SetClipProperty` para F0-7 — esto es `GetClipProperty`, lectura,
+  nunca se había comprobado hasta hoy) contra los 26 clips reales del proyecto
+  de pruebas. Detalle completo en `core/colormgmt/NOTAS.md`.
 
 ---
 

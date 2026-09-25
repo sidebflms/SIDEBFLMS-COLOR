@@ -2761,3 +2761,49 @@ aparte. Tampoco se ha medido `core.analysis.lote` contra ffmpeg real (los
 tests usan un doble) ni contra Resolve real (la escritura sigue siendo
 `FakeResolve` — el probe de esta noche no tocó `aplicar_cancelable` en
 absoluto, fueron piezas separadas de la misma sesión).
+
+---
+
+# DÍA 9 (continuación 7) — `GetClipProperty` contra los 26 clips reales de Mario
+
+Con Resolve todavía abierto tras el probe, Mario preguntó si merecía la pena
+mirar clips de varias cámaras — sí: quedaba sin comprobar si los cinco
+nombres de clave que usa `core.colormgmt` (`ClipRef.camera_manufacturer` y
+compañía) existen de verdad en Resolve, y con qué valores vienen en material
+real de SIDEBFLMS. Script de solo lectura (nunca se ha escrito nada en este
+paso), sobre los 26 clips de vídeo del proyecto de pruebas ("test color":
+DRONE, MULTICAM, AFTERMOVIES, MARCAS).
+
+**Confirmado: los cinco nombres de clave son correctos.** `"Camera
+Manufacturer"`, `"Camera Type"`, `"Gamma Notes"`, `"Camera Notes"`, `"Input
+Color Space"` existen tal cual en `GetClipProperty()`. El foro que se citó en
+su día ("la mejor lectura de foros, no de Blackmagic") acertó el nombre
+literal.
+
+**Hallazgo no buscado, y más interesante que la confirmación de arriba: en
+los 26 de 26 clips, los cuatro campos de cámara salieron VACÍOS, y `Input
+Color Space` salió RELLENO (siempre "Rec.709 (Scene)") en los 26.** Explicación
+más probable: son ficheros de ENTREGA (aftermovies ya montados, multicam ya
+exportado, drone ya procesado — H.264/H.265 a 3840×2160), no material RAW/LOG
+directo de cámara, que es el tipo de fichero donde de verdad suele venir esa
+metadata. Con este material, `core.colormgmt.deteccion.REGLAS_DECISION` (que
+decide el espacio de color por fabricante) no tendría nada que leer — pero
+tampoco hace ninguna falta, porque Resolve ya trae el espacio resuelto de
+fábrica para este tipo de entrega. La heurística de detección por cámara
+sigue sin verse puesta a prueba contra el caso para el que se diseñó de
+verdad: un RAW/LOG sin procesar (un S-Log3 de Sony, un D-Log de DJI directo
+de la tarjeta, no ya convertido a Rec.709).
+
+**Aplicado a la documentación, no al código**: el diseño de `core.colormgmt`
+ya trataba estos campos vacíos como "no se sabe" (nunca como Rec.709 por
+defecto), que es exactamente el comportamiento correcto para el material que
+se acaba de ver — no hacía falta ningún cambio de comportamiento, sólo dejar
+de decir "sin confirmar" donde ya hay evidencia real. `SUPUESTOS.md` filas A9
+(la séptima incógnita, que seguía sin actualizarse desde la sesión del probe
+— corregido también ahora) y B, `core/colormgmt/NOTAS.md`.
+
+**Lo que esto deja pendiente, con nombre propio**: repetir esta misma
+comprobación (sólo lectura, cinco `GetClipProperty` por clip) el día que haya
+un clip RAW/LOG de verdad en un proyecto de Mario — sin eso, sigue sin
+saberse si `REGLAS_DECISION` dispara correctamente con metadata real de
+cámara, sólo que el mecanismo de lectura funciona.
