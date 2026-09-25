@@ -2675,3 +2675,89 @@ hoy como si fueran a quedarse así para siempre: `test_resolve_incognitas.py`,
 `test_resolve_fake.py`, `tests/revision/test_ola1_resolve.py`) — no
 debilitados, sólo puestos al día con lo confirmado. Suite completa verde,
 `ruff check` limpio.
+
+---
+
+# DÍA 9 (continuación 6) — el orquestador de lotes: `core.batch`
+
+Con Mario fuera con permiso explícito para "el orquestador y probar lo que
+necesites", se construyó la pieza de arquitectura que `BITACORA.md` llevaba
+dos noches señalando como hueco real (Bloque 3, puntos 1 y 8): "no existe
+ningún orquestador de 'analiza esta timeline entera' con estado reanudable" y
+"no hay forma de cancelar `aplicar()` a mitad" — la propia bitácora ya decía
+que eran "la MISMA pieza de arquitectura... ejecución por trozos con un
+punto de cancelación entre clip y clip".
+
+**`core/batch.py`, nuevo**: `ejecutar_lote(item_ids, funcion, *, excepciones,
+manifiesto=None, callback_progreso=None, debe_cancelar=None)`. Aísla el
+fallo de cada ítem (sólo captura lo que le digas que es esperable — igual
+que `aplicar()`/`ErrorAnalisis`, nunca `Exception` a pelo), llama a
+`callback_progreso` después de cada uno, y comprueba `debe_cancelar` justo
+antes de cada ítem nuevo (nunca a mitad de uno). Con `manifiesto` (un JSON,
+escrito de forma incremental) es reanudable de verdad: una segunda llamada
+con la misma ruta no repite lo que ya salió bien, y reintenta por defecto lo
+que falló (puede haber sido transitorio).
+
+**Sin hilos, sin `QThread`** (este proyecto no usa ninguno — ver
+`gui/NOTAS.md`): la cancelación de verdad sin bloquear la GUI sale de que
+`callback_progreso` se llama DESPUÉS de cada ítem, así que quien lo use desde
+`gui/` puede, dentro de ese callback, bombear `QApplication.processEvents()`
+(mismo patrón que `gui/capturas.py::_asentar`) para que un botón "Cancelar"
+se pueda pulsar de verdad entre ítem e ítem.
+
+**El manifiesto guarda estado, no el resultado entero** — decisión de
+alcance, no un descuido: un `ClipAnalysis` lleva arrays de numpy que no son
+JSON de forma directa, y guardarlos habría acoplado un motor genérico a un
+tipo concreto. Encaja con lo que la propia `BITACORA.md` pedía: "un
+manifiesto clip_id -> resultado-o-error... para poder reanudar saltándose
+los ya hechos, y devolver un resumen con éxitos/fallos" — un RESUMEN, no
+necesariamente el dato entero de cada ítem ya hecho en una llamada anterior.
+Documentado explícitamente en el docstring de `core/batch.py` y de
+`core/analysis/lote.py` para que nadie dé por hecho más de lo que hay.
+
+**Dos usos reales, no uno hipotético:**
+
+1. **`gui/pantalla_aplicar.py::aplicar_cancelable`** — la MISMA escritura que
+   `aplicar()` (mismo `aplicar_grado_seguro`, mismo `ResolveError` por clip;
+   no es una segunda implementación de la regla de oro), envuelta en
+   `ejecutar_lote`. `aplicar()` NO se ha tocado —cero riesgo de regresión en
+   una función con tests dedicados a la regla de oro
+   (`test_gui_regla_de_oro.py`)—; `aplicar_cancelable` es una función nueva,
+   al lado. Medido de verdad (500 clips, `FakeResolve`, mismo patrón que
+   `tests/test_rendimiento_lote.py`): `aplicar()` 15,0 ms, `aplicar_cancelable()`
+   14,9 ms — el motor nuevo no añade coste medible. Sin `manifiesto` a
+   propósito: reanudar un lote de "aplicar" interrumpido entre reinicios de
+   la app es un caso mucho más raro que reanudar un análisis largo, y lo que
+   importa no perder ya vive en Resolve, no en un fichero de progreso.
+2. **`core/analysis/lote.py::analizar_lote`, nuevo** — el hueco más grande de
+   los dos (Bloque 3, punto 1): hasta hoy no existía NADA que iterase sobre
+   una lista de clips llamando a `analizar_clip` con fallo aislado y estado
+   persistido. Ahora sí, con `manifiesto` completo: si ffmpeg revienta a
+   mitad de 200 clips, una segunda llamada con el mismo fichero de progreso
+   sólo reintenta los que fallaron o no se llegaron a intentar — no
+   reanaliza los que ya salieron bien. Sigue sin haber ningún botón en la
+   GUI que dispare esto contra clips reales (`BITACORA.md` ya lo decía: "no
+   hay un botón analizar el timeline que dispare 200 llamadas reales a
+   ffmpeg") — esta pieza es el motor, listo para cablearse el día que exista
+   ese botón, con el mismo criterio que `core/looks/` cuando sólo era motor.
+
+**Tests nuevos**: `tests/test_batch.py` (17 tests: aislamiento de fallo,
+orden, cancelación a mitad exacta — no a mitad de un ítem—, reanudar tras
+cancelar, los hechos no se repiten, los fallidos se reintentan por defecto,
+manifiesto incremental de verdad —comprobado leyendo el fichero A MITAD del
+lote, no sólo al final—, manifiesto corrupto/no escribible no rompe nada,
+callback de progreso marca `reanudado`), `tests/test_pantalla_aplicar_
+cancelable.py` (6 tests, incluido uno que comprueba que Resolve —FakeResolve—
+no recibe NINGUNA llamada para los clips posteriores al punto de cancelación,
+no sólo que la lista de resultados se corte), `tests/test_analysis_lote.py`
+(7 tests, con un doble de prueba barato para `analizar_clip` — no hace falta
+vídeo real ni ffmpeg para probar la ORQUESTACIÓN). Suite completa verde,
+`ruff check` limpio.
+
+**Lo que esto NO cierra**: no hay ningún botón en la GUI para ninguna de las
+dos piezas todavía —ni "cancelar" en la pantalla de aplicar, ni "analizar la
+timeline" en ningún sitio—; esto es el motor, cableado a la GUI es trabajo
+aparte. Tampoco se ha medido `core.analysis.lote` contra ffmpeg real (los
+tests usan un doble) ni contra Resolve real (la escritura sigue siendo
+`FakeResolve` — el probe de esta noche no tocó `aplicar_cancelable` en
+absoluto, fueron piezas separadas de la misma sesión).

@@ -49,6 +49,7 @@ from .frames import (
     extraer_fotogramas,
     sondear,
 )
+from .lote import ResultadoLoteAnalisis, analizar_lote
 from .stats import (
     FRACCION_PIEL_MINIMA,
     MAX_PIXELES_POR_DEFECTO,
@@ -66,6 +67,8 @@ __all__ = [
     "extraer_fotogramas",
     "analizar_clip",
     "analizar_imagen",
+    "analizar_lote",
+    "ResultadoLoteAnalisis",
     "estadisticas",
     "huella_de_contenido",
     "parecido_de_huellas",

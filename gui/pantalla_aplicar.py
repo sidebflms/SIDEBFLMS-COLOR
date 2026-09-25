@@ -24,6 +24,7 @@ mirando en que version quedaron las escrituras.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import Qt, Signal
@@ -40,6 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.batch import ProgresoLote, ejecutar_lote
 from core.contracts import NODE_BALANCE, NODE_LOOK, VERSION_NAME, ResolveError
 from core.resolve import (
     ResultadoAplicacion,
@@ -224,6 +226,87 @@ def aplicar(estado: EstadoDemo, clip_ids: list[str]) -> list[ResultadoClip]:
                               mensaje=str(exc))
             )
     return resultados
+
+
+def aplicar_cancelable(
+    estado: EstadoDemo,
+    clip_ids: list[str],
+    *,
+    callback_progreso: Callable[[ProgresoLote], None] | None = None,
+    debe_cancelar: Callable[[], bool] | None = None,
+) -> list[ResultadoClip]:
+    """Como `aplicar()`, pero por trozos: admite pararse a mitad.
+
+    `BITACORA.md` (Bloque 3, punto 8): `aplicar()` es un bucle síncrono sin
+    ningún punto de cancelación — con un lote muy grande, o Resolve real con
+    latencia de verdad por llamada, no hay manera de pararlo desde la
+    interfaz salvo matar la app entera. Esta función es la MISMA escritura
+    (mismo `aplicar_grado_seguro`, sólo `ResolveError` capturado por clip —
+    no es una segunda implementación de la regla de oro) envuelta en
+    `core.batch.ejecutar_lote`, que llama a `callback_progreso` después de
+    cada clip. Quien la use desde la GUI puede, dentro de ese callback,
+    pintar una barra de progreso Y bombear `QApplication.processEvents()`
+    (mismo patrón que `gui/capturas.py::_asentar`) para que un botón
+    "Cancelar" real pueda pulsarse entre clip y clip — sin hilos, sin
+    `QThread` (este proyecto no usa ninguno, ver `gui/NOTAS.md`).
+
+    Sin `manifiesto` (a propósito, a diferencia de `core.analysis.lote`):
+    reanudar un lote de "aplicar" interrumpido a través de un reinicio de la
+    app es un caso mucho más raro que reanudar un análisis largo — y el
+    ahorro real está en no perder lo que ya se ESCRIBIÓ (que ya vive en
+    Resolve, no en un fichero de progreso), no en no tener que reescribirlo.
+    Si algún día hace falta, se añade igual que en
+    `core.analysis.lote.analizar_lote`.
+    """
+    detalles: dict[str, ResultadoClip] = {}
+    puente = estado.puente
+    try:
+        puente.refresh_lut_list()
+    except ResolveError as exc:
+        detalles[""] = ResultadoClip(
+            clip_id="", nombre="(proyecto)", ok=False, version="",
+            mensaje=f"No se ha podido refrescar la lista de LUTs: {exc}",
+        )
+
+    def _uno(clip_id: str) -> None:
+        clip = estado.por_id(clip_id)
+        if clip is None:
+            return
+        try:
+            res: ResultadoAplicacion = aplicar_grado_seguro(
+                puente, clip_id, cdl=clip.match.cdl, lut_rel_path=estado.look_rel
+            )
+        except ResolveError as exc:
+            detalles[clip_id] = ResultadoClip(
+                clip_id=clip_id, nombre=clip.nombre, ok=False, version="", mensaje=str(exc)
+            )
+            raise  # ejecutar_lote lo captura tambien, para su propio aislamiento/manifiesto
+        detalles[clip_id] = ResultadoClip(
+            clip_id=clip_id,
+            nombre=clip.nombre,
+            ok=res.ok,
+            version=res.version,
+            mensaje=(
+                f"nodo {NODE_BALANCE} ← CDL · nodo {NODE_LOOK} ← {estado.look_rel}"
+                if res.ok
+                else "no se ha escrito nada"
+            ),
+            avisos=res.avisos,
+        )
+
+    ejecutar_lote(
+        clip_ids,
+        _uno,
+        excepciones=(ResolveError,),
+        callback_progreso=callback_progreso,
+        debe_cancelar=debe_cancelar,
+    )
+    # Orden de clip_ids, no el de un dict: los que no llegaron a intentarse
+    # (cancelado a mitad, o clip_id que no existe en el estado) simplemente
+    # no aparecen -- igual que `aplicar()` con un clip_id inexistente.
+    if "" in detalles:
+        return [detalles[""]] + [detalles[cid] for cid in clip_ids if cid in detalles]
+    return [detalles[cid] for cid in clip_ids if cid in detalles]
 
 
 # ---------------------------------------------------------------------------
