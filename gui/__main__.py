@@ -2,6 +2,15 @@
 
     QT_QPA_PLATFORM=offscreen .venv/bin/python -m gui        # sin ventana
     .venv/bin/python -m gui                                  # con ventana
+
+Esto es a propósito, no un olvido: `tests/test_gui_regla_de_oro.py::
+test_la_gui_no_importa_el_puente_de_verdad` garantiza que ningún fichero de
+`gui/` mencione siquiera `LiveResolve`/`DaVinciResolveScript`/`fusionscript`
+— así se puede auditar la regla de oro con un `grep`, sin tener que rastrear
+lógica. El lanzador que SÍ intenta conectar a Resolve real (día 9,
+continuación 8) vive fuera de este paquete: `lanzar.py`, en la raíz del
+repo — importa `gui.ventana.VentanaPrincipal` igual que este módulo, pero
+decide el estado inicial desde fuera, sin que `gui/` tenga que saber cómo.
 """
 
 from __future__ import annotations

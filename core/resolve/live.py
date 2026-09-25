@@ -81,6 +81,21 @@ _RUTAS_MODULOS = (
 )
 
 
+def _llamable(obj, nombre: str) -> bool:
+    """¿`obj.nombre` es un método de verdad que se puede llamar?
+
+    **NO usar `hasattr(obj, nombre)` para esto** — confirmado el día 9 contra
+    Resolve real (Studio 21.1.0.17): los objetos remotos de Fusion devuelven
+    `None` para un método que no existe en esa build, en vez de lanzar
+    `AttributeError`. `hasattr` sólo comprueba que `getattr` no reviente, así
+    que decía `True` para `GetNodeEnabled` aunque su valor fuera `None` —
+    `list_nodes()` reventaba con `TypeError: 'NoneType' object is not
+    callable` la primera vez que se probó contra un timeline real. Esta
+    función mira el valor de verdad, no si acceder a él revienta.
+    """
+    return callable(getattr(obj, nombre, None))
+
+
 def _importar_modulo():
     """Importa `DaVinciResolveScript`. Es el unico import de Resolve del nucleo."""
     import sys
@@ -242,9 +257,7 @@ class LiveResolve(BaseResolveBridge):
                 NodeInfo(
                     index=i,
                     label=str(grafo.GetNodeLabel(i) or ""),
-                    enabled=bool(grafo.GetNodeEnabled(i))
-                    if hasattr(grafo, "GetNodeEnabled")
-                    else True,
+                    enabled=bool(grafo.GetNodeEnabled(i)) if _llamable(grafo, "GetNodeEnabled") else True,
                     lut_path=(grafo.GetLUT(i) or None),
                 )
             )
@@ -335,8 +348,8 @@ class LiveResolve(BaseResolveBridge):
     def _nombre_grupo(self, grupo) -> str | None:
         # SIN VERIFICAR: `colorGroup.GetName()` no esta en la lista
         # verificada. Si no existe, este grupo no se puede identificar por
-        # nombre — se salta en vez de reventar con AttributeError.
-        if not hasattr(grupo, "GetName"):
+        # nombre — se salta en vez de reventar (ver `_llamable`).
+        if not _llamable(grupo, "GetName"):
             return None
         return str(grupo.GetName())
 
@@ -428,8 +441,10 @@ class LiveResolve(BaseResolveBridge):
     def _nombre_album(self, album) -> str:
         gallery = self._proyecto().GetGallery()
         # SIN VERIFICAR: `GetAlbumName` no esta en la lista de llamadas
-        # verificadas. Si no existe, el album se queda sin nombre legible.
-        if gallery is not None and hasattr(gallery, "GetAlbumName"):
+        # verificadas. Si no existe, el album se queda sin nombre legible
+        # (ver `_llamable`: confirmado en esta build que SÍ existe, pero se
+        # deja la guarda por si otra versión de Resolve no la trae).
+        if gallery is not None and _llamable(gallery, "GetAlbumName"):
             return str(gallery.GetAlbumName(album))
         return "(album actual)"
 

@@ -521,9 +521,21 @@ se activa el día que haya Resolve real delante.
 
 ### H2 · `GetNodeEnabled` no está en la lista verificada; si no existe, se asume activado
 
-- **Qué suponemos:** que un nodo sin `GetNodeEnabled` (método no expuesto por esta
-  versión de Resolve) está activado — `list_nodes()` cae a `enabled=True` con
-  `hasattr(grafo, "GetNodeEnabled")` como guarda.
+- **REVENTÓ el 2026-09-25 contra Resolve real** — no por el supuesto de abajo
+  (nunca se llegó a comprobar si un nodo desactivado se trata bien), sino por
+  el MECANISMO de la guarda: `hasattr(grafo, "GetNodeEnabled")` decía `True`
+  aunque el valor de ese atributo fuera `None` (no invocable) — un objeto
+  remoto de Fusion devuelve `None` para un método no implementado en vez de
+  no tener el atributo. `list_nodes()` reventaba con
+  `TypeError: 'NoneType' object is not callable` al primer uso real, en
+  cuanto la pantalla de "aplicar" pedía la lista de nodos de un clip real.
+  **Arreglado** con `core.resolve.live._llamable(obj, nombre) =
+  callable(getattr(obj, nombre, None))`, que mira el valor de verdad en vez
+  de si acceder revienta. Aplicado también a H3 y H4 (mismo patrón frágil).
+- **Qué suponemos, sin cambiar por el arreglo de arriba:** que un nodo sin
+  `GetNodeEnabled` (método no expuesto por esta versión de Resolve) está
+  activado — `list_nodes()` cae a `enabled=True` cuando `_llamable` dice que
+  no existe.
 - **De dónde sale:** INFERENCIA NUESTRA, con el comentario propio del código: "es lo que
   pasa el 99% de las veces".
 - **Qué depende de ella:** `core/resolve/bridge.py::verificar_estructura_nodos`, que
@@ -539,8 +551,9 @@ se activa el día que haya Resolve real delante.
 ### H3 · `colorGroup.GetName()` no está en la lista verificada
 
 - **Qué suponemos:** que los objetos que devuelve `GetColorGroupsList()` tienen un método
-  `GetName()` que da el nombre del grupo — con guarda (`hasattr`, arreglada en la misma
-  revisión que encontró este hueco): si no existe, ese grupo se salta en vez de reventar.
+  `GetName()` que da el nombre del grupo — con guarda (`_llamable`, ver H2 —
+  arreglada de `hasattr` el 2026-09-25 por el mismo motivo): si no existe,
+  ese grupo se salta en vez de reventar.
 - **De dónde sale:** INFERENCIA NUESTRA, por analogía con `GetName()` en `Project`/
   `Timeline`/`MediaPoolItem`, que sí están verificados.
 - **Qué depende de ella:** `_grupo()`/`color_groups()` — la función de `core.tutor`/
@@ -549,18 +562,22 @@ se activa el día que haya Resolve real delante.
 - **Qué cambia si es falsa:** los grupos de color quedan invisibles para la app (se
   saltan en vez de listarse), no hay ninguna escritura de por medio que se pueda hacer
   mal.
-- **Cómo se verificaría:** `probe/api_probe.py` no pregunta por esto hoy.
+- **Cómo se verificaría:** `probe/api_probe.py` no pregunta por esto hoy; el proyecto de
+  pruebas usado el 2026-09-25 no tenía ningún grupo de color con qué comprobarlo.
 
 ### H4 · `GetAlbumName` no está en la lista verificada
 
-- **Qué suponemos:** que los álbumes de la galería de PowerGrades tienen un
-  `GetAlbumName()` legible — con guarda: si no existe, se usa el texto fijo
+- **CONFIRMADO el 2026-09-25 contra Resolve real: SÍ existe y es invocable**
+  (`gallery.GetAlbumName` salió como una "Remote Function" de verdad, no
+  `None`). La guarda (ahora `_llamable`, no `hasattr` — ver H2) se deja
+  puesta para otras versiones de Resolve donde pudiera no estar.
+- **Qué se suponía antes de esa fecha:** que los álbumes de la galería de PowerGrades
+  tienen un `GetAlbumName()` legible — con guarda: si no existe, se usa el texto fijo
   `"(álbum actual)"`.
-- **De dónde sale:** INFERENCIA NUESTRA.
+- **De dónde salía:** INFERENCIA NUESTRA, hasta confirmarse.
 - **Qué depende de ella:** `gallery_albums()`, sólo informativo (elegir qué álbum mostrar
   en un selector).
-- **Qué cambia si es falsa:** los álbumes se listan sin nombre legible; no bloquea nada.
-- **Cómo se verificaría:** `probe/api_probe.py` no pregunta por esto hoy.
+- **Qué cambia si es falsa:** ya no aplica en esta build — confirmada.
 
 ### H5 · `ExportStills` devuelve `bool`, no la lista de ficheros escritos
 

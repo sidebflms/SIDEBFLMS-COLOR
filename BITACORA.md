@@ -2819,3 +2819,85 @@ este material, el paso 1 del modo fácil ("ordenar la casa") no tendría nada
 que preguntarle a Mario — funcionaría limpio de punta a punta. Sigue sin
 probarse el camino contrario (metadata insuficiente, un grupo ambiguo de
 verdad) porque ninguno de los 26 clips lo generó.
+
+---
+
+# DÍA 9 (continuación 8) — la app conectada a Resolve real, de punta a punta
+
+Mario pidió "constrúyelo para poder usarlo" — ya no sólo el probe, sino la
+propia app hablando con su Resolve real. Se preguntó el alcance antes de
+empezar (dado el hallazgo de ayer sobre los nodos) y contestó: "todo el
+camino, analizar y aplicar de verdad".
+
+**`gui/estado_real.py`, nuevo**: `construir_estado_real(puente, ...)` — lista
+los clips del timeline actual (`puente.list_clips()`), los analiza de verdad
+con `core.analysis.lote.analizar_lote` (ffmpeg sobre el fichero real de cada
+clip, reutilizando el orquestador de esta misma noche/sesión) y los empareja
+de verdad con `core.matching.emparejar_analisis` — devuelve el MISMO
+`EstadoDemo`/`ClipDemo` que ya pintan todas las pantallas, así que no hizo
+falta tocar ni una pantalla. Un clip que falla al analizar no tumba nada: se
+cuenta y se sigue con el resto (mismo criterio que todo lo demás esta noche).
+
+**`lanzar.py`, nuevo, en la RAÍZ del repo — no dentro de `gui/`**: al
+arrancar, intenta `LiveResolve.conectar()` + `construir_estado_real()`; si
+algo falla —Resolve cerrado, sin timeline, ningún clip analizable— cae a
+`estado_demo()` de siempre, avisando por consola, no en silencio.
+**Se escribió primero dentro de `gui/__main__.py`, y la propia suite lo paró
+en seco**: `tests/test_gui_regla_de_oro.py::test_la_gui_no_importa_el_puente_de_verdad`
+existe precisamente para que ningún fichero de `gui/` mencione siquiera
+`LiveResolve`/`DaVinciResolveScript`/`fusionscript`, y falló nada más
+escribir la primera versión. No es un test que se arregla — es la regla de
+oro dicha en forma de test, así que se movió el código, no se tocó el test.
+`gui/__main__.py` queda EXACTAMENTE como estaba (arranca siempre con datos de
+demostración, `python -m gui`); `lanzar.py` es el camino nuevo
+(`python lanzar.py`) para quien quiera que la app lo intente contra su
+Resolve real.
+
+**Verificado de verdad, no sólo con tests**: timeline de prueba con 3 clips
+de fuentes distintas (dron, evento, drone-postal) en el proyecto de pruebas
+de Mario, arrancando la app real contra su Resolve real. Resultado:
+
+- Los 3 clips analizados y emparejados de verdad, con números reales: el
+  clip de referencia ΔE 0,00→0,47; el segundo clip ΔE 15,88→4,54, confianza
+  media; el tercero (postal de dron contra una referencia de estudio) ΔE
+  18,96→3,12, confianza baja, **`content_mismatch=True` correcto** — la app
+  detectó bien que esos dos planos no son comparables.
+- La pantalla de "aplicar" mostró el plan real: **los tres bloqueados**, con
+  el motivo exacto ya anticipado ayer (1 nodo, hacen falta 3) — el hallazgo
+  del probe, confirmado ahora también desde la GUI, no sólo desde el script
+  suelto del probe.
+
+**Bug real encontrado en esta primera prueba de verdad, y arreglado**:
+`LiveResolve.list_nodes()` reventaba con `TypeError: 'NoneType' object is
+not callable` al llamar a `GetNodeEnabled`. Causa: el código usaba
+`hasattr(grafo, "GetNodeEnabled")` para saber si el método existe — pero
+contra Resolve real, un objeto remoto de Fusion **devuelve `None` para un
+método no implementado en vez de no tener el atributo**, así que `hasattr`
+decía `True` sobre un valor que en realidad no es invocable.
+`hasattr(obj, "x")` sólo comprueba que acceder no revienta, no que el valor
+sea usable. Arreglado con `_llamable(obj, nombre) = callable(getattr(obj,
+nombre, None))`, y aplicado a los TRES sitios de `core/resolve/live.py` que
+tenían el mismo patrón (`GetNodeEnabled`, `GetName` de grupo de color,
+`GetAlbumName`) — sólo el primero se ha visto fallar de verdad (los otros
+dos no se han podido ejercitar: sin grupos de color en el proyecto de
+prueba), pero el patrón frágil era el mismo en los tres.
+
+**Lo que esto deja claro y sin resolver, con nombre propio**: para que
+"aplicar" escriba de verdad en un clip cualquiera, hace falta una de dos
+cosas que todavía no existen: (a) que Mario prepare a mano un clip con 3
+nodos antes de analizarlo, o (b) construir el camino de "aplicar un
+PowerGrade de plantilla con `ApplyGradeFromDRX`" que ya se apuntaba ayer
+(ahora más viable: F0-1 confirma que exportar a `.drx` funciona). Tampoco
+existe todavía el paso que copia el `.cube` de un preset elegido en el
+selector a la carpeta de LUTs REAL de Resolve — `look_rel`/`LOOK_REL` sigue
+siendo una ruta fija que asume que el fichero ya está ahí; conectar "qué
+preset elegiste en el paso 4" con "qué fichero hay de verdad en la carpeta de
+LUTs de Resolve" es un hueco aparte, no cerrado hoy.
+
+Tests nuevos: `tests/test_gui_estado_real.py` (7, con `analizar_imagen`
+sobre imágenes sintéticas en vez de ffmpeg — no hace falta vídeo real para
+probar la orquestación), `tests/test_resolve_live.py` (3, sobre `_llamable`),
+`tests/test_lanzar.py` (3, sobre `_estado_inicial`: cae a demo si Resolve no
+conecta, cae a demo si no hay clips analizables, usa el real si la conexión
+funciona — movidos aquí, no a un test de `gui/`, por la misma razón que el
+código). Suite completa verde, `ruff check` limpio en todo el repo.

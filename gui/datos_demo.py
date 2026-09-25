@@ -40,6 +40,7 @@ from core.contracts import (
     ClipRef,
     Confidence,
     MatchResult,
+    ResolveBridge,
 )
 from core.io import catalogo_luts_malos, qc_lut
 from core.io.qc import LUTQualityReport
@@ -114,10 +115,17 @@ class ClipDemo:
 
 @dataclass
 class EstadoDemo:
-    """Todo lo que una pantalla necesita para dibujarse."""
+    """Todo lo que una pantalla necesita para dibujarse.
+
+    `puente` es un `ResolveBridge` cualquiera — pese al nombre de la clase
+    (que sigue reflejando el uso original, sólo datos de demostración), desde
+    `gui/estado_real.py` (día 9) este mismo tipo también envuelve una
+    conexión real a `LiveResolve`. Nada de la GUI mira el tipo concreto, sólo
+    llama a lo que `ResolveBridge` promete.
+    """
 
     clips: list[ClipDemo]
-    puente: FakeResolve
+    puente: ResolveBridge
     referencia_id: str | None = None
     look: LUT3D | None = None
     look_rel: str = LOOK_REL
