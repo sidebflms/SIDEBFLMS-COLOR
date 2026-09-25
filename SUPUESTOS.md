@@ -623,3 +623,30 @@ internet ese mismo día, no inventada aquí.
 - **Cómo se verificaría:** comparar, sobre material real, dónde cae a ojo "empieza a
   notarse el tinte" contra dónde lo pone el parámetro `zona_*` — un ajuste de calibración,
   no de arquitectura.
+
+## J · `luts_externos/`: contenido de terceros en el repo sin licencia clara (día 9)
+
+### J1 · Redistribuir estos LUTs es aceptable para el producto, decisión de Mario
+
+- **Qué suponemos:** que meter en el repo versionado (y por tanto redistribuir con el
+  producto) 475 `.cube` de tres fuentes externas es aceptable, aunque dos de ellas
+  (IWLTBAP, GitHub YahiaAngelo/Film-Luts) no publican ninguna licencia y la tercera
+  (RocketStock) tiene una cláusula EXPLÍCITA de no-redistribución ("you agree not to
+  resell or redistribute these assets").
+- **De dónde sale:** decisión explícita de Mario, tomada dos veces — una vez aceptando el
+  riesgo genérico de "sin licencia publicada", y una segunda vez, ya con la cláusula de
+  RocketStock encontrada y puesta delante, confirmando que se incluyera igualmente. No es
+  una interpretación nuestra de lo que él querría: se le preguntó las dos veces y
+  contestó las dos veces.
+- **Qué depende de ella:** todo `luts_externos/` y su cableado en
+  `gui/__main__.py::_biblioteca_de_desarrollo()`. Si el repo se hiciera público, o el
+  producto se compartiera o vendiera a terceros, esta decisión es la que se estaría
+  ejerciendo.
+- **Qué cambia si es falsa:** si Mario (o quien decida por SIDEBFLMS más adelante)
+  cambia de opinión, sacar el contenido es barato — son ficheros en una carpeta con
+  procedencia documentada (`luts_externos/<fuente>/PROCEDENCIA.md` o `SKIPPED.md`), no
+  código entrelazado con el resto. Borrar la carpeta y quitar tres líneas de
+  `gui/__main__.py` basta.
+- **Cómo se verificaría:** no es verificable técnicamente — es una decisión de negocio,
+  no una medición. Quien la revise más adelante debería releer los `PROCEDENCIA.md` de
+  cada fuente, no fiarse de este resumen.

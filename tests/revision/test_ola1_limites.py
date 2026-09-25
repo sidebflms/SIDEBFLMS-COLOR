@@ -132,7 +132,7 @@ def test_las_escrituras_de_core_estan_todas_localizadas(paquete):
     esperado = {
         "core/color": {},
         "core/io": {
-            "biblioteca.py": {"mkdir"},
+            "biblioteca.py": {"mkdir", "write_text"},
             "bundle.py": {"mkdir", "open"},
             "cdl_xml.py": {"mkdir", "open"},
             "cube.py": {"mkdir", "open"},

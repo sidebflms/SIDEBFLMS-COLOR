@@ -20,6 +20,7 @@ import functools  # noqa: E402
 
 import pytest  # noqa: E402
 from PySide6.QtGui import QFontDatabase, QFontMetrics  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QLabel, QWidget  # noqa: E402
 
 from gui import datos_demo as dd  # noqa: E402
@@ -104,6 +105,17 @@ def ventana(estado=None, *, ancho: int = 1440, alto: int = 900, par=None) -> Ven
     v = VentanaPrincipal(estado if estado is not None else demo(), par_inverso=par)
     v.resize(ancho, alto)
     v.show()
+    # `isVisible()` de un descendiente depende de que la VENTANA de nivel
+    # superior ya este expuesta de verdad por la plataforma (offscreen
+    # incluido) -- un numero fijo de `processEvents()` normalmente alcanza,
+    # pero bajo carga de CPU (varios tests de GUI seguidos, uno de ellos
+    # "lento") puede no haber dado tiempo. `qWaitForWindowExposed` es la
+    # espera correcta de Qt para esto: bombea el bucle de eventos hasta que
+    # la exposicion ocurre de verdad, en vez de contar una cifra fija de
+    # pasadas y cruzar los dedos. Sospechoso de un fallo intermitente visto
+    # el dia 9 en `test_gui_estados.py` (`isVisible()` en falso justo
+    # despues de `ventana()`) -- ver BITACORA.md.
+    QTest.qWaitForWindowExposed(v)
     asentar()
     return v
 

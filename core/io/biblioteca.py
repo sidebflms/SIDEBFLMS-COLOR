@@ -24,6 +24,7 @@ que una sesión completa.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import zipfile
@@ -122,32 +123,89 @@ def nombre_legible(ruta: str | Path) -> str:
     return re.sub(r"\s+", " ", base).strip()
 
 
-def sembrar_desde_carpeta(carpeta: str | Path) -> list[Preset]:
+def sembrar_desde_carpeta(carpeta: str | Path, *, cache: str | Path | None = None) -> list[Preset]:
     """Recorre `carpeta` (recursivo) y construye un `Preset` por cada `.cube`.
 
     No lee ni modifica nada más que abrir cada `.cube` para saber su tamaño
     de rejilla — no copia, no mueve, no escribe. `carpeta` puede ser
     `tests/luts_reales/`, de sólo lectura.
+
+    `cache`, si se da, es la ruta de un fichero JSON donde se guarda, por
+    ruta de archivo, su firma (mtime + tamaño) y lo ya calculado
+    (`tamano_rejilla`, `clasificacion`) — leer y clasificar CADA `.cube` en
+    cada arranque de la app es barato con pocos ficheros, pero no con una
+    biblioteca de cientos (día 9: `luts_externos/`, 475 ficheros, ~12 s
+    medidos sin cache). Con `cache`, sólo se recalculan los ficheros nuevos o
+    modificados desde la última vez; sin `cache` (todos los llamadores de
+    antes de hoy) el comportamiento no cambia ni un bit. Si `cache` no se
+    puede leer o escribir (disco lleno, permisos), se sigue sin él — es sólo
+    una optimización, nunca una condición para que la siembra funcione.
     """
     base = Path(carpeta)
     presets: list[Preset] = []
     if not base.is_dir():
         return presets
-    for ruta in sorted(base.rglob("*.cube")):
+
+    datos_cache: dict[str, dict] = {}
+    ruta_cache = Path(cache) if cache is not None else None
+    if ruta_cache is not None and ruta_cache.is_file():
         try:
-            lut = leer_cube(ruta)
-        except ErrorFormatoCube:
-            continue  # un .cube que no se puede leer no entra en la biblioteca, no rompe la siembra
+            datos_cache = json.loads(ruta_cache.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            datos_cache = {}
+
+    # `Path.rglob` compara MAYÚSCULAS/minúsculas tal cual, incluso en un
+    # filesystem que no distingue caso (macOS/APFS por defecto): sólo
+    # "*.cube" se dejaba fuera, en silencio, los `.CUBE` en mayúsculas de
+    # algunos packs externos (día 9, `luts_externos/rocketstock/`) — 35 de
+    # 475 ficheros, ninguno de ellos con error ni aviso, simplemente ausentes
+    # del selector.
+    rutas = set(base.rglob("*.cube")) | set(base.rglob("*.CUBE"))
+    # Se parte de lo que ya había en cache: `sembrar_desde_carpeta` se llama
+    # varias veces con carpetas DISTINTAS pero el mismo fichero de cache
+    # compartido (`gui/__main__.py::_biblioteca_de_desarrollo`, un fichero
+    # para reales+generados+externos) — sobrescribir con sólo lo visto en
+    # ESTA llamada borraría las entradas de las otras.
+    cache_actualizado = dict(datos_cache)
+    for ruta in sorted(rutas):
+        try:
+            firma = f"{ruta.stat().st_mtime_ns}:{ruta.stat().st_size}"
+        except OSError:
+            continue
+        clave = str(ruta)
+        entrada = datos_cache.get(clave)
+        if entrada is not None and entrada.get("firma") == firma:
+            tamano_rejilla = entrada["tamano_rejilla"]
+            clasificacion = entrada["clasificacion"]
+        else:
+            try:
+                lut = leer_cube(ruta)
+            except ErrorFormatoCube:
+                cache_actualizado.pop(clave, None)
+                continue  # un .cube que no se puede leer no entra en la biblioteca, no rompe la siembra
+            tamano_rejilla = lut.size
+            clasificacion = clasificar_lut(lut)
+            cache_actualizado[clave] = {
+                "firma": firma,
+                "tamano_rejilla": tamano_rejilla,
+                "clasificacion": clasificacion,
+            }
         nombre = nombre_legible(ruta)
         presets.append(
             Preset(
                 id=_slug(f"{ruta.parent.name}-{nombre}" if ruta.parent != base else nombre),
                 nombre=nombre,
-                tamano_rejilla=lut.size,
+                tamano_rejilla=tamano_rejilla,
                 ruta_origen=str(ruta),
-                clasificacion=clasificar_lut(lut),
+                clasificacion=clasificacion,
             )
         )
+
+    if ruta_cache is not None and cache_actualizado != datos_cache:
+        # La cache es sólo una optimización; si no se puede escribir (disco
+        # lleno, permisos), no rompe la siembra.
+        with contextlib.suppress(OSError):
+            ruta_cache.write_text(json.dumps(cache_actualizado), encoding="utf-8")
     return presets
 
 

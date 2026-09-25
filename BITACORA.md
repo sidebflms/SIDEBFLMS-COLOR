@@ -2515,3 +2515,82 @@ que crea y cierra una `VentanaPrincipal` de verdad dentro de un test marcado
 `lento`, justo antes en orden alfabético del fichero que falló.
 
 Suite completa verde en tres de cuatro pasadas, `ruff check` limpio.
+
+---
+
+# DÍA 9 (continuación 4) — LUTs externos en el repo, y dos arreglos de paso
+
+Mario pidió, explícitamente y con la información de licencia ya en la mano
+(ver el resumen de arriba, "Contenido ya disponible..."), meter en el repo
+del producto los LUTs gratuitos que se pudieran conseguir de fuera — no sólo
+los de licencia clara.
+
+**Lo conseguido** (agente independiente, con navegador, instrucciones
+explícitas de NO rellenar ningún formulario con datos de Mario ni aceptar
+ningún muro de email/cuenta): 475 `.cube`, 201 MB, en `luts_externos/`, los
+475 verificados con `core.io.cube.leer_cube` antes de aceptarlos.
+
+| Fuente | Ficheros | Procedencia |
+|---|---|---|
+| `github-yahiaangelo/` | 296 | `git clone` de YahiaAngelo/Film-Luts (MIT el repo; su propio README avisa de que los LUTs en sí pueden llevar copyright de terceros) |
+| `iwltbap/` | 131 | Descarga directa sin registro, sin texto de licencia para el material gratis |
+| `rocketstock/` | 48 | Descarga directa sin registro — **con una cláusula explícita: "you agree not to resell or redistribute these assets"** |
+
+**Encontrada la cláusula de RocketStock, se paró antes de commitear** y se
+llevó la decisión de nuevo a Mario, porque es cualitativamente distinta de
+"sin licencia publicada" (ambigüedad) que ya había aceptado: es un "no"
+explícito a justo lo que se iba a hacer. Confirmó meterlo igualmente,
+**ya con esa cláusula en la mano** — decisión suya, de su producto, tomada
+con la información completa.
+
+**Descartado** (cada carpeta con su `SKIPPED.md`): Lutify.me (la única fuente
+con licencia clara, CC BY-SA 4.0 — pero su sitio ahora exige crear una cuenta
+para descargar, así que ni siquiera con licencia clara se pudo traer),
+Cullen Kelly y Juan Melara (pivotaron a tienda de pago), Creative Shrimp
+(pivotó a tutoriales de Blender, sin contenido de color), DocM88/Free-Lut-Pack
+(sólo trae presets `.xmp` de Lightroom, formato equivocado).
+
+**Cableado**: `gui/__main__.py::_biblioteca_de_desarrollo()` siembra también
+`luts_externos/` (orden: reales de Mario → generados por `core.looks` →
+externos, para no mover el preset por defecto de nadie).
+
+**Dos arreglos reales encontrados AL CABLEAR, no antes**:
+
+1. **`core.io.biblioteca.sembrar_desde_carpeta` ignoraba en silencio los
+   `.cube` en MAYÚSCULAS** (`Path.rglob` compara caso tal cual, incluso en un
+   filesystem que no distingue mayúsculas de minúsculas). Con el material de
+   Mario esto nunca se notó — sus ficheros son todos `.cube` en minúsculas —
+   pero el pack de RocketStock trae 35 de sus 48 en `.CUBE`, que
+   desaparecían del selector sin ningún aviso. Arreglado comparando las dos
+   variantes.
+2. **Sembrar 475 ficheros de golpe tarda ~12-16 s** (leer + clasificar cada
+   uno) — inaceptable en CADA arranque de la app. `sembrar_desde_carpeta`
+   ahora acepta un `cache` opcional (fichero JSON con firma mtime+tamaño por
+   ruta): sólo se relee lo nuevo o modificado desde la última vez. Medido de
+   verdad: primer arranque con las tres fuentes (reales + generados +
+   externos) ~40 s; segundo arranque, con la cache ya escrita, 0,37 s. Sin
+   `cache` (todos los llamadores de antes de hoy) el comportamiento no
+   cambia — es un parámetro opcional, no un cambio de contrato. La cache
+   vive en `generados/biblioteca_cache.json` (gitignored, junto a los looks
+   generados), nunca dentro de una carpeta de material externo o de Mario.
+
+**El fallo intermitente de `test_gui_estados.py`** (documentado arriba, en el
+bloque anterior): se investigó la causa más probable — `isVisible()` en un
+descendiente justo después de mostrar una `VentanaPrincipal` nueva, bajo
+carga de CPU, antes de que la plataforma offscreen la haya expuesto de
+verdad. Arreglado añadiendo `QTest.qWaitForWindowExposed()` (la espera
+correcta de Qt para esto, no un número fijo de `processEvents()`) en
+`tests/test_gui_apoyo.py::ventana()` y en los puntos equivalentes de
+`gui/capturas.py`. Verificado con 5 pasadas seguidas de la suite completa:
+el fallo original no volvió a aparecer ninguna vez (las 3 pasadas que sí
+fallaron fue por un motivo distinto y ya identificado — el cableado de
+`luts_externos/` rompiendo tests que no lo esperaban, arreglado aparte). **No
+se declara "arreglado y punto"**: 5 pasadas limpias no demuestran que un
+fallo que ya salía sólo 1 de cada 4 veces no vaya a volver a salir; es una
+mejora basada en una causa plausible y bien fundamentada (la API de Qt hecha
+justo para este problema), no una certificación.
+
+Tests nuevos: `test_io_biblioteca.py` (cache: no relee lo sin cambios, sí
+relee lo modificado, sobrevive a varias carpetas, cache corrupta no rompe
+nada, mayúsculas), `test_gui_main_biblioteca.py` (externos al final del
+orden). Suite completa verde, `ruff check` limpio.

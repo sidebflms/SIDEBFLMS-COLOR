@@ -188,6 +188,110 @@ def test_sembrar_desde_carpeta_con_cubes(tmp_path: Path):
     assert all(p.tamano_rejilla == lut.size for p in presets)
 
 
+def test_sembrar_desde_carpeta_reconoce_extension_en_mayusculas(tmp_path: Path):
+    """`Path.rglob` compara MAYÚSCULAS/minúsculas tal cual, incluso en un
+    filesystem que no distingue caso -- un pack externo con `.CUBE` (día 9,
+    `luts_externos/rocketstock/`) se quedaba fuera del todo, en silencio."""
+    from core.io.cube import escribir_cube
+
+    lut = _lut_de_prueba()
+    escribir_cube(lut, tmp_path / "Minusculas.cube")
+    escribir_cube(lut, tmp_path / "Mayusculas.CUBE")
+
+    presets = sembrar_desde_carpeta(tmp_path)
+    nombres = {p.nombre for p in presets}
+    assert nombres == {"Minusculas", "Mayusculas"}
+
+
+def test_sembrar_desde_carpeta_con_cache_no_relee_lo_sin_cambios(tmp_path: Path, monkeypatch):
+    """Día 9 (continuación 4): con `cache`, un `.cube` que no ha cambiado
+    desde la última siembra no se vuelve a leer ni a clasificar -- lo que
+    hace viable una biblioteca de cientos de ficheros (`luts_externos/`, 475
+    ficheros, ~12 s sin cache medidos)."""
+    from core.io.cube import escribir_cube
+
+    lut = _lut_de_prueba()
+    escribir_cube(lut, tmp_path / "Uno.cube")
+    ruta_cache = tmp_path / "cache.json"
+
+    primera = sembrar_desde_carpeta(tmp_path, cache=ruta_cache)
+    assert ruta_cache.is_file()
+    assert {p.nombre for p in primera} == {"Uno"}
+
+    llamadas = []
+    original = sembrar_desde_carpeta.__globals__["leer_cube"]
+
+    def _leer_cube_contado(ruta):
+        llamadas.append(ruta)
+        return original(ruta)
+
+    monkeypatch.setitem(sembrar_desde_carpeta.__globals__, "leer_cube", _leer_cube_contado)
+
+    segunda = sembrar_desde_carpeta(tmp_path, cache=ruta_cache)
+
+    assert llamadas == []  # nada que releer: la firma (mtime+tamaño) no cambió
+    assert {p.nombre for p in segunda} == {"Uno"}
+    assert segunda[0].tamano_rejilla == primera[0].tamano_rejilla
+    assert segunda[0].clasificacion == primera[0].clasificacion
+
+
+def test_sembrar_desde_carpeta_con_cache_relee_lo_modificado(tmp_path: Path):
+    """Un `.cube` reescrito (firma distinta) sí se vuelve a leer, aunque la
+    cache tenga una entrada previa para esa misma ruta."""
+    from core.io.cube import escribir_cube
+
+    ruta_lut = tmp_path / "Uno.cube"
+    ruta_cache = tmp_path / "cache.json"
+    escribir_cube(_lut_de_prueba(), ruta_lut)
+    sembrar_desde_carpeta(tmp_path, cache=ruta_cache)
+
+    # Otro LUT de verdad (no sólo tocar el mtime): si `clasificar_lut`
+    # cambiara de opinión, la re-siembra tendría que notarlo.
+    identidad = LUT3D.identity(5)
+    escribir_cube(identidad, ruta_lut)
+
+    releido = sembrar_desde_carpeta(tmp_path, cache=ruta_cache)
+    assert releido[0].clasificacion == "conversion"  # la identidad no tiñe nada
+
+
+def test_sembrar_desde_carpeta_cache_sobrevive_a_varias_carpetas(tmp_path: Path):
+    """El mismo fichero de cache, compartido entre llamadas a carpetas
+    DISTINTAS (el caso real: `gui.__main__._biblioteca_de_desarrollo`, reales
+    + generados + externos con una única cache): la segunda llamada no debe
+    borrar lo que dejó la primera."""
+    from core.io.cube import escribir_cube
+
+    carpeta_a, carpeta_b = tmp_path / "a", tmp_path / "b"
+    carpeta_a.mkdir()
+    carpeta_b.mkdir()
+    escribir_cube(_lut_de_prueba(), carpeta_a / "Uno.cube")
+    escribir_cube(_lut_de_prueba(), carpeta_b / "Dos.cube")
+    ruta_cache = tmp_path / "cache.json"
+
+    sembrar_desde_carpeta(carpeta_a, cache=ruta_cache)
+    sembrar_desde_carpeta(carpeta_b, cache=ruta_cache)
+
+    # Releer la carpeta A: su entrada tiene que seguir en la cache aunque la
+    # llamada de en medio fuera sobre la carpeta B.
+    import json
+
+    contenido = json.loads(ruta_cache.read_text(encoding="utf-8"))
+    assert str(carpeta_a / "Uno.cube") in contenido
+    assert str(carpeta_b / "Dos.cube") in contenido
+
+
+def test_sembrar_desde_carpeta_cache_ilegible_no_rompe_nada(tmp_path: Path):
+    """Un fichero de cache corrupto se ignora, no tumba la siembra."""
+    from core.io.cube import escribir_cube
+
+    escribir_cube(_lut_de_prueba(), tmp_path / "Uno.cube")
+    ruta_cache = tmp_path / "cache.json"
+    ruta_cache.write_text("esto no es json valido {{{", encoding="utf-8")
+
+    presets = sembrar_desde_carpeta(tmp_path, cache=ruta_cache)
+    assert {p.nombre for p in presets} == {"Uno"}
+
+
 # ---------------------------------------------------------------------------
 # 2. Contra material real. Se saltan solos si no hay carpetas.
 # ---------------------------------------------------------------------------

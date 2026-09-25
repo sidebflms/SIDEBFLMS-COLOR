@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QSize
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from gui import datos_demo as dd
@@ -67,6 +68,11 @@ def _ventana(app: QApplication, estado, indice: int, *, par=None, biblioteca=())
     ventana = VentanaPrincipal(estado, par_inverso=par, biblioteca=biblioteca)
     ventana.resize(1440, ALTO_NOMINAL)
     ventana.show()
+    # Ver el mismo comentario en tests/test_gui_apoyo.py::ventana(): esperar
+    # la exposicion REAL de la ventana, no solo contar processEvents(), es lo
+    # que evita una carrera bajo carga (este modulo encadena muchas ventanas
+    # seguidas -- justo el escenario donde se vio el fallo intermitente).
+    QTest.qWaitForWindowExposed(ventana)
     ventana.ir_a(indice)
     _asentar(app, ventana)
     return ventana
@@ -81,6 +87,7 @@ def generar(destino: Path = DESTINO) -> list[Captura]:
     patron = VentanaPrincipal(base)
     patron.resize(1440, ALTO_NOMINAL)
     patron.show()
+    QTest.qWaitForWindowExposed(patron)
     _asentar(app, patron)
     minimo = patron.anchura_minima()
     # [dia 4] El alto minimo se pregunta A LA ANCHURA MINIMA y en cada pantalla,

@@ -26,11 +26,31 @@ _CARPETA_LUTS_DESARROLLO = Path(__file__).resolve().parent.parent / "tests" / "l
 #: `tests/media/out/` para el material sintético.
 _CARPETA_LOOKS_GENERADOS = Path(__file__).resolve().parent.parent / "generados" / "looks"
 
+#: Día 9 (continuación 4): packs de LUTs gratuitos de fuera, descargados y
+#: metidos en el repo por decisión explícita de Mario — SÍ se versiona, a
+#: diferencia de `tests/luts_reales/`. La procedencia y el texto de licencia
+#: (o su ausencia) de cada fuente está en `luts_externos/<fuente>/PROCEDENCIA.md`;
+#: una fuente (RocketStock) tiene una cláusula explícita de no-redistribución
+#: y se incluyó de todos modos, con esa información ya en la mano — ver
+#: `BITACORA.md`.
+_CARPETA_LUTS_EXTERNOS = Path(__file__).resolve().parent.parent / "luts_externos"
+
+#: Día 9 (continuación 4): con 475 `.cube` en `luts_externos/`, leer y
+#: clasificar cada uno en CADA arranque de la app cuesta ~12 s medidos —
+#: demasiado para un arranque. Un fichero de cache (gitignored, junto a
+#: `generados/`, nunca dentro de una carpeta de material externo/de Mario)
+#: hace que sólo se recalculen los ficheros nuevos o modificados desde la
+#: última vez. Ver `core.io.biblioteca.sembrar_desde_carpeta`.
+_CACHE_BIBLIOTECA = Path(__file__).resolve().parent.parent / "generados" / "biblioteca_cache.json"
+
 
 def _biblioteca_de_desarrollo() -> tuple:
     from core.io.biblioteca import sembrar_desde_carpeta
     from core.looks import sembrar_generados
 
+    # No depender de que `sembrar_generados` cree `generados/` como efecto
+    # secundario antes de que la cache intente escribir ahi dentro.
+    _CACHE_BIBLIOTECA.parent.mkdir(parents=True, exist_ok=True)
     sembrar_generados(_CARPETA_LOOKS_GENERADOS)
 
     # El paso 4 es "look": una conversión de espacio de color (día 6,
@@ -38,16 +58,25 @@ def _biblioteca_de_desarrollo() -> tuple:
     # configuración técnica del paso 1 "ordenar la casa". Se filtra aquí, no
     # en `ejecutar_look`, para que la función siga sirviendo genéricamente a
     # cualquier biblioteca que le pasen (una futura carpeta "sólo looks" no
-    # necesitaría este filtro). Los looks generados van tras los reales de
-    # Mario cuando los hay, para no mover el preset por defecto (índice 0)
-    # de quien ya tenía `tests/luts_reales/` poblada.
+    # necesitaría este filtro). Orden: reales de Mario primero (no mover el
+    # preset por defecto, índice 0, de quien ya tenía `tests/luts_reales/`
+    # poblada), luego los generados por `core.looks`, luego los externos.
     reales = tuple(
-        p for p in sembrar_desde_carpeta(_CARPETA_LUTS_DESARROLLO) if p.clasificacion != "conversion"
+        p
+        for p in sembrar_desde_carpeta(_CARPETA_LUTS_DESARROLLO, cache=_CACHE_BIBLIOTECA)
+        if p.clasificacion != "conversion"
     )
     generados = tuple(
-        p for p in sembrar_desde_carpeta(_CARPETA_LOOKS_GENERADOS) if p.clasificacion != "conversion"
+        p
+        for p in sembrar_desde_carpeta(_CARPETA_LOOKS_GENERADOS, cache=_CACHE_BIBLIOTECA)
+        if p.clasificacion != "conversion"
     )
-    return reales + generados
+    externos = tuple(
+        p
+        for p in sembrar_desde_carpeta(_CARPETA_LUTS_EXTERNOS, cache=_CACHE_BIBLIOTECA)
+        if p.clasificacion != "conversion"
+    )
+    return reales + generados + externos
 
 
 def main(argv: list[str] | None = None) -> int:
