@@ -601,8 +601,9 @@ def test_la_app_funciona_con_las_DOS_respuestas_de_cada_incognita(campo, valor, 
 def test_cada_incognita_cambia_algo_observable(tmp_path):
     """Si cambiar una constante no cambia nada, la incognita esta muerta."""
     base = Incognitas()
-    assert "drx" not in formatos_export_disponibles(base)
-    assert "drx" in formatos_export_disponibles(Incognitas(export_drx_funciona=True))
+    # F0-1 confirmado el 2026-09-25: el valor por defecto ya ofrece 'drx'.
+    assert "drx" in formatos_export_disponibles(base)
+    assert "drx" not in formatos_export_disponibles(Incognitas(export_drx_funciona=False))
 
     assert extensiones_lut_aceptadas(base) == (".cube",)
     assert ".dctl" in extensiones_lut_aceptadas(Incognitas(setlut_acepta_dctl=True))

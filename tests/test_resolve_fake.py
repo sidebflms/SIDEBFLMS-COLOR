@@ -445,16 +445,19 @@ def test_export_stills_con_cosas_mal(fake, salida):
     assert os.listdir(salida) == []
 
 
-def test_el_drx_hoy_no_exporta_nada(fake, salida):
-    """Incognita F0-1: mientras no se verifique, se asume que no funciona."""
+def test_el_drx_no_exporta_nada_si_la_incognita_f0_1_esta_desactivada(salida):
+    """Incognita F0-1: con `export_drx_funciona=False` (el valor conservador
+    que se usaba antes de confirmarla el 2026-09-25), no se exporta nada."""
+    fake = FakeResolve(n_clips=1, incognitas=Incognitas(export_drx_funciona=False))
     still = fake.grab_still()
     assert fake.export_stills([still], str(salida), "pg", "drx") == []
     assert os.listdir(salida) == []
     assert any("F0-1" in a for a in fake._avisos)
 
 
-def test_el_drx_exportaria_si_la_incognita_f0_1_saliera_que_si(salida):
-    fake = FakeResolve(n_clips=1, incognitas=Incognitas(export_drx_funciona=True))
+def test_el_drx_exporta_desde_que_la_incognita_f0_1_se_confirmo(fake, salida):
+    """F0-1 confirmado el 2026-09-25 contra Resolve real: el `fake` de
+    siempre (incógnitas por defecto) ya exporta .drx sin configurarlo aparte."""
     still = fake.grab_still()
     escritos = fake.export_stills([still], str(salida), "pg", "drx")
     assert len(escritos) == 1

@@ -57,16 +57,25 @@ siempre juntos.
 ## Lo que falta, deliberadamente
 
 - **Aplicar la decisión en Resolve** (`SetClipProperty(clip, "Input Color Space",
-  espacio)`) no está aquí: depende de que F0-7 del probe diga que sí. Mientras tanto
-  `core.colormgmt` sólo decide y avisa; quien escribe en Resolve es un capítulo
-  aparte, condicionado a `Incognitas.clip_input_color_space_editable` — campo que
-  **aún no existe** en `core/resolve/incognitas.py` y hay que añadir cuando llegue
-  la respuesta del probe (junto con el resto de F0-7/F0-8).
-- **Ningún nombre de clave de `GetClipProperty` está confirmado.** Los cinco campos
-  de `ClipRef` son la mejor lectura de foros y documentación de terceros, no de
-  Blackmagic. El probe ampliado (F0-7) pide explícitamente "listar todas las claves
-  que devuelve `GetClipProperty()` sin argumentos" — cuando Mario lo ejecute, hay que
-  volver aquí y corregir los nombres si hace falta.
+  espacio)`) — **F0-7 contestado el 2026-09-25 contra Resolve real: NO
+  funciona.** `SetClipProperty("Input Color Space", ...)` soltó
+  `TypeError: 'NoneType' object is not callable` sobre el clip de prueba —
+  el método no está disponible tal cual se probó (puede que haga falta
+  llamarlo sobre otro tipo de objeto, o que esta build/versión de Resolve no
+  lo exponga; no se ha investigado más a fondo). **`core.colormgmt` se queda
+  como está y punto: sólo decide y avisa, nunca intenta escribir el espacio de
+  entrada de un clip.** No hace falta ningún campo `Incognitas` nuevo para
+  esto — la respuesta es "no", no "depende de una incógnita que aún falta".
+- **F0-8 contestado el 2026-09-25: tampoco.** `SetSetting('colorScienceMode', ...)`,
+  `SetSetting('colorSpaceTimeline', ...)` y `SetSetting('colorSpaceOutput', ...)`
+  devolvieron `False` los tres. La app no intenta cambiar la gestión de color del
+  proyecto por script — sigue asumiendo que quien monta el proyecto ya la ha
+  configurado bien, y se limita a avisar si algo no cuadra (que es lo que ya
+  hacía `verificar_proyecto`, sin cambios).
+- **Ningún nombre de clave de `GetClipProperty` está confirmado todavía.** Los
+  cinco campos de `ClipRef` son la mejor lectura de foros y documentación de
+  terceros, no de Blackmagic — esto sigue pendiente, F0-7 sólo se probó para
+  `SetClipProperty`, no para `GetClipProperty()` sin argumentos.
 - **La heurística de "LUT que parece conversión de entrada"**
   (`verificacion._TOKENS_LUT_CONVERSION`) es de nombre de archivo, no de contenido:
   un LUT de conversión con un nombre raro no se detecta, y un look cuyo nombre

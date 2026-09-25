@@ -398,9 +398,20 @@ comprueba que pedir el nodo 3 de un post-clip revienta:
 
 **¿`AddVersion` hereda el árbol de nodos, o la versión nueva empieza en blanco?**
 
-Si empieza en blanco, la versión `SIDEB COLOR` tiene un solo nodo y, como no se
-pueden crear nodos (3.2), **la app no puede escribir nada**. Es tan importante como
-cualquiera de las seis.
+**CONFIRMADO el 2026-09-25, contra Resolve Studio 21.1.0.17 real: EMPIEZA EN
+BLANCO.** Medido de verdad (probe, pregunta `EXTRA`): el clip de prueba tenía 1
+nodo antes de `AddVersion` y 1 después — con un clip de más nodos habría hecho
+falta repetirlo para estar seguros de que no hereda NUNCA, pero la evidencia que
+hay apunta al caso pesimista, no al nominal.
+
+Esto es tan importante como cualquiera de las seis: como no se pueden crear
+nodos por script (3.2), **la app no puede montar sola los tres nodos que
+necesita** (`NODE_NORMALIZACION`/`NODE_BALANCE`/`NODE_LOOK`). Hace falta partir
+de un PowerGrade de tres nodos ya construido (`ApplyGradeFromDRX`, ahora que
+F0-1 confirma que exportar a `.drx` funciona) o que quien monta la timeline dejê
+los tres nodos hechos de antemano — no es un "ya se verá", es la pieza que hay
+que resolver antes de que la app pueda escribir de verdad en un proyecto que no
+se ha preparado a mano primero.
 
 No la he metido en `Incognitas` porque **no cambia el código**: la comprobación de
 "¿hay tres nodos?" se hace igual en los dos casos, y ya está puesta. Lo que cambia
@@ -408,9 +419,17 @@ es si la app sirve para algo.
 
 Dónde está cubierta:
 
-- `FakeResolve(version_hereda_grafo=...)` simula las dos. Por defecto hereda (el
-  caso nominal); con `False` hay un test que comprueba que la app se para y avisa
-  en vez de escribir a ciegas.
+- `FakeResolve(version_hereda_grafo=...)` simula las dos. **El valor por defecto
+  del constructor (`True`, hereda) sigue siendo el caso NOMINAL/optimista, NO el
+  confirmado** — se ha dejado así a propósito porque la mayoría de tests de este
+  archivo no están probando esta mecánica concreta y flipar el valor por defecto
+  habría significado revisar la práctica totalidad de la suite de `core/resolve`
+  para ver a cuáles les hace falta un PowerGrade de partida; queda pendiente para
+  una sesión dedicada, no uno de los TODO(F0-n) de una tarde. Con
+  `version_hereda_grafo=False` (el caso ahora confirmado) hay tests dedicados
+  (`tests/test_resolve_fake.py`, `tests/test_resolve_secuencia.py`,
+  `tests/revision/test_ola1_resolve.py`) que comprueban que la app se para y
+  avisa en vez de escribir a ciegas en un nodo que no existe.
 - El probe la mide: cuenta los nodos antes y después de `AddVersion` y la contesta
   en el informe como pregunta `EXTRA`.
 
@@ -474,41 +493,61 @@ comprueba que no se multiplican
 
 Mañana: cambias los seis valores por defecto de `Incognitas` y no tocas nada más.
 
-### Dos que ya tienen evidencia, aunque sigan en el valor conservador
+### Día 9 (continuación 5), 2026-09-25: el probe corrió contra Resolve real
 
-Al probar el probe con `--solo-diagnostico` (que no se conecta a Resolve: para
-antes) resultó que **Resolve sí está instalado en este Mac**. Lo comprobamos el
-agente G y yo, por separado, con el Python 3.12.14 arm64 del entorno virtual del
-proyecto, y con `pgrep` verificamos que Resolve no estaba corriendo, así que no
-se conectó a nada:
+Primera vez en la historia del proyecto — Mario abrió Resolve Studio 21.1.0.17
+con un proyecto de pruebas ("test color") y dio permiso explícito para la parte
+de escritura. Resultado, pregunta por pregunta:
 
-- **F0-6 sale SÍ.** El módulo de scripting se importa limpiamente desde
-  `/Applications/DaVinci Resolve/.../Libraries/Fusion/fusionscript.so`. O sea que
-  `LiveResolve` puede vivir dentro de la app, con nuestro propio intérprete, sin
-  montar un proceso aparte. Es la respuesta buena.
-- **F0-4 sale «descarga directa».** Existe
-  `/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT` y no existe
-  la del contenedor del Mac App Store.
+- **F0-6: SÍ, confirmado.** El módulo de scripting se importa limpiamente desde
+  `/Applications/DaVinci Resolve/.../Libraries/Fusion/fusionscript.so` con el
+  Python 3.12.14 arm64 del `.venv` del proyecto. `LiveResolve` puede vivir
+  dentro de la app, sin proceso aparte.
+- **F0-4: «descarga directa», confirmado.** Coincide con el valor conservador
+  que ya estaba puesto.
+- **F0-1: SÍ, confirmado.** `ExportStills(..., 'drx')` devolvió `True` y
+  apareció el fichero `.drx` de verdad en el directorio de pruebas.
+- **F0-2, F0-3, F0-5: intentados, inconclusos** — no "confirmados en falso".
+  F0-2 (still con o sin grado) no dejó ningún fichero medible con el formato
+  probado; F0-3 (`.dctl`) no tenía ningún `.dctl` en la carpeta de LUTs con qué
+  probarlo; F0-5 (hace falta `OpenPage`) no se pudo distinguir de "ese LUT de
+  serie en concreto no existe". Los tres se quedan en su valor conservador de
+  siempre — ver los comentarios de cada campo en `incognitas.py` para el detalle.
+- **La séptima, sin numerar (§4 de arriba): CONFIRMADA en el caso pesimista.**
+  `AddVersion` no hereda el árbol de nodos — la versión nueva empieza con uno
+  solo. Es el hallazgo más importante de la sesión: sin un PowerGrade de tres
+  nodos de partida, la app no puede escribir sola su estructura.
 
-**Los dos siguen puestos en el valor conservador a propósito**, hasta que el probe
-lo confirme con Resolve abierto. Lo de hoy dice dónde está instalado Resolve, no
-que la API conteste lo que esperamos.
+Informe completo (JSON y texto) generado por el propio probe; quien retome esto
+debería releerlo en vez de fiarse sólo de este resumen.
 
 ---
 
 ## 7. Lo que NO está probado, y hay que decirlo
 
-- **`live.py` entero.** Ni una línea se ha ejecutado nunca. No hay ningún test que
-  lo importe siquiera. Es un punto de partida, no código que funcione. La regla de
-  oro está puesta también ahí, en las cinco escrituras, pero tampoco se ha
-  ejecutado: cuesta una llamada extra a `GetCurrentVersion` por escritura y, si
-  mañana eso resulta caro en un timeline largo, se cachea, pero no se quita.
-- **Todo lo que el probe hace con Resolve delante.** Lo que sí está probado del
-  probe: que compila, que `--help` va, que sólo usa la biblioteca estándar, que no
-  importa Resolve al cargarse, que el medidor de brillo de stills (con el que se
-  responde F0-2) hace bien su trabajo, y que el camino de "no encuentro Resolve"
-  suelta un mensaje decente en vez de un traceback.
-- **Que la semántica de `FakeResolve` sea la de Resolve.** Es el riesgo de fondo de
-  toda esta noche: he modelado lo que creo que hace Resolve. Donde no estoy seguro,
-  lo he puesto como opción del constructor (`version_hereda_grafo`,
-  `nodos_post_clip_grupo`) en vez de cerrarlo.
+- **`live.py` entero, SIGUE sin ejecutarse — ni siquiera el día 9 (continuación
+  5).** El probe habla con `DaVinciResolveScript` DIRECTAMENTE, con sus propias
+  llamadas sueltas (`resolve.GetProjectManager()`, etc.), no a través de
+  `LiveResolve`/`ResolveBridge`. Que el probe haya corrido de verdad contra
+  Resolve NO es lo mismo que `LiveResolve` haya corrido nunca — sigue siendo
+  cierto que ni una línea de ese fichero se ha ejecutado, ni hay ningún test
+  que lo importe. La regla de oro está puesta también ahí, en las cinco
+  escrituras, pero tampoco se ha ejecutado: cuesta una llamada extra a
+  `GetCurrentVersion` por escritura y, si mañana eso resulta caro en un
+  timeline largo, se cachea, pero no se quita.
+- **Lo que el probe hace con Resolve delante: ya SÍ está probado, de verdad,
+  el 2026-09-25** (ver el resumen del día 9 arriba) — conexión, lectura de
+  versión, `AddVersion`, `SetCDL`/`SetLUT`, `GrabStill`/`ExportStills`
+  (incluido `.drx`), y la limpieza al terminar (borrar la versión de sonda,
+  volver a la versión original, borrar los stills). Lo que sigue sin probarse
+  del probe en sí: F0-2 (con qué formato de imagen SÍ deja fichero medible),
+  F0-3 (contra un `.dctl` real) y F0-5 de forma concluyente.
+- **Que la semántica de `FakeResolve` sea la de Resolve — parcialmente ya
+  contestado.** Era el riesgo de fondo: se había modelado lo que se creía que
+  hacía Resolve, con una opción del constructor donde no había seguridad
+  (`version_hereda_grafo`, `nodos_post_clip_grupo`) en vez de cerrarlo a una
+  rama. El día 9 (continuación 5) confirmó una de las dos:
+  `version_hereda_grafo` — Resolve real NO hereda, igual que la rama `False`
+  del fake (el valor por DEFECTO del fake sigue siendo `True`, la rama
+  optimista, por convivencia con el resto de la suite — ver §4). Sigue sin
+  confirmarse `nodos_post_clip_grupo`.

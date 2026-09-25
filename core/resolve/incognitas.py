@@ -1,12 +1,18 @@
 """Las seis incognitas de la API de Resolve, todas en un solo sitio.
 
-Manana Mario ejecuta `probe/api_probe.py` con Resolve abierto y le da una
-respuesta a cada una de las seis. Cuando las tenga, **se cambian estas seis
-constantes y ya**: ningun otro archivo de la app tiene que tocarse.
+**Día 9 (continuación 5), 2026-09-25: el probe se ejecutó por primera vez
+contra Resolve real** (Studio 21.1.0.17, Mac, instalación por descarga
+directa). Dos de las seis salieron confirmadas (F0-1, F0-6); las otras tres
+que se pudieron probar salieron inconclusas — no "confirmadas en falso", el
+probe no pudo distinguir "Resolve dice que no" de "no había con qué probarlo"
+(ver el comentario de cada campo) — así que se quedan en el valor
+conservador, pero ya no es "sin ejecutar nunca": es "intentado de verdad y
+sin poder concluir". Informe completo en `informe_resolve.json`/`.txt`
+(mándaselos a quien lleve el repo si hace falta releerlos).
 
-Hasta entonces, el valor por defecto de cada una es **el pesimista**. Si hoy
-asumimos lo peor y manana resulta que Resolve puede mas, la app mejora. Si
-asumimos lo mejor y manana resulta que no, la app miente.
+Cuando una incognita se confirme de verdad (con evidencia, no a ojo), **se
+cambia su valor por defecto aquí y ya**: ningun otro archivo de la app tiene
+que tocarse.
 
 Las seis:
 
@@ -81,39 +87,55 @@ class Incognitas:
     """
 
     #: TODO(F0-1) ¿`album.ExportStills(stills, dir, prefijo, 'drx')` produce un
-    #: .drx de verdad en su build? Conservador: NO. Con False, la app no ofrece
-    #: la exportacion de PowerGrades a .drx y `export_stills` devuelve [].
-    export_drx_funciona: bool = False
+    #: .drx de verdad en su build? **CONFIRMADO el 2026-09-25 contra Resolve
+    #: Studio 21.1.0.17: SI.** Devolvió `True` y apareció `probeDRX_1.1.1.drx`
+    #: en el directorio de pruebas. Con True, la app ofrece la exportación de
+    #: PowerGrades a .drx.
+    export_drx_funciona: bool = True
 
     #: TODO(F0-2) ¿El still que sale de `GrabStill()` + `ExportStills()` lleva el
-    #: grado aplicado, o es el material limpio? Conservador: LIMPIO. Con False,
-    #: la app NO usa stills como "antes/despues" ni para medir el grado: se mide
+    #: grado aplicado, o es el material limpio? **Intentado el 2026-09-25 contra
+    #: Resolve real: INCONCLUSO**, no "confirmado limpio" — `ExportStills` con
+    #: formato de imagen no dejó ningún fichero medible en el directorio de
+    #: pruebas (puede que esa build no escriba `.ppm` con esa llamada; ver
+    #: `informe_resolve.json`). Se queda en el valor conservador (LIMPIO) hasta
+    #: que alguien repita la medición con otro formato o build. Con False, la
+    #: app NO usa stills como "antes/despues" ni para medir el grado: se mide
     #: sobre el fichero de origen y punto.
     still_lleva_grado: bool = False
 
-    #: TODO(F0-3) ¿`timelineItem.SetLUT(n, ruta)` traga un `.dctl`? Conservador:
-    #: NO. Con False, el nodo 3 (look) solo acepta `.cube`, que es lo que la app
-    #: genera de todas formas.
+    #: TODO(F0-3) ¿`timelineItem.SetLUT(n, ruta)` traga un `.dctl`? **Intentado
+    #: el 2026-09-25: SIN PROBAR DE VERDAD** — no había ningún `.dctl` en la
+    #: carpeta de LUTs de esa máquina, así que el probe no tuvo con qué medirlo
+    #: (repetir con `--dctl RUTA_RELATIVA` una vez haya uno). Se queda en el
+    #: valor conservador: NO. Con False, el nodo 3 (look) solo acepta `.cube`,
+    #: que es lo que la app genera de todas formas.
     setlut_acepta_dctl: bool = False
 
     #: TODO(F0-4) ¿Descarga directa o Mac App Store? Cambia la carpeta de LUTs
-    #: entera (la del MAS vive en un contenedor sandbox). Conservador no aplica
-    #: aqui: no hay opcion "segura", hay una que es la correcta y otra que no.
-    #: Por defecto la descarga directa, que es con mucho la mas frecuente en
-    #: instalaciones de Studio con llave. Si esta mal, `SetLUT` fallara con
-    #: "LUT no encontrado" y la app tiene que ensenar la ruta que esta usando.
+    #: entera (la del MAS vive en un contenedor sandbox). **CONFIRMADO el
+    #: 2026-09-25 contra Resolve real: descarga directa** (coincide con el
+    #: valor que ya estaba puesto por defecto). Si esta mal en otra máquina,
+    #: `SetLUT` fallará con "LUT no encontrado" y la app tiene que enseñar la
+    #: ruta que está usando.
     instalacion: TipoInstalacion = "descarga"
 
     #: TODO(F0-5) ¿Hace falta `OpenPage("color")` antes de escribir grado por
-    #: script? Conservador: SI. Llamarlo de mas no rompe nada (solo cambia de
-    #: pagina); no llamarlo cuando hacia falta deja escrituras silenciosas que
-    #: no se aplican, que es muchisimo peor.
+    #: script? **Intentado el 2026-09-25: INCONCLUSO** — el probe no pudo
+    #: distinguir "no hace falta" de "ese LUT de serie en concreto no existe"
+    #: (medido con `SetLUT`/`GetLUT`, porque `GetCDL` no existe y un `SetCDL`
+    #: no se puede releer para comprobarlo). Se queda en el valor conservador:
+    #: SI. Llamarlo de más no rompe nada (solo cambia de página); no llamarlo
+    #: cuando hacía falta deja escrituras silenciosas que no se aplican, que
+    #: es muchísimo peor.
     requiere_open_page: bool = True
 
     #: TODO(F0-6) ¿El Python 3.12 arm64 de Mario importa `fusionscript`
-    #: limpiamente? None = todavia no se sabe (es lo que hay hoy). El probe lo
-    #: rellena. La app no depende de este valor para nada: solo lo ensena.
-    fusionscript_importable: bool | None = None
+    #: limpiamente? **CONFIRMADO el 2026-09-25 contra Resolve Studio 21.1.0.17:
+    #: SI**, import limpio desde el `.venv` del propio proyecto — `LiveResolve`
+    #: puede vivir dentro de la app, sin proceso aparte. La app no depende de
+    #: este valor para nada: solo lo enseña.
+    fusionscript_importable: bool | None = True
 
     def describir(self) -> tuple[str, ...]:
         """Frases en castellano para ensenar en la GUI. Sin jerga."""
@@ -126,7 +148,7 @@ class Incognitas:
             f"F0-5 hace falta abrir la pagina de color: "
             f"{'si (asumido)' if self.requiere_open_page else 'no'}",
             f"F0-6 fusionscript importable: "
-            f"{'sin comprobar' if self.fusionscript_importable is None else self.fusionscript_importable}",
+            f"{'sin comprobar' if self.fusionscript_importable is None else ('si' if self.fusionscript_importable else 'no')}",
         )
 
 

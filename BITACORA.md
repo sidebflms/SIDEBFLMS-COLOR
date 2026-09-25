@@ -2594,3 +2594,84 @@ Tests nuevos: `test_io_biblioteca.py` (cache: no relee lo sin cambios, sí
 relee lo modificado, sobrevive a varias carpetas, cache corrupta no rompe
 nada, mayúsculas), `test_gui_main_biblioteca.py` (externos al final del
 orden). Suite completa verde, `ruff check` limpio.
+
+---
+
+# DÍA 9 (continuación 5) — el probe corrió contra Resolve real, por primera vez
+
+Mario abrió Resolve Studio, creó un proyecto de pruebas ("test color") con clips
+reales en el media pool, y se fue dos horas con permiso explícito para "probar
+todo lo que necesites en Resolve". Primera vez en la historia de este proyecto
+que `probe/api_probe.py` habla con Resolve de verdad, no con `FakeResolve`.
+
+**El proyecto tenía media pool pero ningún timeline con clips** (prerrequisito
+del probe). Se creó un timeline de pruebas (`SIDEB COLOR PROBE TEST`) dentro de
+ESE MISMO proyecto de pruebas, con un clip de dron ya estabilizado, vía la API
+de scripting — nada tocado del material real de Mario, y el timeline se borró
+al terminar (queda el proyecto de pruebas tal y como estaba, sólo con su media
+pool).
+
+**Fase de solo lectura** (sin pedir permiso, no escribe nada): F0-6 (SÍ, Python
+3.12 arm64 importa `fusionscript` limpio), F0-4 (descarga directa, confirma el
+valor que ya había), y V-0 — el hallazgo más inmediatamente útil de esta fase:
+`GetCurrentVersion()` devuelve un **diccionario** (`{'versionName':...,
+'versionType':...}`), no una cadena, confirmando exactamente la incertidumbre
+que `bridge.py` ya tenía señalada.
+
+**Fase de escritura**, con permiso explícito de Mario sobre su propio proyecto
+de pruebas: creó la versión `SIDEB COLOR PROBE`, escribió CDL y LUT, cogió y
+borró stills de galería, y **limpió todo correctamente al terminar** (CDL de la
+versión de sonda vuelto a neutro, versión original restaurada, versión de
+sonda borrada, página de Resolve devuelta a `edit`) — el propio diseño
+"pregunta antes de escribir, limpia al final" del probe, funcionando tal y
+como se escribió sin haberse ejecutado nunca antes contra Resolve real.
+
+**El hallazgo más importante de la noche, no es de las seis numeradas**:
+`AddVersion()` **no hereda el árbol de nodos** — la versión nueva empieza con
+un solo nodo, siempre. Confirma el peor de los dos escenarios ya contemplados
+(`core/resolve/NOTAS.md` §4): sin un PowerGrade de tres nodos de partida
+(`ApplyGradeFromDRX`, y ahora sabemos que exportar a `.drx` SÍ funciona — F0-1
+confirmado SÍ), la app no puede montar sola la estructura de tres nodos que
+necesita para escribir nada. No es una incógnita más: es la pieza de la que
+depende que la app "sirva para algo" contra un proyecto sin preparar a mano.
+
+**Dos preguntas contestadas con un NO firme, no con una incógnita pendiente**:
+F0-7 (`SetClipProperty("Input Color Space", ...)`) soltó
+`TypeError: 'NoneType' object is not callable` — no funciona tal cual se
+probó. F0-8 (`SetSetting` sobre `colorScienceMode`/espacios de trabajo/salida)
+devolvió `False` en los tres intentos. Ninguno de los dos es "hace falta el
+probe para saberlo" — ya se sabe, y la respuesta cierra la puerta:
+`core.colormgmt` se queda como estaba, sólo decide y avisa, nunca intenta
+escribir gestión de color por script.
+
+**Tres preguntas intentadas de verdad y sin poder concluir** (no "confirmadas
+en falso", genuinamente inconclusas): F0-2 (el still no dejó fichero medible
+con el formato probado — puede que esa build no escriba `.ppm` con esa
+llamada), F0-3 (no había ningún `.dctl` en la carpeta de LUTs de esa máquina
+con qué probarlo) y F0-5 (no se pudo distinguir "no hace falta `OpenPage`" de
+"ese LUT de serie en concreto no existe"). Los tres se quedan en su valor
+conservador de siempre.
+
+**Aplicado al código**: `core/resolve/incognitas.py` — los seis valores por
+defecto de `Incognitas` actualizados (F0-1 y F0-6 a los confirmados, F0-4 sin
+cambio porque ya coincidía, F0-2/F0-3/F0-5 sin cambio porque siguen
+inconclusos), cada campo con su comentario diciendo QUÉ se midió y CUÁNDO, no
+sólo el valor. `core/resolve/NOTAS.md` y `core/colormgmt/NOTAS.md`
+actualizados con el mismo criterio. `SUPUESTOS.md` fila H5 (`ExportStills`
+devuelve `bool`) con una nota de confirmación parcial.
+
+**Lo que esto NO cambia**: `core/resolve/live.py` sigue sin ejecutarse ni una
+sola línea — el probe habla con `DaVinciResolveScript` directamente, con sus
+propias llamadas sueltas, no a través de `LiveResolve`. Que el probe haya
+corrido de verdad no es lo mismo que `LiveResolve` lo haya hecho; dicho así de
+claro para que nadie dé ese paso por hecho. Tampoco se ha cambiado el valor
+por defecto de `FakeResolve(version_hereda_grafo=True)` pese a que ahora se
+sepa que el caso real es `False` — flipar ese valor por defecto tendría
+ondas por buena parte de la suite de `core/resolve` (qué tests asumen 3 nodos
+ya puestos) y es trabajo de una sesión dedicada, no de esta noche.
+
+5 tests actualizados (los que asumían los valores conservadores de antes de
+hoy como si fueran a quedarse así para siempre: `test_resolve_incognitas.py`,
+`test_resolve_fake.py`, `tests/revision/test_ola1_resolve.py`) — no
+debilitados, sólo puestos al día con lo confirmado. Suite completa verde,
+`ruff check` limpio.

@@ -551,6 +551,11 @@ se activa el día que haya Resolve real delante.
   escribe de forma asíncrona).
 - **Cómo se verificaría:** `probe/api_probe.py`, junto con F0-1 (exportar un still de
   verdad y mirar qué devuelve `ExportStills` en la consola de Resolve).
+- **Parcialmente confirmado el 2026-09-25**: F0-1 se ejecutó contra Resolve real
+  (Studio 21.1.0.17) y `ExportStills(..., 'drx')` devolvió exactamente `True`
+  (no una lista, no un dict) — coincide con lo que aquí se suponía, al menos para
+  el caso `.drx`. Sigue sin confirmarse para los formatos de imagen (F0-2 salió
+  inconcluso esa misma sesión, ver `core/resolve/incognitas.py`).
 
 ## I · `core/looks/`, el generador paramétrico de PowerGrades (día 9)
 

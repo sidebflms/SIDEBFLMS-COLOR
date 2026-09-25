@@ -30,14 +30,19 @@ from core.resolve.incognitas import (
 RAIZ = Path(__file__).resolve().parent.parent
 
 
-def test_los_valores_de_hoy_son_los_pesimistas():
+def test_los_valores_de_hoy_son_los_confirmados_o_los_conservadores():
+    """Día 9 (continuación 5): el probe corrió contra Resolve real por primera
+    vez. F0-1 y F0-6 salieron confirmados; F0-2/F0-3/F0-5 se intentaron y
+    quedaron inconclusos (no "confirmados en falso") así que se quedan en su
+    valor conservador de siempre — ver los comentarios de cada campo en
+    `core/resolve/incognitas.py`."""
     i = INCOGNITAS_CONSERVADORAS
-    assert i.export_drx_funciona is False  # F0-1
-    assert i.still_lleva_grado is False  # F0-2
-    assert i.setlut_acepta_dctl is False  # F0-3
-    assert i.instalacion == "descarga"  # F0-4
-    assert i.requiere_open_page is True  # F0-5
-    assert i.fusionscript_importable is None  # F0-6, sin comprobar
+    assert i.export_drx_funciona is True  # F0-1, confirmado 2026-09-25
+    assert i.still_lleva_grado is False  # F0-2, intentado, inconcluso
+    assert i.setlut_acepta_dctl is False  # F0-3, sin .dctl con que probar
+    assert i.instalacion == "descarga"  # F0-4, confirmado 2026-09-25
+    assert i.requiere_open_page is True  # F0-5, intentado, inconcluso
+    assert i.fusionscript_importable is True  # F0-6, confirmado 2026-09-25
 
 
 def test_las_seis_estan_marcadas_en_el_codigo():
@@ -115,9 +120,12 @@ def test_cambiar_f0_3_cambia_lo_que_traga_el_puente():
 # --- F0-1: el .drx ---------------------------------------------------------
 
 
-def test_el_drx_no_se_ofrece_hoy():
-    assert "drx" not in formatos_export_disponibles(Inc())
-    assert "drx" in formatos_export_disponibles(Inc(export_drx_funciona=True))
+def test_el_drx_se_ofrece_desde_que_se_confirmo():
+    """F0-1 confirmado el 2026-09-25 contra Resolve real: el valor por
+    defecto ya ofrece 'drx'. `export_drx_funciona=False` sigue existiendo
+    para quien necesite ser conservador (otra build, otra máquina)."""
+    assert "drx" in formatos_export_disponibles(Inc())
+    assert "drx" not in formatos_export_disponibles(Inc(export_drx_funciona=False))
     assert "cube" not in formatos_export_disponibles(Inc())  # cube no es un still
 
 
