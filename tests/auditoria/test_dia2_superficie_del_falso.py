@@ -182,12 +182,17 @@ def test_D1_la_lista_del_test_de_revision_con_devolver_en_dentro():
     el mismo servicio que daba el del revisor, con el metodo nuevo dentro.
     """
     esperada = [
+        # Grupos de color, solo lectura (dia 9, continuacion 15): reales en la
+        # API de Resolve, ninguno devuelve un CDL ni un grado.
+        "asignar_clip_a_grupo",
+        "clip_color_group",
         "conectar",
         "dejar_de_fallar",
         "desconectar",
         "devolver_en",
         "devolver_false_en",
         "fallar_en",
+        "group_post_clip_lut",
         "nodos_post_clip",
         "set_current_still_album",
     ]

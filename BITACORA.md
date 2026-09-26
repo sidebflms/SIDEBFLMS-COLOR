@@ -3279,3 +3279,38 @@ Tests nuevos: `tests/test_io_perfiles.py` (+2, `borrar_perfil`),
 `tests/test_gui_dialogo_perfil.py` (13), `tests/test_gui_pantalla_aplicar_
 perfiles.py` (+3, el botón "Gestionar…"). Suite completa verde, `ruff
 check` limpio.
+
+---
+
+## DÍA 9, continuación 15 — punto 5: grupos de color, sólo lectura
+
+Último punto abierto de la lista de Mario. Escribir en grupos NO se cableó, a
+propósito: `set_group_post_clip_lut` es la única escritura fuera de la regla
+de oro (un grupo no tiene versiones, pisa lo que hubiera sin deshacer), y
+Fabrik ya se resuelve con perfiles de cámara — los grupos no aportan nada
+que el perfil no cubra. Mario eligió la variante segura: sólo lectura.
+
+Lo que sí hacía falta saber antes de aplicar: si un clip está en un grupo
+con su propio LUT en el post-clip, ese LUT se suma POR ENCIMA del look de la
+app y el resultado en pantalla no es el que se calculó, sin que nada en el
+grado del clip lo delate. Ahora el plan de "Aplicar" lo avisa (nunca
+bloquea).
+
+Verificado contra Resolve Studio 21.1.0.17 (timeline y grupo temporales,
+borrados; 0 grupos y 0 timelines al terminar): `TimelineItem.GetColorGroup()`
+da `None` sin grupo y un `ColorGroup` con `GetName()` funcional tras
+asignarlo. Encontrados de paso `AssignToColorGroup`, `RemoveFromColorGroup`
+y `ColorGroup.GetClipsInTimeline` (no usados: la app no asigna clips a
+grupos). Nuevos, fuera del Protocol congelado (mismo precedente que
+`nodos_post_clip`): `clip_color_group` y `group_post_clip_lut` en
+`LiveResolve`/`FakeResolve`, y `core/resolve/grupos.py::info_grupo_de_clip`,
+que devuelve `None` ante cualquier fallo — un aviso opcional no tumba el plan.
+
+**Sin verificar todavía**: `group_post_clip_lut` contra un grupo que SÍ trae
+un LUT (sólo se probó el caso vacío, `None`); probarlo obligaría a escribir
+un LUT de grupo, aunque fuera en uno temporal. Cubierto sólo con dobles.
+
+Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
+el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
+deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
+ambos sin arreglo posible hoy.

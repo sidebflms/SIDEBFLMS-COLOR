@@ -502,6 +502,15 @@ def test_los_metodos_publicos_de_mas_de_fakeresolve_son_solo_de_simulacion():
         if not m.startswith("_") and callable(getattr(FakeResolve, m, None))
     }
     assert sorted(publicos - protocolo) == [
+        # Grupos de color, SOLO LECTURA (dia 9, continuacion 15). Los tres
+        # existen en la API real de Resolve y ninguno devuelve un CDL ni un
+        # grado: `clip_color_group` = `TimelineItem.GetColorGroup`,
+        # `group_post_clip_lut` = `GetLUT` del grafo post-clip del grupo (los
+        # dos verificados contra Resolve 21.1.0.17; el segundo sólo en el caso
+        # vacio), y `asignar_clip_a_grupo` es un setter de simulacion
+        # (`AssignToColorGroup`, que la app no usa).
+        "asignar_clip_a_grupo",
+        "clip_color_group",
         "conectar",
         "dejar_de_fallar",
         "desconectar",
@@ -515,6 +524,7 @@ def test_los_metodos_publicos_de_mas_de_fakeresolve_son_solo_de_simulacion():
         "devolver_en",
         "devolver_false_en",
         "fallar_en",
+        "group_post_clip_lut",
         "nodos_post_clip",
         "set_current_still_album",
     ]

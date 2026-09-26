@@ -691,6 +691,39 @@ class FakeResolve(BaseResolveBridge):
         grupo.post_clip[idx - 1].lut_path = ruta
         return True
 
+    def asignar_clip_a_grupo(self, clip_id: str, group: str) -> None:
+        """Sólo para montar escenarios en tests: en Resolve real un clip se
+        asigna a un grupo a mano (o con `AssignToColorGroup`, que esta app no
+        usa). No está en el Protocol."""
+        self._clip(clip_id)
+        grupo = self._grupos.get(group)
+        if grupo is None:
+            raise GrupoNoEncontrado(f"no existe el grupo de color {group!r}")
+        for otro in self._grupos.values():
+            if clip_id in otro.clips:
+                otro.clips.remove(clip_id)
+        grupo.clips.append(clip_id)
+
+    def clip_color_group(self, clip_id: str) -> str | None:
+        """Nombre del grupo de color al que pertenece el clip, o `None`. SOLO
+        LECTURA; no está en el Protocol (`TimelineItem.GetColorGroup`, ver
+        `LiveResolve.clip_color_group`)."""
+        self._exigir_conexion()
+        self._clip(clip_id)
+        for nombre, grupo in self._grupos.items():
+            if clip_id in grupo.clips:
+                return nombre
+        return None
+
+    def group_post_clip_lut(self, group: str) -> str | None:
+        """LUT que trae el nodo 1 del post-clip del grupo, o `None`. SOLO
+        LECTURA; no está en el Protocol."""
+        self._exigir_conexion()
+        grupo = self._grupos.get(group)
+        if grupo is None:
+            raise GrupoNoEncontrado(f"no existe el grupo de color {group!r}")
+        return grupo.post_clip[0].lut_path if grupo.post_clip else None
+
     def nodos_post_clip(self, group: str) -> list[NodeInfo]:
         """Estado del grafo post-clip de un grupo. No esta en el Protocol: es
         para que los tests y la GUI de depuracion puedan mirar."""

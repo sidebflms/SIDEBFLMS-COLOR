@@ -458,6 +458,29 @@ class LiveResolve(BaseResolveBridge):
         idx = self._validar_nodo(node_index, int(grafo.GetNumNodes()))
         return bool(grafo.SetLUT(idx, self._validar_lut(lut_rel_path)))
 
+    def clip_color_group(self, clip_id: str) -> str | None:
+        """Nombre del grupo de color del clip, o `None` si no está en ninguno.
+
+        SOLO LECTURA y fuera del Protocol. Verificado contra Resolve Studio
+        21.1.0.17 el 2026-09-26 (timeline temporal, ya borrada):
+        `TimelineItem.GetColorGroup()` devuelve `None` sin grupo y un
+        `ColorGroup` con `GetName()` funcional después de asignarlo.
+        """
+        item = self._item(clip_id)
+        if not _llamable(item, "GetColorGroup"):
+            return None
+        grupo = item.GetColorGroup()
+        return None if grupo is None else self._nombre_grupo(grupo)
+
+    def group_post_clip_lut(self, group: str) -> str | None:
+        """LUT que trae el nodo 1 del post-clip de un grupo, o `None`. SOLO
+        LECTURA y fuera del Protocol: es lo que hay que mirar ANTES de que un
+        look de grupo se sume al de la app."""
+        grafo = self._grupo(group).GetPostClipNodeGraph()
+        if grafo is None or int(grafo.GetNumNodes()) < 1:
+            return None
+        return grafo.GetLUT(1) or None
+
     # -- galeria ----------------------------------------------------------------
 
     def _album_actual(self):

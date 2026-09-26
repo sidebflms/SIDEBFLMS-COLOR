@@ -55,6 +55,7 @@ from core.resolve import (
     es_version_nuestra,
     verificar_estructura_nodos,
 )
+from core.resolve.grupos import info_grupo_de_clip
 from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.dialogo_perfil import DialogoPerfiles
@@ -166,6 +167,10 @@ def construir_plan(estado: EstadoDemo, clip_ids: list[str]) -> Plan:
             avisos.extend(verificar_estructura_nodos(puente, clip_id))
         except ResolveError as exc:
             puede, motivo = False, str(exc)
+
+        grupo = info_grupo_de_clip(puente, clip_id)
+        if grupo is not None:
+            avisos.append(grupo.aviso())
 
         if not es_version_nuestra(actual):
             avisos.append(
