@@ -134,3 +134,59 @@ def test_perfil_que_no_se_puede_cargar_no_rompe_la_pantalla(tmp_path, monkeypatc
         assert avisos  # se avisa
     finally:
         v.close()
+
+
+# ---------------------------------------------------------------------------
+# "Gestionar…" (día 9, continuación 14): abre DialogoPerfiles
+# ---------------------------------------------------------------------------
+
+
+def test_boton_gestionar_deshabilitado_sin_carpeta_de_perfiles(tmp_path):
+    _app()
+    estado = _estado_sandbox(tmp_path)
+    v = VentanaPrincipal(estado)  # perfiles_carpeta=None por defecto
+    try:
+        assert not v.p_aplicar.btn_gestionar_perfiles.isEnabled()
+    finally:
+        v.close()
+
+
+def test_boton_gestionar_habilitado_con_carpeta_aunque_este_vacia(tmp_path):
+    _app()
+    estado = _estado_sandbox(tmp_path)
+    v = VentanaPrincipal(estado, perfiles_carpeta=str(tmp_path / "perfiles"))
+    try:
+        assert v.p_aplicar.btn_gestionar_perfiles.isEnabled()
+    finally:
+        v.close()
+
+
+def test_pulsar_gestionar_abre_el_dialogo_con_la_carpeta_correcta_y_refresca(tmp_path, monkeypatch):
+    carpeta = tmp_path / "perfiles"
+    _app()
+    estado = _estado_sandbox(tmp_path)
+    v = VentanaPrincipal(estado, perfiles_carpeta=str(carpeta))
+    try:
+        llamadas = []
+
+        class DialogoFalso:
+            def __init__(self, carpeta_raiz, parent=None):
+                llamadas.append(carpeta_raiz)
+
+            def exec(self):
+                # Simula que se crea un perfil nuevo mientras el diálogo
+                # está abierto -- lo que importa comprobar es que, al
+                # cerrarse, la pantalla se entera.
+                guardar_perfil(PerfilTrabajo(nombre="Fabrik"), carpeta / "fabrik", crear_directorios=True)
+
+        import gui.pantalla_aplicar as pa_mod
+
+        monkeypatch.setattr(pa_mod, "DialogoPerfiles", DialogoFalso)
+
+        v.ir_a(2)
+        v.p_aplicar.btn_gestionar_perfiles.click()
+
+        assert llamadas == [carpeta]
+        assert v.p_aplicar.selector_perfil.findText("fabrik") >= 0
+    finally:
+        v.close()

@@ -57,6 +57,7 @@ from core.resolve import (
 )
 from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
+from gui.dialogo_perfil import DialogoPerfiles
 from gui.perfiles_trabajo import aplicar_perfil_a_estado
 from gui.widgets import Cifra, EtiquetaElidida, Panel, Rotulo, separador
 
@@ -437,8 +438,17 @@ class PantallaAplicar(QWidget):
         self.selector_perfil = QComboBox()
         self.selector_perfil.setFont(idn.fuente_texto(12))
         izq.caja.addWidget(self.selector_perfil)
+        fila_perfil = QHBoxLayout()
+        fila_perfil.setSpacing(8)
         self.btn_aplicar_perfil = QPushButton("Aplicar perfil a todo el lote")
-        izq.caja.addWidget(self.btn_aplicar_perfil)
+        fila_perfil.addWidget(self.btn_aplicar_perfil, 1)
+        # Día 9 (continuación 14): hasta hoy `guardar_perfil` existía en
+        # código pero nadie en la GUI lo llamaba — un perfil sólo se podía
+        # montar a mano en Python. Ver `gui/dialogo_perfil.py`.
+        self.btn_gestionar_perfiles = QPushButton("Gestionar…")
+        self.btn_gestionar_perfiles.clicked.connect(self._gestionar_perfiles)
+        fila_perfil.addWidget(self.btn_gestionar_perfiles, 0)
+        izq.caja.addLayout(fila_perfil)
         self._refrescar_perfiles_disponibles()
         division.addWidget(izq)
 
@@ -691,6 +701,7 @@ class PantallaAplicar(QWidget):
 
     def _refrescar_perfiles_disponibles(self) -> None:
         self.selector_perfil.clear()
+        self.btn_gestionar_perfiles.setEnabled(self._perfiles_carpeta is not None)
         if self._perfiles_carpeta is None:
             self.selector_perfil.addItem("(sin carpeta de perfiles configurada)")
             self.selector_perfil.setEnabled(False)
@@ -706,6 +717,13 @@ class PantallaAplicar(QWidget):
         self.btn_aplicar_perfil.setEnabled(True)
         for nombre in nombres:
             self.selector_perfil.addItem(nombre)
+
+    def _gestionar_perfiles(self) -> None:
+        if self._perfiles_carpeta is None:
+            return
+        dialogo = DialogoPerfiles(self._perfiles_carpeta, parent=self)
+        dialogo.exec()
+        self._refrescar_perfiles_disponibles()
 
     def _aplicar_perfil_de_trabajo(self) -> None:
         if self._perfiles_carpeta is None or not self.selector_perfil.isEnabled():

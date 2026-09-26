@@ -24,15 +24,19 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
+    QProgressDialog,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from core.batch import ProgresoLote
 from core.contracts import VERSION_NAME, ResolveError
 from gui import identidad as idn
 from gui.datos_demo import EstadoDemo, estado_demo, par_ingenieria_inversa, parches_carta
+from gui.estado_real import SinClipsReales, reanalizar_en_sitio
 from gui.pantalla_aplicar import PantallaAplicar
 from gui.pantalla_clips import PantallaClips
 from gui.pantalla_comparar import PantallaComparar
@@ -65,6 +69,7 @@ class VentanaPrincipal(QMainWindow):
         super().__init__(parent)
         self._estado = estado if estado is not None else estado_demo()
         self._biblioteca = biblioteca
+        self._perfiles_carpeta = perfiles_carpeta
         self.setWindowTitle(TITULO)
 
         raiz = QWidget()
@@ -153,6 +158,20 @@ class VentanaPrincipal(QMainWindow):
             self.grupo.addButton(b, i)
             col.addWidget(b)
         self.grupo.idClicked.connect(self.ir_a)
+        # Día 9 (continuación 13), punto 3 de la lista de Mario: hasta hoy,
+        # analizar el timeline sólo pasaba una vez, al arrancar `lanzar.py`.
+        # Vive en el carril —visible en las cinco pantallas— porque "qué
+        # clips hay" es estado compartido, no de una pantalla. NO en el pie:
+        # un botón normal mide 32 px y la fila del pie 13, y esos 19 px
+        # subían el alto mínimo de la ventana de 727 a 746
+        # (`tests/test_gui_apoyo.py::ALTO_MINIMO`); el carril tiene altura de
+        # sobra y no condiciona el mínimo.
+        col.addSpacing(12)
+        self.btn_reanalizar = QPushButton("Reanalizar timeline")
+        self.btn_reanalizar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reanalizar.setFont(idn.fuente_texto(11))
+        self.btn_reanalizar.clicked.connect(self._reanalizar_timeline)
+        col.addWidget(self.btn_reanalizar)
         col.addStretch(1)
 
         # En dos lineas y NO elidida. Esta es la promesa de la app -- que no
@@ -269,6 +288,81 @@ class VentanaPrincipal(QMainWindow):
             )
         n = len(self._estado.clips)
         self.cifra_clips.setText(f"{n:d} clip" if n == 1 else f"{n:d} clips")
+        self.btn_reanalizar.setEnabled(conectado)
+
+    # -- reanalizar el timeline actual (día 9, continuación 13) -------------
+
+    def _reanalizar_timeline(self) -> None:
+        dialogo = QProgressDialog("Analizando el timeline actual…", "Cancelar", 0, 0, self)
+        dialogo.setWindowTitle("Reanalizar timeline")
+        dialogo.setWindowModality(Qt.WindowModality.WindowModal)
+        dialogo.setMinimumDuration(0)
+        dialogo.setAutoClose(False)
+        dialogo.setAutoReset(False)
+        dialogo.show()
+
+        def _progreso(p: ProgresoLote) -> None:
+            dialogo.setMaximum(p.total)
+            dialogo.setValue(p.indice)
+            dialogo.setLabelText(f"Analizando clip {p.indice} de {p.total}…")
+            QApplication.processEvents()
+
+        try:
+            reanalizar_en_sitio(
+                self._estado, callback_progreso=_progreso, debe_cancelar=dialogo.wasCanceled
+            )
+        except SinClipsReales as exc:
+            dialogo.close()
+            QMessageBox.warning(self, "Reanalizar timeline", str(exc))
+            return
+        except ResolveError as exc:
+            dialogo.close()
+            QMessageBox.warning(self, "Reanalizar timeline", f"No se ha podido reanalizar: {exc}")
+            return
+        dialogo.close()
+
+        self._reconstruir_pantallas()
+        self._refrescar_pie()
+
+    def _reconstruir_pantallas(self) -> None:
+        """`estado.clips` ya está al día (`reanalizar_en_sitio` lo muta en el
+        sitio) pero cada pantalla se construyó UNA vez leyendo esos clips —
+        `PantallaClips.ModeloClips`, p.ej., copia la lista al arrancar, no
+        guarda una referencia viva. En vez de añadirle a cada pantalla su
+        propio `refrescar(clips)` (cuatro caminos nuevos que probar, cuatro
+        formas de que uno se quede corto), se reconstruyen las cuatro que
+        dependen de `estado` con el MISMO constructor que ya usa `__init__` —
+        la única fuente de verdad de "cómo se monta una pantalla desde un
+        estado" sigue siendo una sola. `p_reverse` no depende de `estado`
+        (par de ingeniería inversa aparte) y no se toca."""
+        modo_facil_activo = self.boton_modo_facil.isChecked()
+        indice_avanzado = self.grupo.checkedId() if self.grupo.checkedId() >= 0 else 0
+
+        antiguas = (self.p_clips, self.p_comparar, self.p_aplicar, self.p_facil)
+
+        self.p_clips = PantallaClips(self._estado)
+        self.p_comparar = PantallaComparar(self._estado)
+        self.p_aplicar = PantallaAplicar(self._estado, perfiles_carpeta=self._perfiles_carpeta)
+        self.p_facil = PantallaFacil(self._estado, biblioteca=self._biblioteca)
+
+        # Mismo orden que en __init__: clips, comparar, aplicar quedan ANTES
+        # que reverse (índices 0..3 de PANTALLAS) y facil se añade al final.
+        self.pila.insertWidget(0, self.p_clips)
+        self.pila.insertWidget(1, self.p_comparar)
+        self.pila.insertWidget(2, self.p_aplicar)
+        self.pila.addWidget(self.p_facil)
+
+        for w in antiguas:
+            self.pila.removeWidget(w)
+            w.deleteLater()
+
+        self.p_clips.clip_elegido.connect(self.p_comparar.seleccionar)
+        self.p_aplicar.aplicado.connect(self._refrescar_pie)
+
+        if modo_facil_activo:
+            self.pila.setCurrentWidget(self.p_facil)
+        else:
+            self.ir_a(indice_avanzado)
 
     # -- anchura minima ----------------------------------------------------
 

@@ -39,7 +39,7 @@ from core.contracts import ResolveBridge
 from core.matching import desajuste_de_contenido, emparejar_analisis
 from gui.datos_demo import LOOK_REL, ClipDemo, EstadoDemo
 
-__all__ = ["SinClipsReales", "construir_estado_real"]
+__all__ = ["SinClipsReales", "construir_estado_real", "reanalizar_en_sitio"]
 
 
 class SinClipsReales(RuntimeError):
@@ -131,3 +131,52 @@ def construir_estado_real(
         look_rel=LOOK_REL,
         notas=tuple(notas),
     )
+
+
+def reanalizar_en_sitio(
+    estado: EstadoDemo,
+    *,
+    referencia_clip_id: str | None = None,
+    manifiesto: str | Path | None = None,
+    callback_progreso: Callable[[ProgresoLote], None] | None = None,
+    debe_cancelar: Callable[[], bool] | None = None,
+) -> EstadoDemo:
+    """Vuelve a analizar el timeline actual de `estado.puente` (punto 3 de la
+    lista de Mario: hoy esto sólo pasa una vez, al arrancar `lanzar.py`) y
+    sustituye `estado.clips`/`referencia_id`/`referencia_img`/`notas` EN EL
+    SITIO — mismo motivo que `gui.perfiles_trabajo.aplicar_perfil_a_estado`:
+    `VentanaPrincipal` reparte este mismo `EstadoDemo` entre varias
+    pantallas, y una copia nueva sólo se enteraría quien la recibe.
+
+    **`estado.look`/`estado.look_rel` NO se tocan**, a propósito:
+    `construir_estado_real` siempre los deja en `None`/el look compartido de
+    fábrica porque construye un `EstadoDemo` DESDE CERO — pero aquí ya había
+    una elección hecha (un preset con `gui.despliegue_presets`, un perfil de
+    trabajo), y perderla sólo porque Resolve tiene clips nuevos sería tirar
+    una elección de Mario sin que él lo pidiera. Los `look_rel` PROPIOS de
+    cada clip (`ClipDemo.look_rel`, los que pone un perfil de trabajo) se
+    preservan también, pero sólo para los `clip_id` que siguen existiendo
+    después de reanalizar — un `clip_id` nuevo (un clip añadido al timeline)
+    no puede haber heredado nada de una elección anterior.
+
+    Lanza lo mismo que `construir_estado_real`: `SinClipsReales` si el
+    timeline no tiene nada que analizar, `core.contracts.ResolveError` si el
+    puente falla a media llamada.
+    """
+    look_rel_por_clip = {c.clip_id: c.look_rel for c in estado.clips if c.look_rel is not None}
+    nuevo = construir_estado_real(
+        estado.puente,
+        referencia_clip_id=referencia_clip_id if referencia_clip_id is not None else estado.referencia_id,
+        manifiesto=manifiesto,
+        callback_progreso=callback_progreso,
+        debe_cancelar=debe_cancelar,
+    )
+    for clip in nuevo.clips:
+        if clip.clip_id in look_rel_por_clip:
+            clip.look_rel = look_rel_por_clip[clip.clip_id]
+
+    estado.clips[:] = nuevo.clips
+    estado.referencia_id = nuevo.referencia_id
+    estado.referencia_img = nuevo.referencia_img
+    estado.notas = nuevo.notas
+    return estado

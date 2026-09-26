@@ -136,11 +136,10 @@ def test_las_escrituras_de_core_estan_todas_localizadas(paquete):
             "bundle.py": {"mkdir", "open"},
             "cdl_xml.py": {"mkdir", "open"},
             "cube.py": {"mkdir", "open"},
-            # `core/io/perfiles.py` (día 9, continuación 10): mismo criterio
-            # que `escribir_cube`/`guardar_sesion` -- `guardar_perfil` recibe
-            # la carpeta por parametro, no la inventa. Faltaba en este
-            # inventario desde que se anadio el modulo.
-            "perfiles.py": {"mkdir", "write_text", "unlink"},
+            # `core/io/perfiles.py` (día 9, continuación 10 + 14): mismo
+            # criterio que `escribir_cube`/`guardar_sesion` -- `guardar_perfil`/
+            # `borrar_perfil` reciben la carpeta por parametro, no la inventan.
+            "perfiles.py": {"mkdir", "write_text", "unlink", "rmtree"},
         },
         "core/resolve": {"fake.py": {"open"}},
     }[paquete]

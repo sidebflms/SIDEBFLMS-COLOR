@@ -11,7 +11,7 @@ import pytest
 
 from core.contracts import CDL, LUT3D
 from core.io.errores import ErrorPerfil
-from core.io.perfiles import cargar_perfil, guardar_perfil, listar_perfiles
+from core.io.perfiles import borrar_perfil, cargar_perfil, guardar_perfil, listar_perfiles
 from core.perfiles import PerfilCamara, PerfilTrabajo
 
 
@@ -94,3 +94,24 @@ def test_listar_perfiles_encuentra_solo_carpetas_con_perfil_json(tmp_path: Path)
 
 def test_listar_perfiles_carpeta_inexistente_da_lista_vacia(tmp_path: Path):
     assert listar_perfiles(tmp_path / "no-existe") == []
+
+
+def test_borrar_perfil_quita_la_carpeta_entera(tmp_path: Path):
+    carpeta = tmp_path / "fabrik"
+    guardar_perfil(_perfil_de_prueba(), carpeta, crear_directorios=True)
+
+    borrar_perfil(carpeta)
+
+    assert not carpeta.exists()
+    assert listar_perfiles(tmp_path) == []
+
+
+def test_borrar_perfil_se_niega_si_no_es_una_carpeta_de_perfil(tmp_path: Path):
+    carpeta_ajena = tmp_path / "no-es-un-perfil"
+    carpeta_ajena.mkdir()
+    (carpeta_ajena / "algo.txt").write_text("no me borres", encoding="utf-8")
+
+    with pytest.raises(ErrorPerfil):
+        borrar_perfil(carpeta_ajena)
+
+    assert carpeta_ajena.is_dir()  # sigue ahi, no se ha tocado

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import shutil
 from pathlib import Path
 
 from core.contracts import CDL
@@ -20,7 +21,14 @@ from core.io.cube import escribir_cube, leer_cube
 from core.io.errores import ErrorFormatoCube, ErrorPerfil
 from core.perfiles import PerfilCamara, PerfilTrabajo
 
-__all__ = ["FICHERO_LOOK", "FICHERO_PERFIL", "cargar_perfil", "guardar_perfil", "listar_perfiles"]
+__all__ = [
+    "FICHERO_LOOK",
+    "FICHERO_PERFIL",
+    "borrar_perfil",
+    "cargar_perfil",
+    "guardar_perfil",
+    "listar_perfiles",
+]
 
 FICHERO_PERFIL = "perfil.json"
 FICHERO_LOOK = "look.cube"
@@ -127,3 +135,17 @@ def listar_perfiles(carpeta_raiz: str | Path) -> list[str]:
     if not raiz.is_dir():
         return []
     return sorted(p.parent.name for p in raiz.glob(f"*/{FICHERO_PERFIL}"))
+
+
+def borrar_perfil(carpeta: str | Path) -> None:
+    """Borra la carpeta de un perfil, `perfil.json` incluido.
+
+    Se niega si `carpeta` no tiene `perfil.json` dentro — es la comprobación
+    de que de verdad es un perfil y no una carpeta cualquiera que alguien
+    pasó por error; borrar una carpeta ajena por una ruta equivocada no es
+    algo de lo que se pueda volver.
+    """
+    carpeta = Path(carpeta)
+    if not (carpeta / FICHERO_PERFIL).is_file():
+        raise ErrorPerfil(f"'{carpeta}' no tiene un {FICHERO_PERFIL}: no parece un perfil de trabajo")
+    shutil.rmtree(carpeta)

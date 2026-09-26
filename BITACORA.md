@@ -3175,3 +3175,107 @@ inventada), se añadió su entrada al inventario — no se tocó la lógica del
 test, que sigue auditando lo mismo que auditaba.
 
 Suite completa verde, `ruff check` limpio.
+
+---
+
+## DÍA 9, continuación 13 — punto 3: reanalizar el timeline sin reiniciar la app
+
+Mario preguntó "¿qué es lo que todavía no funciona o no funciona bien?" y,
+tras la respuesta honesta, pidió seguir. Punto 3 de su lista de siempre:
+analizar una timeline entera sólo pasaba una vez, al arrancar `lanzar.py` —
+si Mario cambiaba de timeline en Resolve o añadía clips con la app ya
+abierta, no había manera de repetirlo sin cerrar y volver a abrir.
+
+El motor ya existía entero (`gui.estado_real.construir_estado_real`, con
+`core.analysis.lote.analizar_lote` por debajo, cancelable desde el día del
+orquestador de lotes) — sólo le faltaba un punto de entrada desde dentro de
+la app en marcha. Nueva `gui.estado_real.reanalizar_en_sitio(estado, ...)`:
+llama a `construir_estado_real` sobre el `puente` de siempre y sustituye
+`clips`/`referencia_id`/`referencia_img`/`notas` EN EL SITIO (mismo motivo
+que `aplicar_perfil_a_estado`: `VentanaPrincipal` reparte el mismo
+`EstadoDemo` entre pantallas). Deliberado: **NO toca `look`/`look_rel`** —
+`construir_estado_real` los resetea siempre al look de fábrica porque
+construye desde cero, pero aquí ya podía haber una elección hecha (un
+preset, un perfil de trabajo) que reanalizar no tiene por qué tirar. Los
+`look_rel` propios de cada clip se conservan también, pero sólo para los
+`clip_id` que siguen existiendo tras el reanálisis — uno nuevo no hereda
+nada de una elección anterior.
+
+Botón nuevo en el CARRIL lateral de `VentanaPrincipal` ("Reanalizar
+timeline"), visible en las cinco pantallas porque "qué clips hay" es estado
+compartido, no de una pantalla — se deshabilita solo si Resolve está
+desconectado. Primero se puso en el pie, y ahí rompió
+`test_la_anchura_minima_real_es_la_medida`: un botón normal mide 32 px y la
+fila del pie 13, y esos 19 px subían el alto mínimo de la ventana de 727 a
+746. Un botón plano de 16 px perdía el texto y aun así sumaba 3 px. La
+convención del proyecto es que el mínimo lo decide el contenido y se paga
+compactando, no subiendo el número — el carril tiene altura de sobra y no
+condiciona el mínimo, así que se movió allí y `ALTO_MINIMO` sigue en 727.
+`QProgressDialog` cancelable (primer uso de este widget en el proyecto;
+`aplicar_cancelable` llevaba desde el bloque 3 sin ningún sitio real donde
+demostrarse), bombeado con `QApplication.processEvents()` en el callback de
+progreso — mismo patrón sin hilos de siempre, documentado en
+`core/batch.py`.
+
+**El hallazgo real de este bloque**: cada pantalla (`PantallaClips`,
+`PantallaComparar`, `PantallaAplicar`, `PantallaFacil`) se construye UNA vez
+leyendo `estado.clips` — `ModeloClips`, p.ej., copia la lista al arrancar,
+no guarda una referencia viva. Mutar `estado.clips` en el sitio no repinta
+nada por sí solo. En vez de añadirle a cada pantalla su propio
+`refrescar(clips)` (cuatro caminos nuevos, cuatro formas de dejarse uno
+corto), `VentanaPrincipal._reconstruir_pantallas()` reconstruye las cuatro
+con el MISMO constructor que ya usa `__init__` — una sola fuente de verdad
+de "cómo se monta una pantalla desde un estado". `PantallaReverse` no
+depende de `estado` y no se toca.
+
+Verificado con captura antes/después: de "sin clips" (tabla vacía) a los 4
+clips reales analizados, con confianza y ΔE calculados de verdad, en la
+misma ventana, sin reiniciar nada.
+
+Tests nuevos: `tests/test_gui_estado_real.py` (+5, `reanalizar_en_sitio`) y
+`tests/test_gui_ventana_reanalizar.py` (6). Suite completa verde, `ruff
+check` limpio.
+
+---
+
+## DÍA 9, continuación 14 — un editor para los perfiles de trabajo
+
+Último hueco abierto desde que se construyó el perfil de trabajo
+(continuación 10): `core.io.perfiles.guardar_perfil` existía, con sus
+propios tests, y nadie en la GUI lo llamaba — un perfil sólo se podía
+montar a mano en Python. `gui/dialogo_perfil.py::DialogoPerfiles` es la
+pieza que faltaba: una lista de los perfiles guardados en la carpeta
+configurada, y un formulario para crear uno nuevo o editar uno existente —
+nombre, un look compartido opcional (cualquier `.cube`, elegido con
+`QFileDialog`), y una fila por cámara con su propio editor de CDL.
+
+Reutiliza `gui.pantalla_reverse.EditorCDL` tal cual para los diez números
+de cada CDL — son el mismo control, no hacía falta uno segundo. Un
+`QDialog` modal, no una sexta pantalla de navegación: gestionar perfiles es
+"configurar una vez, usar muchas veces", no un paso del flujo de trabajo.
+Se abre desde un botón nuevo ("Gestionar…") junto al selector que ya había
+en `PantallaAplicar`; al cerrarse, esa pantalla refresca su lista.
+
+De paso, `core.io.perfiles.borrar_perfil(carpeta)` (nueva): se niega si la
+carpeta no tiene `perfil.json` dentro — la comprobación de que de verdad es
+un perfil y no una carpeta cualquiera pasada por error, porque borrar una
+carpeta ajena por una ruta equivocada no es algo de lo que se pueda
+volver. Añadida también al inventario de `test_ola1_limites.py` (`rmtree`),
+igual que la vez anterior con `guardar_perfil`.
+
+**Bug real encontrado con captura, no con test**: la primera versión
+llamaba a `_nuevo()` incondicionalmente al construir el diálogo, para
+empezar siempre en blanco. Con el diálogo sólo construido (sin `.show()`,
+que es como corren todos los tests) eso es verdad — pero al mostrarlo de
+verdad, Qt marca por su cuenta la fila 0 de la lista como actual la primera
+vez que un `QListWidget` con selección se hace visible, lo que disparaba
+`_seleccionar()` DESPUÉS de `_nuevo()` y dejaba el primer perfil cargado en
+vez de un formulario en blanco — ningún test lo veía porque ninguno hace
+`.show()`. Arreglado haciéndolo explícito: si ya hay perfiles, se abre
+sobre el primero a propósito; sólo se empieza en blanco si no hay ninguno
+guardado todavía.
+
+Tests nuevos: `tests/test_io_perfiles.py` (+2, `borrar_perfil`),
+`tests/test_gui_dialogo_perfil.py` (13), `tests/test_gui_pantalla_aplicar_
+perfiles.py` (+3, el botón "Gestionar…"). Suite completa verde, `ruff
+check` limpio.

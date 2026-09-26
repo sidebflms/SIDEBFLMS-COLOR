@@ -22,9 +22,10 @@ import pytest  # noqa: E402
 
 import gui.estado_real as estado_real_mod  # noqa: E402
 from core.analysis import analizar_imagen  # noqa: E402
-from core.contracts import ClipRef  # noqa: E402
+from core.contracts import CDL, LUT3D, ClipRef, Confidence, MatchResult  # noqa: E402
 from core.resolve import FakeResolve  # noqa: E402
-from gui.estado_real import SinClipsReales, construir_estado_real  # noqa: E402
+from gui.datos_demo import ClipDemo, EstadoDemo  # noqa: E402
+from gui.estado_real import SinClipsReales, construir_estado_real, reanalizar_en_sitio  # noqa: E402
 
 
 def _imagen(semilla: int) -> np.ndarray:
@@ -133,3 +134,70 @@ def test_notas_dicen_cuantos_se_analizaron():
     puente = _puente_con_rutas(4)
     estado = construir_estado_real(puente)
     assert any("4 de 4" in n for n in estado.notas)
+
+
+# ---------------------------------------------------------------------------
+# reanalizar_en_sitio (día 9, continuación 13): punto 3 de la lista de Mario
+# ---------------------------------------------------------------------------
+
+
+def _match_identidad() -> MatchResult:
+    return MatchResult(
+        cdl=CDL(), lut=None, confidence=Confidence(score=1.0, level="alta", reasons=(), metrics={}),
+        delta_e_before=0.0, delta_e_after=0.0, content_mismatch=False,
+    )
+
+
+def _estado_previo(puente: FakeResolve, *, clip_ids: list[str], look_rel_por_clip: dict) -> EstadoDemo:
+    clips = [
+        ClipDemo(
+            ref=ClipRef(clip_id=cid, name=cid, track=1, index=i, start_frame=0, end_frame=99),
+            match=_match_identidad(),
+            look_rel=look_rel_por_clip.get(cid),
+        )
+        for i, cid in enumerate(clip_ids, start=1)
+    ]
+    look = LUT3D.identity(3)
+    return EstadoDemo(clips=clips, puente=puente, look=look, look_rel="SIDEB/presets/algo.cube")
+
+
+def test_muta_en_el_sitio_y_devuelve_el_mismo_objeto():
+    puente = _puente_con_rutas(3)
+    estado = _estado_previo(puente, clip_ids=["a", "b"], look_rel_por_clip={})
+
+    resultado = reanalizar_en_sitio(estado)
+
+    assert resultado is estado
+    ids = {c.clip_id for c in estado.clips}
+    assert ids == {"clip001", "clip002", "clip003"}  # los clips REALES del puente, no los viejos
+
+
+def test_no_toca_el_look_ni_el_look_rel_compartidos():
+    puente = _puente_con_rutas(2)
+    estado = _estado_previo(puente, clip_ids=["a"], look_rel_por_clip={})
+    look_original = estado.look
+
+    reanalizar_en_sitio(estado)
+
+    assert estado.look is look_original
+    assert estado.look_rel == "SIDEB/presets/algo.cube"
+
+
+def test_preserva_el_look_rel_propio_de_un_clip_que_sigue_existiendo():
+    puente = _puente_con_rutas(2)  # clip001, clip002
+    estado = _estado_previo(
+        puente, clip_ids=["clip001"], look_rel_por_clip={"clip001": "SIDEB/perfiles/fabrik/gopro.cube"}
+    )
+
+    reanalizar_en_sitio(estado)
+
+    por_id = {c.clip_id: c for c in estado.clips}
+    assert por_id["clip001"].look_rel == "SIDEB/perfiles/fabrik/gopro.cube"
+    assert por_id["clip002"].look_rel is None  # clip nuevo: no hereda nada
+
+
+def test_sin_clips_reales_propaga_sinclipsreales():
+    puente = _puente_con_rutas(2, con_ruta=0)
+    estado = _estado_previo(puente, clip_ids=["a"], look_rel_por_clip={})
+    with pytest.raises(SinClipsReales):
+        reanalizar_en_sitio(estado)
