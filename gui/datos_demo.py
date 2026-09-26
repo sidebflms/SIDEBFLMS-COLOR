@@ -93,6 +93,12 @@ class ClipDemo:
     match: MatchResult
     original: np.ndarray | None = None  # (h, w, 3) en espacio de trabajo
     razones_desajuste: tuple[str, ...] = ()
+    #: Día 9 (continuación 10): ruta RELATIVA de un LUT de look propio de
+    #: ESTE clip, para cuando distintos clips del mismo lote necesitan un
+    #: nodo 3 distinto (p.ej. `core.perfiles`: cada cámara de un perfil de
+    #: trabajo hornea su propio ajuste + el look compartido en un LUT
+    #: propio). `None` = usa `EstadoDemo.look_rel`, el de siempre.
+    look_rel: str | None = None
 
     @property
     def clip_id(self) -> str:

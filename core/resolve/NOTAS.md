@@ -337,15 +337,27 @@ que la API no sabe crear nodos y que hay que añadirlos a mano. Prefiero un erro
 honesto a un `SetCDL` en un nodo que no existe, que en la API real no falla con
 estruendo: falla en silencio.
 
-Las dos salidas que veo, para cuando lo hablemos:
+Las dos salidas que veía, para cuando se hablara:
 
 - **Que el montador deje los tres nodos hechos.** Es un minuto de trabajo y no
-  necesita código. Es lo que asume la app hoy.
-- **`timeline.ApplyGradeFromDRX()` con un PowerGrade de tres nodos.** Funcionaría,
-  pero **reemplaza el árbol de nodos entero**, así que sólo se puede hacer dentro
-  de la versión `SIDEB COLOR` recién creada y nunca sobre la de nadie. No lo he
-  implementado porque depende de F0-1 (si el `.drx` ni siquiera se puede exportar,
-  montar el flujo entero alrededor de un `.drx` es construir sobre arena).
+  necesita código. Es lo que asume la app hoy — y, confirmado el 2026-09-25,
+  **es la ÚNICA que queda en pie.**
+- ~~`timeline.ApplyGradeFromDRX()` con un PowerGrade de tres nodos.~~
+  **DESCARTADA el 2026-09-25: el método NO EXISTE en `TimelineItem` en esta
+  build (Resolve Studio 21.1.0.17).** No es un problema de argumentos ni de
+  permisos — se miró `dir(item)` completo (unos 90 métodos) contra un clip
+  real y `ApplyGradeFromDRX` sencillamente no está en la lista. Se probó de
+  verdad con un PowerGrade real de Mario (`SECRET SAUCE/A5 POWERGRADE V2/SS
+  POWERGRADE V2.drx`) sobre un clip de prueba: `getattr(item,
+  "ApplyGradeFromDRX", None)` es `None`. F0-1 (exportar a `.drx`) SÍ se
+  confirmó que funciona, pero de nada sirve si no hay ningún método que
+  APLIQUE un `.drx` de vuelta sobre un clip.
+  **Lo que SÍ existe y queda como pista para el futuro:** `CopyGrades`
+  (ya cableado como `copy_grades` en `ResolveBridge`) copia el árbol de
+  nodos ENTERO de un clip origen a una lista de clips destino. Si algún día
+  un humano prepara UN clip con los tres nodos a mano, `copy_grades` podría
+  propagar esa estructura al resto del timeline por script — no construido
+  todavía, sólo confirmado que el mecanismo existe.
 
 ### 3.3 No se pueden etiquetar los nodos
 

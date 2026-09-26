@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import sys
 
-from gui.__main__ import _biblioteca_de_desarrollo
+from gui.__main__ import _CARPETA_PERFILES_TRABAJO, _biblioteca_de_desarrollo
 from gui.ventana import VentanaPrincipal, crear_app
 
 
@@ -59,7 +59,11 @@ def _estado_inicial():
 
 def main(argv: list[str] | None = None) -> int:
     app = crear_app(argv if argv is not None else sys.argv)
-    ventana = VentanaPrincipal(_estado_inicial(), biblioteca=_biblioteca_de_desarrollo())
+    ventana = VentanaPrincipal(
+        _estado_inicial(),
+        biblioteca=_biblioteca_de_desarrollo(),
+        perfiles_carpeta=str(_CARPETA_PERFILES_TRABAJO),
+    )
     ventana.resize(1440, 900)
     ventana.show()
     return app.exec()

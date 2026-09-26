@@ -158,14 +158,20 @@ def test_el_unico_archivo_de_core_que_importa_resolve_es_live():
 
 
 def test_live_importa_resolve_dentro_de_una_funcion():
-    """Existe, pero no se ejecuta hoy: solo se mira su codigo."""
+    """`DaVinciResolveScript` nunca a nivel de modulo -- abrir la app no debe
+    rozar Resolve. (Dia 9, continuacion 8-9: `LiveResolve` SI se ha ejecutado
+    ya contra Resolve real -- lectura y analisis, no escritura de color -- asi
+    que ya no se comprueba aqui una frase de docstring que dejo de ser
+    cierta; sigue siendo cierto que ninguna escritura de color se ha probado,
+    y el docstring del modulo lo dice con ese detalle.)"""
     live = RAIZ / "core" / "resolve" / "live.py"
     arbol_live = ast.parse(live.read_text(encoding="utf-8"))
     al_nivel_superior = [
         a.name for n in arbol_live.body if isinstance(n, ast.Import) for a in n.names
     ]
     assert "DaVinciResolveScript" not in al_nivel_superior
-    assert "NO SE HA EJECUTADO NUNCA" in (ast.get_docstring(arbol_live) or "")
+    docstring_una_linea = " ".join((ast.get_docstring(arbol_live) or "").split())
+    assert "NINGUNA escritura de color" in docstring_una_linea
 
 
 def test_las_instrucciones_de_uso_estan_en_la_cabecera():

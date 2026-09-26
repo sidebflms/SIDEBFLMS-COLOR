@@ -1,13 +1,17 @@
-"""`LiveResolve`: el puente de verdad. **NO SE HA EJECUTADO NUNCA.**
+"""`LiveResolve`: el puente de verdad.
 
 =============================================================================
-AVISO, Y VA EN SERIO
-  Ni una linea de este archivo se ha ejecutado jamas. Se escribio de noche, con
-  Resolve cerrado y sin licencia, a partir de la lista de llamadas verificadas
-  de la API. Es un punto de partida para manana, no codigo probado.
-
-  ANTES DE USARLO: ejecuta `probe/api_probe.py`. Si el probe no contesta las
-  seis preguntas, esto no se toca.
+ESTADO, día 9 (continuación 8-9): YA SE HA EJECUTADO, de verdad
+  Se escribió de noche, con Resolve cerrado, a partir de la lista de llamadas
+  verificadas de la API — eso seguía siendo cierto hasta el 2026-09-25. Ese
+  día, con permiso explícito de Mario y contra su Resolve real (Studio
+  21.1.0.17), se ejecutaron de verdad: `list_clips`, `list_nodes`,
+  `project_info`, y (vía `gui/estado_real.py` + `lanzar.py`) el camino
+  completo de construir un `EstadoDemo` real. Sigue siendo cierto que NINGUNA
+  escritura de color (`add_version`/`set_cdl`/`set_lut`) se ha ejecutado
+  nunca contra Resolve real — lo que sí se probó por separado, con llamadas
+  sueltas fuera de este archivo, fue `probe/api_probe.py` (que no pasa por
+  `LiveResolve`, ver su propio módulo).
 =============================================================================
 
 La regla de oro la hereda de `BaseResolveBridge`, igual que `FakeResolve`: si la
@@ -22,16 +26,33 @@ que abrir la app no roza Resolve. Para usarlo hay que pedirlo a proposito:
     from core.resolve.live import LiveResolve      # import explicito
     bridge = LiveResolve.conectar()                # aqui si se habla con Resolve
 
-Todo lo demas de la app sigue hablando con `ResolveBridge`, asi que cambiar
-`FakeResolve` por esto no deberia tocar ni una linea de la GUI.
+`gui/` tiene PROHIBIDO importar esto (`tests/test_gui_regla_de_oro.py::
+test_la_gui_no_importa_el_puente_de_verdad`) — quien conecta de verdad es
+`lanzar.py`, en la raíz del repo, no ningún fichero de `gui/`.
 
-LO QUE HAY QUE VERIFICAR CUANDO SE ESTRENE (esta anotado con `# SIN VERIFICAR`)
-  * el identificador estable de un clip: aqui se construye con pista+posicion,
-    porque la API verificada no da ningun id;
-  * el nombre de un album de la galeria: `GetAlbumName` no esta en la lista de
-    llamadas verificadas, asi que se usa con `hasattr` y si no esta se numeran;
+LO QUE SE HA VERIFICADO CONTRA RESOLVE REAL (2026-09-25)
+  * el identificador estable de un clip: `GetUniqueId()` SÍ existe y da un
+    UUID estable de verdad — ya no hace falta la construcción por
+    pista+posición salvo como respaldo si algún Resolve más viejo no lo trae;
+  * `GetAlbumName` SÍ existe y es invocable;
+  * `GetNodeEnabled` NO es invocable en esta build, pese a que `hasattr`
+    decía que sí (bug real encontrado y arreglado, ver `_llamable` más abajo);
+  * `AddVersion()` NO hereda el árbol de nodos: la versión nueva empieza
+    siempre con un solo nodo (`core/resolve/NOTAS.md` §4);
+  * `ApplyGradeFromDRX` **NO EXISTE** como método de `TimelineItem` en esta
+    build (comprobado con `dir(item)` completo, no sólo probando la llamada)
+    — la vía "aplicar un PowerGrade de plantilla" que se apuntaba como
+    posible solución al punto anterior queda descartada tal cual se pensó.
+    `CopyGrades` sí existe y sí está cableado (`copy_grades`): una vez que
+    UN clip tenga los 3 nodos preparados a mano, se podría propagar por
+    script a los demás — sin construir todavía esa pieza.
+
+LO QUE SIGUE SIN VERIFICAR (anotado con `# SIN VERIFICAR`)
+  * `colorGroup.GetName()`: no se ha podido probar, el proyecto de pruebas
+    usado no tenía ningún grupo de color;
   * `ExportStills` devuelve un bool, no la lista de ficheros: aqui se mira que
-    ha aparecido en el directorio antes y despues.
+    ha aparecido en el directorio antes y despues (parcialmente confirmado
+    para `.drx` vía `probe/api_probe.py`, no vía este archivo).
 """
 
 from __future__ import annotations
@@ -170,11 +191,17 @@ class LiveResolve(BaseResolveBridge):
         return timeline
 
     @staticmethod
-    def _id(track: int, posicion: int) -> str:
-        # SIN VERIFICAR: la API verificada no da un identificador estable de
-        # clip, asi que se construye con pista + posicion. Si alguien reordena
-        # el timeline con la app abierta, los ids dejan de cuadrar; por eso la
-        # app tiene que volver a llamar a `list_clips` despues de cada edicion.
+    def _id(item, track: int, posicion: int) -> str:
+        # CONFIRMADO el 2026-09-25 contra Resolve real (Studio 21.1.0.17):
+        # `TimelineItem.GetUniqueId()` SI existe y da un UUID estable de
+        # verdad (comprobado pidiendolo dos veces seguidas sobre el mismo
+        # clip). Se usa cuando esta disponible -- ya no hace falta volver a
+        # llamar a `list_clips()` solo porque alguien reordeno el timeline.
+        # Con `_llamable`, no `hasattr` (ver el bug real de `GetNodeEnabled`
+        # en este mismo modulo): un Resolve mas viejo sin este metodo no
+        # tiene por que devolver un valor invocable.
+        if _llamable(item, "GetUniqueId"):
+            return str(item.GetUniqueId())
         return f"v{track}-{posicion:03d}"
 
     def _item(self, clip_id: str):
@@ -226,12 +253,23 @@ class LiveResolve(BaseResolveBridge):
         clips: list[ClipRef] = []
         for pista in range(1, int(timeline.GetTrackCount("video")) + 1):
             for posicion, item in enumerate(timeline.GetItemListInTrack("video", pista) or [], 1):
-                clip_id = self._id(pista, posicion)
+                clip_id = self._id(item, pista, posicion)
                 self._cache[clip_id] = item
                 ruta = None
+                # CONFIRMADO el 2026-09-25 contra Resolve real (SUPUESTOS.md
+                # fila B): estas cinco claves de GetClipProperty existen tal
+                # cual. Hasta el día 9 (continuación 10) esta función no las
+                # leía -- el resto de la app (core.colormgmt) nunca veía
+                # metadata de cámara real, sólo `None`.
+                manufacturer = tipo = gamma = notas = espacio = None
                 mpi = item.GetMediaPoolItem()
                 if mpi is not None:
                     ruta = mpi.GetClipProperty("File Path") or None
+                    manufacturer = mpi.GetClipProperty("Camera Manufacturer") or None
+                    tipo = mpi.GetClipProperty("Camera Type") or None
+                    gamma = mpi.GetClipProperty("Gamma Notes") or None
+                    notas = mpi.GetClipProperty("Camera Notes") or None
+                    espacio = mpi.GetClipProperty("Input Color Space") or None
                 clips.append(
                     ClipRef(
                         clip_id=clip_id,
@@ -241,6 +279,11 @@ class LiveResolve(BaseResolveBridge):
                         start_frame=int(item.GetStart()),
                         end_frame=int(item.GetEnd()),
                         file_path=ruta,
+                        camera_manufacturer=manufacturer,
+                        camera_type=tipo,
+                        gamma_notes=gamma,
+                        camera_notes=notas,
+                        input_color_space=espacio,
                     )
                 )
         return clips

@@ -26,14 +26,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QTextBrowser,
@@ -43,14 +46,18 @@ from PySide6.QtWidgets import (
 
 from core.batch import ProgresoLote, ejecutar_lote
 from core.contracts import NODE_BALANCE, NODE_LOOK, VERSION_NAME, ResolveError
+from core.io.errores import ErrorPerfil
+from core.io.perfiles import cargar_perfil, listar_perfiles
 from core.resolve import (
     ResultadoAplicacion,
     aplicar_grado_seguro,
+    copiar_grado_seguro,
     es_version_nuestra,
     verificar_estructura_nodos,
 )
 from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
+from gui.perfiles_trabajo import aplicar_perfil_a_estado
 from gui.widgets import Cifra, EtiquetaElidida, Panel, Rotulo, separador
 
 # ---------------------------------------------------------------------------
@@ -71,6 +78,13 @@ class LineaPlan:
     motivo: str = ""
     avisos: tuple[str, ...] = ()
     resumen_cdl: tuple[str, ...] = ()
+    #: Día 9 (continuación 10): el look que le toca a ESTE clip
+    #: (`clip.look_rel` si un perfil de trabajo le puso uno propio, si no
+    #: `estado.look_rel`, el compartido). Se guarda aquí, no se relee de
+    #: `estado.look_rel` al pintar — un perfil de trabajo puede dejar cada
+    #: clip con un LUT distinto, y "qué va a pasar" tiene que decir el de
+    #: CADA clip, no el mismo para todos.
+    look_rel: str = ""
 
     @property
     def accion_version(self) -> str:
@@ -168,6 +182,7 @@ def construir_plan(estado: EstadoDemo, clip_ids: list[str]) -> Plan:
                 motivo=motivo,
                 avisos=tuple(avisos),
                 resumen_cdl=_resumen_cdl(clip),
+                look_rel=clip.look_rel if clip.look_rel is not None else estado.look_rel,
             )
         )
     return plan
@@ -202,9 +217,10 @@ def aplicar(estado: EstadoDemo, clip_ids: list[str]) -> list[ResultadoClip]:
         clip = estado.por_id(clip_id)
         if clip is None:
             continue
+        look_rel = clip.look_rel if clip.look_rel is not None else estado.look_rel
         try:
             res: ResultadoAplicacion = aplicar_grado_seguro(
-                puente, clip_id, cdl=clip.match.cdl, lut_rel_path=estado.look_rel
+                puente, clip_id, cdl=clip.match.cdl, lut_rel_path=look_rel
             )
             resultados.append(
                 ResultadoClip(
@@ -213,7 +229,7 @@ def aplicar(estado: EstadoDemo, clip_ids: list[str]) -> list[ResultadoClip]:
                     ok=res.ok,
                     version=res.version,
                     mensaje=(
-                        f"nodo {NODE_BALANCE} ← CDL · nodo {NODE_LOOK} ← {estado.look_rel}"
+                        f"nodo {NODE_BALANCE} ← CDL · nodo {NODE_LOOK} ← {look_rel}"
                         if res.ok
                         else "no se ha escrito nada"
                     ),
@@ -272,9 +288,10 @@ def aplicar_cancelable(
         clip = estado.por_id(clip_id)
         if clip is None:
             return
+        look_rel = clip.look_rel if clip.look_rel is not None else estado.look_rel
         try:
             res: ResultadoAplicacion = aplicar_grado_seguro(
-                puente, clip_id, cdl=clip.match.cdl, lut_rel_path=estado.look_rel
+                puente, clip_id, cdl=clip.match.cdl, lut_rel_path=look_rel
             )
         except ResolveError as exc:
             detalles[clip_id] = ResultadoClip(
@@ -287,7 +304,7 @@ def aplicar_cancelable(
             ok=res.ok,
             version=res.version,
             mensaje=(
-                f"nodo {NODE_BALANCE} ← CDL · nodo {NODE_LOOK} ← {estado.look_rel}"
+                f"nodo {NODE_BALANCE} ← CDL · nodo {NODE_LOOK} ← {look_rel}"
                 if res.ok
                 else "no se ha escrito nada"
             ),
@@ -319,9 +336,10 @@ class PantallaAplicar(QWidget):
 
     aplicado = Signal()
 
-    def __init__(self, estado: EstadoDemo, parent=None) -> None:
+    def __init__(self, estado: EstadoDemo, *, perfiles_carpeta: str | Path | None = None, parent=None) -> None:
         super().__init__(parent)
         self._estado = estado
+        self._perfiles_carpeta = Path(perfiles_carpeta) if perfiles_carpeta is not None else None
         # Ver `_estado_botones`: el último plan de LOTE calculado, para no
         # reconstruirlo entero sólo porque cambió la fila con el foco.
         self._ultimo_plan: Plan = Plan()
@@ -365,6 +383,28 @@ class PantallaAplicar(QWidget):
         botones_sel.addWidget(self.btn_ninguno)
         botones_sel.addStretch(1)
         izq.caja.addLayout(botones_sel)
+
+        # --- preparar nodos desde una plantilla (día 9, continuación 11) ---
+        # El bloqueo real de "aplicar": un clip nuevo sólo tiene 1 nodo, y la
+        # API de Resolve no sabe crear nodos (`core/resolve/NOTAS.md` §3.2;
+        # `ApplyGradeFromDRX` se descartó, no existe en esta build). La única
+        # vía que queda es que Mario prepare A MANO un clip con los 3 nodos
+        # y esta app propague esa estructura al resto por script —
+        # `copiar_grado_seguro` (`core/resolve/bridge.py`) ya existe para
+        # esto exactamente, sólo le faltaba un botón.
+        izq.caja.addWidget(separador())
+        izq.caja.addWidget(Rotulo("preparar nodos", acento=True))
+        self.texto_preparar_nodos = QLabel(
+            "Enfoca en la lista el clip que ya tenga los 3 nodos preparados a "
+            "mano, marca los clips destino arriba, y pulsa:"
+        )
+        self.texto_preparar_nodos.setWordWrap(True)
+        self.texto_preparar_nodos.setMinimumWidth(0)
+        self.texto_preparar_nodos.setFont(idn.fuente_texto(11))
+        izq.caja.addWidget(self.texto_preparar_nodos)
+        self.btn_preparar_nodos = QPushButton("Copiar la estructura de nodos al resto marcado")
+        izq.caja.addWidget(self.btn_preparar_nodos)
+
         izq.caja.addWidget(separador())
         izq.caja.addWidget(Rotulo("look · nodo 3", acento=True))
         self.ruta_look = EtiquetaElidida(estado.look_rel, modo=Qt.TextElideMode.ElideMiddle,
@@ -385,6 +425,21 @@ class PantallaAplicar(QWidget):
         self.texto_look.setMinimumWidth(0)
         self.texto_look.setFont(idn.fuente_texto(11))
         izq.caja.addWidget(self.texto_look)
+
+        # --- perfil de trabajo (día 9, continuación 10) ---
+        # El "un botón" que pidió Mario: para un tipo de trabajo recurrente
+        # (p.ej. "Fabrik", varias cámaras conocidas), detecta la cámara de
+        # CADA clip del lote y le hornea su LUT (ajuste de esa cámara + look
+        # compartido) de una sola vez — sin ir cámara por cámara ni clip por
+        # clip. Ver `gui/perfiles_trabajo.py`.
+        izq.caja.addWidget(separador())
+        izq.caja.addWidget(Rotulo("perfil de trabajo", acento=True))
+        self.selector_perfil = QComboBox()
+        self.selector_perfil.setFont(idn.fuente_texto(12))
+        izq.caja.addWidget(self.selector_perfil)
+        self.btn_aplicar_perfil = QPushButton("Aplicar perfil a todo el lote")
+        izq.caja.addWidget(self.btn_aplicar_perfil)
+        self._refrescar_perfiles_disponibles()
         division.addWidget(izq)
 
         # --- derecha: plan y resultado ---
@@ -444,6 +499,8 @@ class PantallaAplicar(QWidget):
         self.lista.currentRowChanged.connect(lambda _: self._estado_botones())
         self.btn_lote.clicked.connect(self._aplicar_lote)
         self.btn_uno.clicked.connect(self._aplicar_uno)
+        self.btn_aplicar_perfil.clicked.connect(self._aplicar_perfil_de_trabajo)
+        self.btn_preparar_nodos.clicked.connect(self._preparar_nodos_desde_plantilla)
 
         self._rellenar_lista()
         self._estado_look()
@@ -602,7 +659,7 @@ class PantallaAplicar(QWidget):
                         for t in linea.resumen_cdl
                     )
                     + f"<br>· nodo {NODE_LOOK} ← "
-                    f"<span style='font-family:{cifra};'>{_escapar(self._estado.look_rel)}</span>"
+                    f"<span style='font-family:{cifra};'>{_escapar(linea.look_rel)}</span>"
                     f"<br>· nodo 1 (normalización): no se toca</span>"
                     + "".join(
                         f'<br><span style="color:{idn.BRAND_400};">· aviso: {_escapar(a)}</span>'
@@ -629,6 +686,82 @@ class PantallaAplicar(QWidget):
         enfocado = self.clip_enfocado()
         if enfocado:
             self._ejecutar([enfocado])
+
+    # -- perfil de trabajo (día 9, continuación 10) -------------------------
+
+    def _refrescar_perfiles_disponibles(self) -> None:
+        self.selector_perfil.clear()
+        if self._perfiles_carpeta is None:
+            self.selector_perfil.addItem("(sin carpeta de perfiles configurada)")
+            self.selector_perfil.setEnabled(False)
+            self.btn_aplicar_perfil.setEnabled(False)
+            return
+        nombres = listar_perfiles(self._perfiles_carpeta)
+        if not nombres:
+            self.selector_perfil.addItem("(no hay ningún perfil guardado todavía)")
+            self.selector_perfil.setEnabled(False)
+            self.btn_aplicar_perfil.setEnabled(False)
+            return
+        self.selector_perfil.setEnabled(True)
+        self.btn_aplicar_perfil.setEnabled(True)
+        for nombre in nombres:
+            self.selector_perfil.addItem(nombre)
+
+    def _aplicar_perfil_de_trabajo(self) -> None:
+        if self._perfiles_carpeta is None or not self.selector_perfil.isEnabled():
+            return
+        nombre = self.selector_perfil.currentText()
+        try:
+            perfil = cargar_perfil(self._perfiles_carpeta / nombre)
+        except ErrorPerfil as exc:
+            QMessageBox.warning(self, "Perfil de trabajo", f"No se ha podido cargar «{nombre}»: {exc}")
+            return
+
+        aplicar_perfil_a_estado(self._estado, perfil)
+
+        # `ruta_look`/`texto_look` (arriba, columna izquierda) siguen
+        # mostrando el look COMPARTIDO de todo el lote (`estado.look_rel`) —
+        # es una cabecera de "el look de este lote", y con un perfil cada
+        # clip puede tener el suyo propio. El PLAN de la derecha (`qué va a
+        # pasar`) sí es exacto por clip (`LineaPlan.look_rel`); se avisa aquí
+        # de la cabecera nada más, no de todo el panel.
+        con_camara = sum(1 for c in self._estado.clips if c.look_rel is not None)
+        self.texto_resultado.setPlainText(
+            f"Perfil «{perfil.nombre}» aplicado: {con_camara} de {len(self._estado.clips)} "
+            "clip(s) con ajuste de cámara propio; el resto usa el look compartido de siempre. "
+            "El plan de la derecha ya muestra el LUT real de cada clip — la cabecera "
+            "«look · nodo 3» de la izquierda sigue mostrando sólo el compartido."
+        )
+        self.refrescar_plan()
+
+    def _preparar_nodos_desde_plantilla(self) -> None:
+        plantilla = self.clip_enfocado()
+        if plantilla is None:
+            QMessageBox.warning(
+                self, "Preparar nodos",
+                "Enfoca en la lista el clip que ya tiene los 3 nodos preparados a mano.",
+            )
+            return
+        destinos = [cid for cid in self.seleccionados() if cid != plantilla]
+        if not destinos:
+            QMessageBox.warning(
+                self, "Preparar nodos",
+                "Marca (con la casilla) al menos un clip destino distinto del enfocado.",
+            )
+            return
+        try:
+            resultado = copiar_grado_seguro(self._estado.puente, plantilla, destinos)
+        except ResolveError as exc:
+            QMessageBox.warning(self, "Preparar nodos", f"No se ha podido copiar la estructura: {exc}")
+            return
+
+        avisos = "; ".join(resultado.avisos) if resultado.avisos else "ninguno"
+        self.texto_resultado.setPlainText(
+            f"Estructura de nodos de «{plantilla}» copiada a {len(destinos)} clip(s): "
+            f"{', '.join(destinos)}. Avisos: {avisos}. Revisa el plan — deberían dejar de "
+            "salir bloqueados por número de nodos, y ya se puede aplicar de verdad."
+        )
+        self.refrescar_plan()
 
     def _ejecutar(self, clip_ids: list[str]) -> None:
         resultados = aplicar(self._estado, clip_ids)

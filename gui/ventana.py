@@ -60,7 +60,8 @@ ANCHO_CARRIL = 186
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, estado: EstadoDemo | None = None, *,
-                 par_inverso: tuple | None = None, biblioteca: tuple = (), parent=None) -> None:
+                 par_inverso: tuple | None = None, biblioteca: tuple = (),
+                 perfiles_carpeta: str | None = None, parent=None) -> None:
         super().__init__(parent)
         self._estado = estado if estado is not None else estado_demo()
         self._biblioteca = biblioteca
@@ -87,7 +88,7 @@ class VentanaPrincipal(QMainWindow):
         original, coloreado = par_inverso if par_inverso is not None else par_ingenieria_inversa()
         self.p_clips = PantallaClips(self._estado)
         self.p_comparar = PantallaComparar(self._estado)
-        self.p_aplicar = PantallaAplicar(self._estado)
+        self.p_aplicar = PantallaAplicar(self._estado, perfiles_carpeta=perfiles_carpeta)
         self.p_reverse = PantallaReverse(original, coloreado, parches=parches_carta())
         self.p_facil = PantallaFacil(self._estado, biblioteca=self._biblioteca)
         for w in (self.p_clips, self.p_comparar, self.p_aplicar, self.p_reverse, self.p_facil):

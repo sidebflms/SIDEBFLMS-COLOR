@@ -9,11 +9,22 @@ CÓMO SE MUEVE
 -------------
 Un paso a la vez, en el orden fijo de `asistente_facil.ID_PASOS`. "Siguiente"
 avanza; "Deshacer" retrocede. No hay nada que deshacer DE VERDAD todavía:
-esta pantalla es pura previsualización — calcula y enseña, no escribe en
-Resolve. Por eso "deshacer" aquí es trivialmente seguro (sólo mueve el
-puntero de paso) y por eso no hace falta un botón "aplicar": aplicar de
-verdad, con la red de seguridad de la versión `SIDEB COLOR`, ya existe en el
-modo avanzado (`PantallaAplicar`) y esta pantalla no lo duplica.
+esta pantalla es pura previsualización — **no toca ningún clip ni ninguna
+versión de Resolve**. Por eso "deshacer" aquí es trivialmente seguro (sólo
+mueve el puntero de paso) y por eso no hace falta un botón "aplicar": aplicar
+de verdad, con la red de seguridad de la versión `SIDEB COLOR`, ya existe en
+el modo avanzado (`PantallaAplicar`) y esta pantalla no lo duplica.
+
+Una excepción deliberada, acotada (día 9, continuación 12): elegir un
+preset en el paso "look" SÍ escribe un `.cube` en la carpeta de LUTs de
+Resolve (`gui.despliegue_presets.desplegar_preset_elegido`) — si no,
+`EstadoDemo.look_rel` se quedaba siempre en el look fijo por defecto y
+`PantallaAplicar` aplicaría un LUT distinto al que aquí se estaba
+previsualizando. Esto no rompe la promesa de arriba: no toca ningún clip,
+ninguna versión, nada dentro del proyecto de Resolve — sólo dónde vive un
+fichero, exactamente igual que sembrar la biblioteca de presets ya escribe
+una caché en disco. "Deshacer" sigue siendo seguro: el `.cube` que se queda
+en disco no le hace daño a nadie si el paso se abandona.
 
 CUANDO UN PASO TIENE ALGO QUE PREGUNTAR
 -----------------------------------------
@@ -36,11 +47,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.contracts import ResolveError
 from core.io.biblioteca import Preset
+from core.io.errores import ErrorIO
 from gui import identidad as idn
 from gui.asistente_facil import (
     ID_PASOS,
     TITULOS_PASO,
+    PasoLook,
     ejecutar_equilibrar,
     ejecutar_igualar,
     ejecutar_look,
@@ -48,6 +62,7 @@ from gui.asistente_facil import (
     ejecutar_repasar,
 )
 from gui.datos_demo import ClipDemo, EstadoDemo
+from gui.despliegue_presets import desplegar_preset_elegido
 from gui.imagen import a_qimage
 from gui.pantalla_comparar import VisorCortinilla
 from gui.tutor_datos import frases_de_clip
@@ -312,6 +327,7 @@ class PantallaFacil(QWidget):
         self._preset_elegido_id: str | None = biblioteca[0].id if biblioteca else None
         self._indice = 0
         self._paso_ordenar = None  # cacheado: el paso 5 lo necesita
+        self._paso_look: PasoLook | None = None  # cacheado: lo necesita el botón de abajo
         self._repaso_elegido_id: str | None = None
 
         raiz = QVBoxLayout(self)
@@ -324,6 +340,21 @@ class PantallaFacil(QWidget):
         self._selector_presets = _SelectorPresets()
         self._selector_presets.hide()
         raiz.addWidget(self._selector_presets)
+
+        # Día 9 (continuación 12): elegir un preset aquí sólo cambiaba la
+        # vista previa (`EstadoDemo.look`) — `PantallaAplicar` seguía
+        # aplicando el look fijo de siempre (`EstadoDemo.look_rel`) porque
+        # nada conectaba el uno con el otro. Este botón es la única vía que
+        # SÍ escribe (un `.cube` en la carpeta de LUTs de Resolve, ver
+        # `gui.despliegue_presets`) desde esta pantalla — y por eso es un
+        # botón explícito, no algo que pase solo al navegar los pasos: igual
+        # que `PantallaAplicar` sólo escribe cuando se pulsa un botón, nunca
+        # sólo por pintarse.
+        self.btn_usar_al_aplicar = QPushButton("Usar este look también al aplicar de verdad")
+        self.btn_usar_al_aplicar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_usar_al_aplicar.clicked.connect(self._usar_preset_al_aplicar)
+        self.btn_usar_al_aplicar.hide()
+        raiz.addWidget(self.btn_usar_al_aplicar)
 
         self._visor = VisorCortinilla()
         raiz.addWidget(self._visor, 1)
@@ -386,6 +417,26 @@ class PantallaFacil(QWidget):
         self._preset_elegido_id = preset_id
         self._mostrar_paso(self._indice)
 
+    def _usar_preset_al_aplicar(self) -> None:
+        """Despliega el preset elegido de verdad y deja `EstadoDemo.look_rel`
+        apuntando a él — la única escritura de esta pantalla, y sólo pasa
+        aquí, con el botón pulsado (ver el docstring del módulo)."""
+        paso = self._paso_look
+        if paso is None or paso.look is None or paso.preset_elegido is None:
+            return
+        try:
+            desplegar_preset_elegido(self._estado, preset=paso.preset_elegido, look=paso.look)
+        except (ResolveError, ErrorIO) as exc:
+            self._frase.setText(
+                f"{paso.frase} No se ha podido preparar «{paso.preset_elegido.nombre}» en "
+                f"Resolve: {exc}. Al aplicar de verdad se seguiría usando el look anterior."
+            )
+            return
+        self._frase.setText(
+            f"{paso.frase} Listo: al aplicar de verdad en el modo avanzado, éste es el look "
+            f"que se va a escribir."
+        )
+
     # -- por paso --------------------------------------------------------------
 
     def _clip_con_imagen(self, *, evitar_referencia: bool = False) -> ClipDemo | None:
@@ -413,6 +464,7 @@ class PantallaFacil(QWidget):
         if ID_PASOS[indice] != "look":
             self._selector_presets.hide()
             self._panel_tutor.hide()
+            self.btn_usar_al_aplicar.hide()
 
         pid = ID_PASOS[indice]
         if pid == "ordenar":
@@ -448,11 +500,15 @@ class PantallaFacil(QWidget):
                 a_qimage(clip.despues()) if clip else None,
             )
         elif pid == "look":
-            paso = ejecutar_look(
+            self._paso_look = paso = ejecutar_look(
                 self._estado, biblioteca=self._biblioteca, preset_elegido_id=self._preset_elegido_id
             )
             self._frase.setText(paso.frase)
             self._selector_presets.poner(paso.presets_disponibles, self._preset_elegido_id, self._elegir_preset)
+            self.btn_usar_al_aplicar.setEnabled(
+                paso.look is not None and paso.preset_elegido is not None
+            )
+            self.btn_usar_al_aplicar.show()
             clip = self._clip_con_imagen(evitar_referencia=True)
             despues_look = None
             antes_look = None

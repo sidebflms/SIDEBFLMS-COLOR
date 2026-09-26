@@ -19,6 +19,7 @@ __all__ = [
     "ErrorFormatoHald",
     "ErrorFormatoCDL",
     "ErrorBundle",
+    "ErrorPerfil",
     "describe_ruta",
 ]
 
@@ -41,6 +42,12 @@ class ErrorFormatoCDL(ErrorIO):
 
 class ErrorBundle(ErrorIO):
     """Un `.sidebcolor` corrupto, hostil o de una versión que no entendemos."""
+
+
+class ErrorPerfil(ErrorIO):
+    """Un perfil de trabajo (`core.io.perfiles`) que no se puede leer o
+    guardar — `perfil.json` ausente, corrupto, o un `look.cube` que no se
+    puede leer."""
 
 
 def describe_ruta(ruta: Path | str) -> str:

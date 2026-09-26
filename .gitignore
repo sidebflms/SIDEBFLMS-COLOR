@@ -35,3 +35,8 @@ tests/powergrades_reales/
 # No es parte del proyecto.
 .claude/
 tests/luts_reales/
+
+# Perfiles de trabajo (core.perfiles.PerfilTrabajo, p.ej. "Fabrik"): ajustes
+# de camara conocidos de la experiencia de Mario, no material generico del
+# motor. Ver core/io/perfiles.py.
+perfiles_trabajo/

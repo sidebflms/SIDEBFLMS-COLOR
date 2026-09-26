@@ -52,6 +52,13 @@ _CARPETA_LUTS_EXTERNOS = Path(__file__).resolve().parent.parent / "luts_externos
 #: última vez. Ver `core.io.biblioteca.sembrar_desde_carpeta`.
 _CACHE_BIBLIOTECA = Path(__file__).resolve().parent.parent / "generados" / "biblioteca_cache.json"
 
+#: Día 9 (continuación 10): perfiles de trabajo reutilizables (`core.
+#: perfiles.PerfilTrabajo`, p.ej. "Fabrik") — ajustes de cámara conocidos por
+#: la experiencia de Mario, no código ni material genérico. Gitignored, como
+#: `tests/luts_reales/`: es su propia sintonía de negocio, no algo que
+#: versionar con el motor.
+_CARPETA_PERFILES_TRABAJO = Path(__file__).resolve().parent.parent / "perfiles_trabajo"
+
 
 def _biblioteca_de_desarrollo() -> tuple:
     from core.io.biblioteca import sembrar_desde_carpeta
@@ -90,7 +97,9 @@ def _biblioteca_de_desarrollo() -> tuple:
 
 def main(argv: list[str] | None = None) -> int:
     app = crear_app(argv if argv is not None else sys.argv)
-    ventana = VentanaPrincipal(biblioteca=_biblioteca_de_desarrollo())
+    ventana = VentanaPrincipal(
+        biblioteca=_biblioteca_de_desarrollo(), perfiles_carpeta=str(_CARPETA_PERFILES_TRABAJO)
+    )
     ventana.resize(1440, 900)
     ventana.show()
     return app.exec()

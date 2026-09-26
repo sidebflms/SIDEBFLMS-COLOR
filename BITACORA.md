@@ -2901,3 +2901,277 @@ probar la orquestación), `tests/test_resolve_live.py` (3, sobre `_llamable`),
 conecta, cae a demo si no hay clips analizables, usa el real si la conexión
 funciona — movidos aquí, no a un test de `gui/`, por la misma razón que el
 código). Suite completa verde, `ruff check` limpio en todo el repo.
+
+---
+
+# DÍA 9 (continuación 9) — cerrando el hueco de los tres nodos: dos vías probadas, una descartada, una confirmada de regalo
+
+Con Mario de nuevo fuera y Resolve abierto ("haz lo que necesites"), se probó
+en firme la vía que `core/resolve/NOTAS.md` dejaba apuntada para el problema
+más grave de todos (`AddVersion()` no hereda nodos, día 9 continuación 5):
+aplicar un PowerGrade de plantilla con `ApplyGradeFromDRX` para conseguir los
+tres nodos sin depender de que alguien los añada a mano.
+
+**Descartada de verdad, no por falta de intentarlo**: se probó contra un
+clip real, con el PowerGrade real de Mario
+(`SECRET SAUCE/A5 POWERGRADE V2/SS POWERGRADE V2.drx`) — `TypeError:
+'NoneType' object is not callable`, el mismo síntoma que el bug de
+`GetNodeEnabled` de ayer. Para descartar que fuera un problema de argumentos,
+se miró `dir(item)` completo sobre el `TimelineItem` real (unos 90 métodos):
+`ApplyGradeFromDRX` **no está en la lista**. No existe en `TimelineItem` en
+Resolve Studio 21.1.0.17, y punto — la única salida real que queda para los
+tres nodos es que alguien los añada a mano en la página de color, tal y como
+la app ya asume hoy. `CopyGrades` (ya cableado como `copy_grades`) queda
+apuntado como una posible vía de propagación una vez exista UN clip
+preparado, sin construir todavía.
+
+**Hallazgo de regalo, mirando `dir(item)` para descartar lo anterior**:
+`TimelineItem.GetUniqueId()` SÍ existe, da un UUID real y es estable —
+confirmado pidiéndolo dos veces sobre el mismo clip. Esto contesta a la fila
+H1 de `SUPUESTOS.md`, abierta desde que se escribió `LiveResolve` sin
+Resolve delante: "no existe ningún identificador estable de clip" era falso.
+**Aplicado al código**: `LiveResolve._id()` ahora usa `GetUniqueId()` cuando
+está disponible (con `_llamable`, no `hasattr` — el mismo arreglo de ayer),
+y sólo cae a la construcción por pista+posición como respaldo. Verificado de
+nuevo contra Resolve real: `list_clips()` ya devuelve
+`clip_id='0ef258ff-f098-442d-93ee-8995db2f40b6'` en vez de `'v1-001'`.
+
+`core/resolve/live.py` puesto al día de arriba abajo: el docstring decía
+"NO SE HA EJECUTADO NUNCA", que ya no es cierto (se ha ejecutado de verdad
+tres veces esta semana) — reescrito con lo confirmado, lo descartado y lo
+que sigue sin probarse.
+
+2 tests nuevos en `tests/test_resolve_live.py` (`_id` usa `GetUniqueId`
+cuando está disponible, cae al respaldo si no lo es). Suite completa verde,
+`ruff check` limpio.
+
+---
+
+# DÍA 9 (continuación 10) — perfiles de trabajo: "un botón" para Fabrik
+
+Mario, tras el resumen honesto de qué resuelve la app hoy y qué no, dijo lo
+que de verdad le ahorraría tiempo: detectar todos los clips de un timeline,
+darle a un botón, elegir un perfil de un trabajo recurrente (p.ej. "Fabrik",
+grabado con varias cámaras conocidas) y que ajuste el color de todas de una
+vez — sin ir cámara por cámara, clip por clip. Preguntado cómo decide hoy a
+mano qué corrección le toca a cada cámara, contestó: **las dos cosas
+combinadas** — cada cámara tiene un ajuste de partida ya conocido de la
+experiencia, Y ADEMÁS se afina comparando contra una referencia del día.
+
+**El problema técnico que había que resolver primero, explicado**: Resolve
+sólo da dos sitios por clip donde esta app escribe — el nodo de balance (un
+CDL) y el nodo de look (un LUT). El ajuste "de hoy" (comparar contra la
+referencia, lo que ya hacía la app) usa el CDL. El ajuste conocido de cada
+cámara NO puede ir también ahí: un CDL con `power` ajustado (lo habitual,
+`core/matching/cdl_fit.py` dice literalmente que `power` es "lo importante")
+no se puede COMPONER con otro CDL y seguir siendo un único CDL — componer
+dos curvas con exponente no da, en general, otra curva con exponente. Un LUT
+SÍ compone sin este problema. Solución: el ajuste de cámara se hornea DENTRO
+del LUT de look, una vez por cámara — invisible para Mario, sólo cambia
+dónde vive el número.
+
+**`core/perfiles.py`, nuevo**: `PerfilTrabajo` (nombre + `PerfilCamara`s +
+look compartido) y `PerfilCamara` (se reconoce por SUBCADENA de fabricante/
+tipo, mismo criterio que `core.colormgmt.deteccion.ReglaDeteccion`).
+`lut_para_camara()` hornea el LUT final: ajuste de la cámara, LUEGO el look
+compartido encima — el orden importa de verdad (comprobado con un test que
+compara aplicar en el orden contrario y confirma que da otra cosa).
+
+**`core/io/perfiles.py`, nuevo**: guardar/cargar un perfil por nombre, como
+una carpeta (`perfil.json` + `look.cube` opcional) — tan simple de mirar a
+mano como un `.cube`, sin la complicación de un zip. `ErrorPerfil` nuevo en
+`core/io/errores.py`, mismo criterio que el resto de `core.io`.
+
+**`gui/perfiles_trabajo.py`, nuevo**: `aplicar_perfil_a_estado(estado,
+perfil)` — para cada clip, identifica su cámara, hornea (una vez por cámara,
+no por clip) y DESPLIEGA de verdad el LUT en la carpeta de LUTs REAL de
+Resolve (`puente.project_info().lut_dir`, no una ruta inventada), y deja
+`ClipDemo.look_rel` puesto. **Muta `estado` y sus clips EN EL SITIO a
+propósito, no devuelve copias**: `VentanaPrincipal` reparte el mismo
+`EstadoDemo` entre varias pantallas (clips, comparar, aplicar) — con copias
+nuevas (`dataclasses.replace`), sólo la pantalla que llama se habría
+enterado del `look_rel` puesto.
+
+**`gui/datos_demo.py`**: `ClipDemo.look_rel: str | None` nuevo — `None` usa
+el look compartido de `EstadoDemo.look_rel` de siempre; puesto, ese clip usa
+el suyo. `gui/pantalla_aplicar.py::aplicar()`/`aplicar_cancelable()`
+actualizados para mirar `clip.look_rel` antes del compartido.
+
+**El botón, en la pantalla de aplicar**: un selector con los perfiles
+guardados (`core.io.perfiles.listar_perfiles`) + "Aplicar perfil a todo el
+lote". Cableado end-to-end: `gui/__main__.py`/`lanzar.py` pasan
+`perfiles_carpeta` (una carpeta nueva, `perfiles_trabajo/`, gitignored como
+`tests/luts_reales/` — es sintonía de negocio de Mario, no material
+genérico del motor) hasta `PantallaAplicar`.
+
+**Bug real encontrado mirando la captura, no antes**: el panel "qué va a
+pasar" seguía mostrando el MISMO LUT compartido para los tres clips después
+de aplicar un perfil, aunque dos de ellos ya tenían su propio LUT asignado —
+contradice la promesa que el propio módulo se pone como objetivo número 1
+("que se vea qué va a pasar ANTES de que pase"). Causa: la línea del plan
+leía `self._estado.look_rel` (el compartido) a pelo, nunca el `look_rel`
+propio del clip. Arreglado añadiendo `LineaPlan.look_rel` (calculado igual
+que `aplicar()`: el del clip si lo tiene, si no el compartido) y usándolo en
+el HTML. Verificado con captura real antes y después del arreglo.
+
+**Otro hallazgo real, encontrado ANTES de construir el perfil, no después**:
+`LiveResolve.list_clips()` nunca rellenaba los cinco campos de metadata de
+cámara de `ClipRef` (`camera_manufacturer`, `camera_type`, etc.) — siempre
+`None`, aunque el día anterior se había confirmado que esas claves existen
+de verdad en Resolve. Sin esto, `core.perfiles.camara_para_clip` nunca
+habría reconocido ninguna cámara real. Arreglado: `list_clips()` ahora las
+lee de `GetClipProperty()`, verificado de nuevo contra Resolve real.
+
+**Verificado de verdad, con captura, en dos rondas** (antes y después del
+arreglo de `LineaPlan.look_rel`): perfil "Fabrik" con GoPro y DJI conocidos,
+tres clips (GoPro, DJI, Canon sin contemplar) — el selector lista el
+perfil, el botón reparte el LUT correcto a cada cámara reconocida, dejando
+Canon con el look compartido, y el plan de la derecha lo refleja clip a
+clip.
+
+**Lo que esto NO resuelve, dicho claro**: sigue haciendo falta que cada
+clip tenga sus 3 nodos preparados (el hallazgo de hace dos días) para que
+"aplicar" escriba de verdad — el perfil de trabajo prepara QUÉ se va a
+escribir, no resuelve el bloqueo de nodos. Tampoco hay ninguna interfaz
+para CREAR o EDITAR un perfil todavía (`guardar_perfil` existe, pero nadie
+en la GUI lo llama) — hoy un perfil se construye a mano en Python o se deja
+para otra sesión un editor.
+
+Tests nuevos: `tests/test_perfiles.py` (12), `tests/test_io_perfiles.py`
+(8), `tests/test_gui_perfiles_trabajo.py` (5), `tests/test_gui_pantalla_aplicar_perfiles.py`
+(5) — con cuidado explícito en los tres últimos de que ningún `FakeResolve`
+de prueba apunte a la carpeta de LUTs REAL del sistema (`incognitas=
+Incognitas(instalacion="mac_app_store")` + `home=tmp_path`, nunca la
+"descarga" por defecto). Suite completa verde, `ruff check` limpio en todo
+el repo.
+
+---
+
+## DÍA 9, continuación 11 — "preparar nodos": el primer punto de la lista de Mario
+
+Mario pegó de vuelta la lista de "lo que NO funciona hoy" (aplicar look
+bloqueado por nodos, preset sin conectar al LUT real, sin botón de
+analizar, ajustes de Resolve inalcanzables por API, grupos de color sin
+cablear, plugin de verdad inexistente) y dijo: **"De todo esto empieza a
+arreglar las cosas"**. Se empieza por el punto 1, el más bloqueante: un
+clip recién importado tiene 1 nodo y la app necesita 3, Resolve no deja
+crear nodos por script, y `ApplyGradeFromDRX` (la vía que se iba a usar
+para esquivarlo) se confirmó inexistente el día anterior.
+
+**No hizo falta escribir el motor: ya existía.** `core/resolve/bridge.py::
+copiar_grado_seguro()` — crea o selecciona la versión `SIDEB COLOR` en cada
+destino antes de copiarle la estructura de nodos completa del origen, con
+sus propios tests en `tests/test_resolve_regla_de_oro.py` desde antes de
+hoy — sencillamente no tenía ningún botón en ninguna pantalla. La única vía
+real que le queda a Mario es preparar los 3 nodos A MANO en un clip
+("plantilla") y que la app propague esa estructura al resto por script;
+esto no evita el trabajo manual del todo, pero lo reduce de "clip por
+clip" a "uno, y la app hace el resto".
+
+Añadido en `gui/pantalla_aplicar.py`: sección "preparar nodos" con un botón
+("Copiar la estructura de nodos al resto marcado") que toma el clip
+ENFOCADO en la lista como plantilla y los clips MARCADOS (con casilla,
+menos la propia plantilla) como destino, llama a `copiar_grado_seguro` y
+refresca el plan. Sin clip enfocado o sin destinos marcados, avisa y no
+hace nada — no intenta adivinar.
+
+**Verificado de verdad, con captura, antes y después**: estado con 7 clips,
+1 nodo cada uno salvo el primero (3 nodos, "ya preparado a mano"). Antes de
+pulsar: "1 de 7 clips" aplicables, los otros 6 en rojo con "NO SE PUEDE:
+nodos". Después de pulsar: "7 de 7 clips", los 6 destinos muestran ya sus
+números de CDL reales en el panel "qué va a pasar" — el bloqueo desaparece
+sin haber tocado nada a mano en el fake.
+
+Tests nuevos: `tests/test_gui_pantalla_aplicar_preparar_nodos.py` (4) — sin
+clip enfocado avisa, sin destinos marcados avisa, copia y desbloquea el
+plan (verificado con `plan_actual().bloqueados` antes/después, no sólo con
+el texto), y la plantilla marcada junto al resto no se intenta copiar
+sobre sí misma. Truco de fixture: `FakeResolve` no admite nodos por clip
+distintos en el constructor, así que se manipula directamente `_Version.
+nodos` vía `fake._clip(id)`/`fake._version_actual(clip)` (patrón ya usado
+en la suite, p.ej. `fake._lut_escrito`) en vez de inventar una opción
+nueva en el fake sólo para un test.
+
+**Lo que esto NO resuelve, dicho claro**: sigue haciendo falta preparar A
+MANO el primer clip de cada timeline — la app ya no obliga a hacerlo en
+los 200 restantes, pero el primero es inevitable mientras la API de
+Resolve no sepa crear nodos. Quedan del resto de la lista de Mario: punto 2
+(conectar el selector de look con el fichero real en la carpeta de LUTs de
+Resolve), punto 3 (botón para analizar una timeline entera desde dentro de
+la app ya abierta, no sólo al arrancar), punto 5 (grupos de color, sin
+cablear). Los puntos 4 y 6 quedan confirmados sin arreglo posible hoy (API
+que no lo permite; tecnología distinta), documentados, no reabiertos.
+
+Suite completa verde, `ruff check` limpio.
+
+---
+
+## DÍA 9, continuación 12 — el punto 2: el preset elegido no llegaba a "aplicar"
+
+Siguiendo con la lista de Mario: **"Conectar el preset que eliges en el
+selector con el fichero real que Resolve necesita — no está construido; hoy
+asume que el LUT ya está en la carpeta correcta."**
+
+Comprobado leyendo el código, no adivinado: en el paso "look" del modo
+fácil, elegir un preset distinto (`gui.asistente_facil.ejecutar_look`) sólo
+cambiaba `EstadoDemo.look` (el `LUT3D` en memoria que pinta la vista
+previa). `EstadoDemo.look_rel` — la ruta que `PantallaAplicar` de verdad
+manda a `SetLUT` — se quedaba siempre fija en `gui.datos_demo.LOOK_REL`.
+Mario podía previsualizar "Look Fabrik Noche" en modo fácil y, al ir a
+aplicar de verdad en modo avanzado, se escribía el look compartido de
+siempre sin ningún aviso.
+
+**Primer intento, descartado antes de escribir un test**: enganchar el
+despliegue al renderizado automático del paso "look" (como hace
+`gui/perfiles_trabajo.py` con su botón). Se paró a tiempo: `dd.estado_demo()`
+—el estado que usan decenas de tests existentes— trae un `FakeResolve`
+"conectado" con la instalación por defecto ("descarga"), que devuelve la
+carpeta de LUTs REAL de este Mac. Desplegar automáticamente al navegar
+habría escrito un `.cube` real en el sistema cada vez que la suite pasara
+por un test de modo fácil con biblioteca — justo lo que la regla "nunca
+probar en discos reales" prohíbe. Se corrigió el diseño antes de que
+llegara a pasar: el despliegue real sólo ocurre con un botón explícito
+("Usar este look también al aplicar de verdad"), igual que el resto de
+escrituras de esta app (`aplicar_grado_seguro`, `aplicar_perfil_a_estado`,
+`copiar_grado_seguro`) — nunca automático, siempre un clic.
+
+`gui/despliegue_presets.py` (nuevo): `desplegar_preset_elegido(estado, *,
+preset, look)` — mismo patrón que `gui/perfiles_trabajo.py` (escribe donde
+`puente.project_info().lut_dir` dice de verdad, con `escribir_cube`), pero
+para un preset suelto de la biblioteca en vez de una tabla cámara→LUT.
+`gui/pantalla_facil.py`: botón nuevo junto al selector de presets, sólo
+visible en el paso "look", habilitado sólo si hay un preset elegido de
+verdad; al pulsarlo, deja `EstadoDemo.look`/`look_rel` apuntando al fichero
+recién escrito y lo dice en la frase. Docstring del módulo actualizado para
+explicar por qué esto NO rompe la promesa de "esta pantalla no escribe en
+Resolve" (no toca ningún clip ni versión — sólo dónde vive un fichero,
+igual que sembrar la biblioteca ya escribe una caché en disco).
+
+Tests nuevos: `tests/test_gui_despliegue_presets.py` (4) y
+`tests/test_gui_pantalla_facil_usar_preset.py` (6) — con el mismo cuidado
+de sandbox (`Incognitas(instalacion="mac_app_store")` + `home=tmp_path`)
+que las dos rondas anteriores. Uno de los seis comprueba explícitamente que
+la ruta escrita cae `is_relative_to(tmp_path)` — la prueba que de verdad
+habría fallado con el primer diseño descartado.
+
+**Lo que esto NO resuelve**: el look compartido "de fábrica" (sin
+biblioteca, `estado_demo()` de toda la vida) sigue asumiendo que su
+`.cube` ya vive en la carpeta de Resolve — sigue sin haber una pantalla
+para gestionar ESE fichero. Y elegir un preset en modo fácil sin pulsar el
+botón nuevo sigue sin tener efecto en "aplicar" — es la garantía, no un
+hueco. Queda del resto de la lista de Mario: punto 3 (botón para analizar
+una timeline entera desde dentro de la app ya abierta) y punto 5 (grupos de
+color, sin cablear).
+
+**Hallazgo de paso, no de hoy**: la primera pasada de la suite completa
+encontró `tests/revision/test_ola1_limites.py::test_las_escrituras_de_core_
+estan_todas_localizadas[core/io]` en rojo — el inventario auditado de
+escrituras de `core/io` no incluía `perfiles.py` (`guardar_perfil`, día 9
+continuación 10: `mkdir`/`write_text`/`unlink`, todos con la carpeta
+recibida por parámetro, mismo criterio que `escribir_cube`). El módulo
+nunca se dio de alta en esta lista blanca cuando se creó. Leído el código y
+confirmado que es una escritura legítima (no un descuido de ruta
+inventada), se añadió su entrada al inventario — no se tocó la lógica del
+test, que sigue auditando lo mismo que auditaba.
+
+Suite completa verde, `ruff check` limpio.

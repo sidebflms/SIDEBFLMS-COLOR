@@ -180,12 +180,17 @@ ofrece algo que sí podría) en vez de sonoro (la app promete algo que no puede 
 - **Qué depende de ella:** el diseño de tres nodos fijos entero (`core.contracts.NODE_NORMALIZACION
   = 1`, `NODE_BALANCE = 2`, `NODE_LOOK = 3`) y todo lo que escribe sobre esa
   numeración — `core/resolve/bridge.py::verificar_estructura_nodos` y quien lo llama.
-- **Qué significa, confirmado:** sin un PowerGrade de tres nodos de partida
-  (`ApplyGradeFromDRX` — y ahora se sabe que exportar a `.drx` SÍ funciona,
-  F0-1 confirmado el mismo día), **la app no puede montar sola la estructura
-  que necesita para escribir nada** en un clip que no se ha preparado a mano
-  antes. No es un supuesto que degrade una función: es la precondición de la
-  que depende que la app sirva para algo contra un proyecto sin preparar.
+- **Qué significa, confirmado:** la app no puede montar sola la estructura de
+  tres nodos que necesita para escribir nada en un clip que no se ha
+  preparado a mano antes. La vía que se pensaba usar para evitarlo —aplicar
+  un PowerGrade de plantilla con `ApplyGradeFromDRX`— se descartó al día
+  siguiente (2026-09-26): ese método **no existe** en `TimelineItem` en esta
+  build (ver `core/resolve/NOTAS.md` §3.2, "DESCARTADA"). No es un supuesto
+  que degrade una función: es la precondición de la que depende que la app
+  sirva para algo contra un proyecto sin preparar, y hoy sólo tiene una
+  salida real: que alguien prepare los tres nodos a mano (o, sin construir
+  todavía, propagarlos por script con `copy_grades` desde un clip ya
+  preparado).
 - **Cómo se verificó:** `probe/api_probe.py`, pregunta `EXTRA` — contó los
   nodos antes y después de `AddVersion()` contra Resolve real. Ver
   `core/resolve/NOTAS.md` §4 y la sección "DÍA 9 (continuación 5)" de
@@ -503,21 +508,28 @@ se activa el día que haya Resolve real delante.
 
 ### H1 · El id de clip se construye como `pista-posición`, no viene de la API
 
-- **Qué suponemos:** que no existe ningún identificador ESTABLE de clip en la API
-  verificada, así que `LiveResolve._id(track, posicion)` fabrica uno (`f"v{track}-
-  {posicion:03d}"`) a partir de dónde está el clip en el timeline.
-- **De dónde sale:** INFERENCIA NUESTRA — ninguna de las preguntas del probe (sección A)
-  pregunta por esto directamente.
+- **CONFIRMADO FALSO el 2026-09-25 contra Resolve real: SÍ existe un
+  identificador estable.** `TimelineItem.GetUniqueId()` existe en Resolve
+  Studio 21.1.0.17, devuelve un UUID (`'0ef258ff-f098-442d-93ee-8995db2f40b6'`
+  en la prueba) y es estable pidiéndolo dos veces seguidas sobre el mismo
+  clip. `LiveResolve._id()` ahora lo usa cuando está disponible
+  (`_llamable(item, "GetUniqueId")`), con la construcción antigua por
+  pista+posición como respaldo si algún Resolve más viejo no lo trae.
+- **Qué se suponía antes de esa fecha:** que no existía ningún identificador ESTABLE de
+  clip en la API verificada, así que `LiveResolve._id(track, posicion)` fabricaba uno
+  (`f"v{track}-{posicion:03d}"`) a partir de dónde está el clip en el timeline.
+- **De dónde salía:** INFERENCIA NUESTRA — ninguna de las preguntas del probe (sección A)
+  preguntaba por esto directamente; se encontró aparte, mirando `dir(item)` completo
+  mientras se investigaba por qué `ApplyGradeFromDRX` no existía (ver fila A9 y
+  `core/resolve/NOTAS.md` §4).
 - **Qué depende de ella:** toda la app: `EstadoDemo`/`ClipDemo` usan `clip_id` como clave
   primaria en todas partes (comparar, aplicar, el tutor).
-- **Qué cambia si es falsa:** el propio comentario del código ya lo dice — "si alguien
-  reordena el timeline con la app abierta, los ids dejan de cuadrar". La mitigación ya
-  existe (`list_clips()` se vuelve a llamar tras cada edición), pero una ventana entre
-  medias donde un `clip_id` viejo apunte al clip equivocado es un riesgo real de
-  atribución, no sólo de rendimiento.
-- **Cómo se verificaría:** con Resolve real, reordenar el timeline con la app abierta y
-  comprobar que ningún `clip_id` capturado antes de la reordenación se usa después sin
-  refrescar.
+- **Qué cambia, ahora confirmado:** el riesgo que describía la fila ("si alguien reordena
+  el timeline con la app abierta, los ids dejan de cuadrar") ya no aplica en esta build —
+  el UUID no depende de la posición. Sigue aplicando tal cual en un Resolve tan viejo que
+  no tenga `GetUniqueId` (caso del respaldo).
+- **Cómo se verificó:** conectando de verdad a Resolve real y llamando a
+  `item.GetUniqueId()` dos veces sobre el mismo clip.
 
 ### H2 · `GetNodeEnabled` no está en la lista verificada; si no existe, se asume activado
 
@@ -700,3 +712,26 @@ internet ese mismo día, no inventada aquí.
 - **Cómo se verificaría:** no es verificable técnicamente — es una decisión de negocio,
   no una medición. Quien la revise más adelante debería releer los `PROCEDENCIA.md` de
   cada fuente, no fiarse de este resumen.
+
+---
+
+## K · `core/perfiles.py`: el orden de composición cámara→look (día 9)
+
+- **Qué suponemos:** que el orden correcto para hornear el LUT de un perfil de trabajo
+  es primero el ajuste de partida CONOCIDO de la cámara, y ENCIMA el look creativo
+  compartido del trabajo (`lut_para_camara`: `look.apply(cdl_camara.apply(entradas))`) —
+  nunca al revés.
+- **De dónde sale:** INFERENCIA NUESTRA. Tiene sentido intuitivo (corregir primero la
+  peculiaridad conocida de esa cámara, "partir de neutro", y luego aplicar la intención
+  creativa sobre ese neutro) pero nadie con criterio de colorista lo ha confirmado — es
+  exactamente el mismo tipo de supuesto sin validar que ya tienen los tres presets de
+  `core/looks/` (`SUPUESTOS.md` fila I2).
+- **Qué depende de ella:** el LUT que se despliega en la carpeta de LUTs de Resolve para
+  cada cámara de cada perfil — `gui/perfiles_trabajo.py::aplicar_perfil_a_estado`.
+- **Qué cambia si es falsa:** el resultado visual sería distinto (demostrado con test:
+  aplicar en el orden contrario da una tabla distinta, no la misma) — pero el arreglo es
+  barato, es invertir el orden de dos llamadas en `core.perfiles.lut_para_camara`, no un
+  cambio de arquitectura.
+- **Cómo se verificaría:** que Mario (u otro colorista) mire el resultado de las dos
+  variantes sobre un plano real de una cámara con un ajuste de partida marcado, y diga
+  cuál se parece a lo que haría él a mano.
