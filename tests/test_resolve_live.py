@@ -225,7 +225,7 @@ def test_item_invalida_la_cache_si_resolve_cambia_de_proyecto():
 
     clips = bridge.list_clips()
     assert [c.clip_id for c in clips] == ["v1-001"]
-    item_viejo = bridge._item("v1-001")
+    item_viejo = bridge._item("v1-001", verificar_proyecto=True)
     assert item_viejo.GetName() == "clipA"
 
     # Cambio de proyecto SIN pasar por list_clips() ni conectar() de nuevo --
@@ -238,7 +238,7 @@ def test_item_invalida_la_cache_si_resolve_cambia_de_proyecto():
     # Mismo clip_id ("v1-001") por el respaldo pista+posicion, pero es OTRO
     # objeto: _item tiene que refrescar la cache y devolver el de clipB, no
     # el clipA que tenia guardado.
-    item_nuevo = bridge._item("v1-001")
+    item_nuevo = bridge._item("v1-001", verificar_proyecto=True)
     assert item_nuevo.GetName() == "clipB"
     assert item_nuevo is not item_viejo
 
@@ -252,11 +252,11 @@ def test_item_invalida_la_cache_si_el_timeline_cambia_de_nombre():
     bridge = LiveResolve(resolve)
 
     bridge.list_clips()
-    assert bridge._item("v1-001").GetName() == "t1"
+    assert bridge._item("v1-001", verificar_proyecto=True).GetName() == "t1"
 
     proyecto._timeline = _TimelineDeMentira("Timeline 2", [_ItemDeMentira("t2")])
 
-    assert bridge._item("v1-001").GetName() == "t2"
+    assert bridge._item("v1-001", verificar_proyecto=True).GetName() == "t2"
 
 
 def test_item_reutiliza_la_cache_si_nada_ha_cambiado():
@@ -269,9 +269,40 @@ def test_item_reutiliza_la_cache_si_nada_ha_cambiado():
     bridge = LiveResolve(_ResolveDeMentira(proyecto))
 
     bridge.list_clips()
-    primero = bridge._item("v1-001")
-    segundo = bridge._item("v1-001")
+    primero = bridge._item("v1-001", verificar_proyecto=True)
+    segundo = bridge._item("v1-001", verificar_proyecto=True)
     assert primero is segundo
+
+
+def test_item_de_lectura_no_pregunta_la_firma_ni_en_un_timeline_grande():
+    """La garantia de rendimiento: `verificar_proyecto=False` (el defecto,
+    usado por `list_nodes`, `get_lut`, `version_names`, `current_version`) NO
+    paga la comprobacion de proyecto/timeline. Sin esto, listar los nodos de
+    un timeline de 200 clips (la cifra que usa BITACORA.md para este tipo de
+    operacion) costaria 400 llamadas de mas a Resolve solo para refrescar una
+    tabla -- exactamente la regresion que motiva este test."""
+    llamadas: list[str] = []
+
+    class _ProjectManagerQueCuenta(_ProjectManagerDeMentira):
+        def GetCurrentProject(self):
+            llamadas.append("GetCurrentProject")
+            return super().GetCurrentProject()
+
+    timeline = _TimelineDeMentira("Timeline", [_ItemDeMentira(f"clip{i}") for i in range(5)])
+    proyecto = _ProyectoDeMentira("Proyecto", timeline)
+    resolve = _ResolveDeMentira(proyecto)
+    resolve.pm = _ProjectManagerQueCuenta(proyecto)
+    bridge = LiveResolve(resolve)
+
+    bridge.list_clips()
+    llamadas.clear()  # list_clips() en si mismo pregunta la firma; nos interesa solo despues
+
+    for i in range(5):
+        assert bridge._item(f"v1-{i + 1:03d}").GetName() == f"clip{i}"
+    assert llamadas == [], (
+        f"_item de solo lectura ha preguntado la firma {len(llamadas)} veces; "
+        f"deberian ser 0 (verificar_proyecto=False es el defecto)"
+    )
 
 
 def test_item_de_un_clip_que_no_existe_sigue_dando_clipnoencontrado():
@@ -290,8 +321,11 @@ def test_item_no_revienta_si_no_puede_preguntar_la_firma_y_usa_la_cache():
     `_cache` a mano sin pasar nunca por `list_clips()`), `_item` tiene que
     seguir sirviendo lo que ya tenia en cache en vez de lanzar
     `ResolveNoConectado` en CADA lectura -- eso es justo lo que rompio esa
-    suite la primera vez que se escribio esta proteccion."""
+    suite la primera vez que se escribio esta proteccion. Se pide
+    `verificar_proyecto=True` a proposito: es el camino que usan las cinco
+    escrituras de grado, que es donde `_live_con_dobles` se topa con esto de
+    verdad -- con el defecto (`False`) ni se llega a intentar preguntar."""
     bridge = LiveResolve(object())
     centinela = _ItemDeMentira("centinela")
     bridge._cache = {"v1-001": centinela}
-    assert bridge._item("v1-001") is centinela
+    assert bridge._item("v1-001", verificar_proyecto=True) is centinela
