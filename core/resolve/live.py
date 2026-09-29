@@ -161,6 +161,13 @@ class LiveResolve(BaseResolveBridge):
         # clips entera, y no puede llevarse por delante los stills cogidos.
         self._cache: dict[str, object] = {}
         self._stills: dict[str, object] = {}
+        # Firma (nombre de proyecto, nombre de timeline) del ultimo
+        # `list_clips()`. Si Mario cambia de proyecto o de timeline sin cerrar
+        # la app, los objetos `TimelineItem` de `self._cache` pasan a ser de
+        # OTRO proyecto -- Resolve no los invalida ni avisa. `_item()` compara
+        # esta firma contra la actual antes de fiarse de la cache; ver
+        # `_firma_actual`.
+        self._firma_cache: tuple[str, str] | None = None
 
     @classmethod
     def conectar(cls, incognitas: Incognitas = INCOGNITAS_CONSERVADORAS) -> LiveResolve:
@@ -178,17 +185,52 @@ class LiveResolve(BaseResolveBridge):
     # -- interno -----------------------------------------------------------
 
     def _proyecto(self):
-        pm = self._resolve.GetProjectManager()
-        proyecto = pm.GetCurrentProject() if pm else None
+        # Entre `conectar()` y esta llamada, Resolve puede haberse cerrado, haberse
+        # colgado o (en macOS) haber soltado la conexion de scripting sin avisar.
+        # Cuando eso pasa, `GetProjectManager()`/`GetCurrentProject()` no devuelven
+        # `None` con calma: revientan con lo que sea que la capa de scripting decida
+        # ese dia (a veces `AttributeError`, a veces algo mas raro). La GUI solo
+        # captura `ResolveError` (ver `core/resolve/bridge.py`), asi que dejar salir
+        # esa excepcion cruda tira la app entera en vez de mostrar un aviso. Aqui se
+        # convierte en `ResolveNoConectado`, que es justo lo que es: no se puede
+        # hablar con Resolve.
+        try:
+            pm = self._resolve.GetProjectManager()
+            proyecto = pm.GetCurrentProject() if pm else None
+        except Exception as exc:  # noqa: BLE001 - Resolve cerrado o sin responder
+            raise ResolveNoConectado(
+                "Resolve no responde. Puede que se haya cerrado, que se haya colgado, o que "
+                "haya soltado la conexion de scripting. Comprueba que DaVinci Resolve Studio "
+                f"sigue abierto. ({type(exc).__name__}: {exc})"
+            ) from exc
         if proyecto is None:
             raise ResolveNoConectado("no hay ningun proyecto abierto en Resolve")
         return proyecto
 
     def _timeline(self):
-        timeline = self._proyecto().GetCurrentTimeline()
+        try:
+            timeline = self._proyecto().GetCurrentTimeline()
+        except ResolveNoConectado:
+            raise
+        except Exception as exc:  # noqa: BLE001 - igual que en _proyecto: no se traga
+            raise ResolveNoConectado(
+                f"Resolve no responde al pedir el timeline actual ({type(exc).__name__}: {exc})"
+            ) from exc
         if timeline is None:
             raise TimelineNoAbierto("no hay ningun timeline abierto en Resolve")
         return timeline
+
+    def _firma_actual(self) -> tuple[str, str]:
+        """`(nombre de proyecto, nombre de timeline)` en este instante.
+
+        No decide nada por si sola: `_item()` la compara con `self._firma_cache`
+        para saber si la cache de clips sigue hablando del mismo proyecto/timeline
+        que cuando se lleno. Si `_proyecto()`/`_timeline()` fallan, la excepcion
+        sale tal cual -- aqui no hay nada que se pueda tragar seguro.
+        """
+        proyecto = self._proyecto()
+        timeline = self._timeline()
+        return (str(proyecto.GetName()), str(timeline.GetName()))
 
     @staticmethod
     def _id(item, track: int, posicion: int) -> str:
@@ -204,7 +246,45 @@ class LiveResolve(BaseResolveBridge):
             return str(item.GetUniqueId())
         return f"v{track}-{posicion:03d}"
 
-    def _item(self, clip_id: str):
+    def _item(self, clip_id: str, *, verificar_proyecto: bool = False):
+        """El `TimelineItem` de `clip_id`, de la cache si puede.
+
+        `verificar_proyecto=True` paga dos llamadas de mas a Resolve
+        (`GetProjectManager`/`GetCurrentProject`/`GetCurrentTimeline`, ver
+        `_firma_actual`) para comprobar que el proyecto y el timeline siguen
+        siendo los de cuando se lleno la cache. Hace falta porque el respaldo
+        pista+posicion de `_id()` no es globalmente unico: si Mario cambia de
+        proyecto o de timeline sin cerrar la app, un `clip_id` reciclado por
+        coincidencia devolveria en silencio el `TimelineItem` de OTRO
+        proyecto. Escribir sobre ese objeto es, en el mejor caso, un error
+        raro de la API; en el peor, un grado encima del clip equivocado.
+
+        Por eso **solo las cinco escrituras de grado (y `copy_grades` con sus
+        destinos) piden `verificar_proyecto=True`**: ahi el coste de dos
+        llamadas de mas ya lo paga la regla de oro (`GetCurrentVersion()` por
+        escritura) y merece la pena por el mismo motivo. Las lecturas
+        (`list_nodes`, `get_lut`, `version_names`, `current_version`) dejan
+        `verificar_proyecto` en `False`: son las que la GUI llama una vez por
+        clip para pintar la tabla -- en un timeline de 200 clips, forzar la
+        comprobacion ahi son 400 llamadas de mas a Resolve solo para refrescar
+        una columna, y el peor caso de un dato desactualizado ahi es una cifra
+        vieja en pantalla, no una escritura de mas.
+
+        Si `_firma_actual()` no puede preguntarle nada a Resolve (no hay
+        conexion, o -- como en los tests de la regla de oro -- `self._resolve`
+        es un doble que no implementa la API), no tiene sentido reventar aqui:
+        la comprobacion es una proteccion de MAS sobre la cache existente, no
+        una condicion para poder usarla. Si de verdad no hay conexion, la
+        escritura que venga detras (`SetCDL`, `SetLUT`...) fallara con su
+        propio error, que es donde tiene que fallar.
+        """
+        if verificar_proyecto and clip_id in self._cache:
+            try:
+                cambio_de_proyecto = self._firma_actual() != self._firma_cache
+            except ResolveError:
+                cambio_de_proyecto = False
+            if cambio_de_proyecto:
+                self.list_clips()
         if clip_id not in self._cache:
             self.list_clips()
         item = self._cache.get(clip_id)
@@ -248,8 +328,10 @@ class LiveResolve(BaseResolveBridge):
     # -- clips ---------------------------------------------------------------
 
     def list_clips(self) -> list[ClipRef]:
+        proyecto = self._proyecto()
         timeline = self._timeline()
         self._cache.clear()
+        self._firma_cache = (str(proyecto.GetName()), str(timeline.GetName()))
         clips: list[ClipRef] = []
         for pista in range(1, int(timeline.GetTrackCount("video")) + 1):
             for posicion, item in enumerate(timeline.GetItemListInTrack("video", pista) or [], 1):
@@ -336,23 +418,23 @@ class LiveResolve(BaseResolveBridge):
         return nombre_de_version(self._item(clip_id).GetCurrentVersion())
 
     def add_version(self, clip_id: str, name: str = VERSION_NAME) -> bool:
-        return bool(self._item(clip_id).AddVersion(validar_nombre_version(name), VERSION_LOCAL))
+        item = self._item(clip_id, verificar_proyecto=True)
+        return bool(item.AddVersion(validar_nombre_version(name), VERSION_LOCAL))
 
     def load_version(self, clip_id: str, name: str) -> bool:
-        return bool(
-            self._item(clip_id).LoadVersionByName(validar_nombre_version(name), VERSION_LOCAL)
-        )
+        item = self._item(clip_id, verificar_proyecto=True)
+        return bool(item.LoadVersionByName(validar_nombre_version(name), VERSION_LOCAL))
 
     # -- escritura de color ---------------------------------------------------
 
     def set_cdl(self, clip_id: str, node_index: int, cdl: CDL) -> bool:
-        item = self._item(clip_id)
+        item = self._item(clip_id, verificar_proyecto=True)
         idx = self._validar_nodo(node_index, int(self._grafo(item).GetNumNodes()))
         self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_cdl")
         return bool(item.SetCDL(cdl.as_resolve_payload(idx)))
 
     def set_lut(self, clip_id: str, node_index: int, lut_rel_path: str) -> bool:
-        item = self._item(clip_id)
+        item = self._item(clip_id, verificar_proyecto=True)
         idx = self._validar_nodo(node_index, int(self._grafo(item).GetNumNodes()))
         ruta = self._validar_lut(lut_rel_path)
         self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_lut")
@@ -364,7 +446,7 @@ class LiveResolve(BaseResolveBridge):
         return item.GetLUT(idx) or None
 
     def set_node_enabled(self, clip_id: str, node_index: int, enabled: bool) -> bool:
-        grafo = self._grafo(self._item(clip_id))
+        grafo = self._grafo(self._item(clip_id, verificar_proyecto=True))
         idx = self._validar_nodo(node_index, int(grafo.GetNumNodes()))
         self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "set_node_enabled")
         return bool(grafo.SetNodeEnabled(idx, bool(enabled)))
@@ -372,16 +454,16 @@ class LiveResolve(BaseResolveBridge):
     def copy_grades(self, source_clip_id: str, target_clip_ids: list[str]) -> bool:
         if not target_clip_ids:
             return False
-        destinos = [self._item(cid) for cid in target_clip_ids]
+        destinos = [self._item(cid, verificar_proyecto=True) for cid in target_clip_ids]
         # CopyGrades reemplaza el arbol de nodos del destino entero: se
         # comprueban TODOS antes de tocar ninguno.
         for cid in target_clip_ids:
             self._exigir_version_propia(cid, self._version_activa_o_rota(cid), "copy_grades")
-        return bool(self._item(source_clip_id).CopyGrades(destinos))
+        return bool(self._item(source_clip_id, verificar_proyecto=True).CopyGrades(destinos))
 
     def reset_all_grades(self, clip_id: str) -> bool:
         self._exigir_version_propia(clip_id, self._version_activa_o_rota(clip_id), "reset_all_grades")
-        return bool(self._grafo(self._item(clip_id)).ResetAllGrades())
+        return bool(self._grafo(self._item(clip_id, verificar_proyecto=True)).ResetAllGrades())
 
     def refresh_lut_list(self) -> bool:
         return bool(self._proyecto().RefreshLUTList())
