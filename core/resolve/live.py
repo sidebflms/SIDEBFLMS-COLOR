@@ -161,6 +161,13 @@ class LiveResolve(BaseResolveBridge):
         # clips entera, y no puede llevarse por delante los stills cogidos.
         self._cache: dict[str, object] = {}
         self._stills: dict[str, object] = {}
+        # Firma (nombre de proyecto, nombre de timeline) del ultimo
+        # `list_clips()`. Si Mario cambia de proyecto o de timeline sin cerrar
+        # la app, los objetos `TimelineItem` de `self._cache` pasan a ser de
+        # OTRO proyecto -- Resolve no los invalida ni avisa. `_item()` compara
+        # esta firma contra la actual antes de fiarse de la cache; ver
+        # `_firma_actual`.
+        self._firma_cache: tuple[str, str] | None = None
 
     @classmethod
     def conectar(cls, incognitas: Incognitas = INCOGNITAS_CONSERVADORAS) -> LiveResolve:
@@ -178,17 +185,52 @@ class LiveResolve(BaseResolveBridge):
     # -- interno -----------------------------------------------------------
 
     def _proyecto(self):
-        pm = self._resolve.GetProjectManager()
-        proyecto = pm.GetCurrentProject() if pm else None
+        # Entre `conectar()` y esta llamada, Resolve puede haberse cerrado, haberse
+        # colgado o (en macOS) haber soltado la conexion de scripting sin avisar.
+        # Cuando eso pasa, `GetProjectManager()`/`GetCurrentProject()` no devuelven
+        # `None` con calma: revientan con lo que sea que la capa de scripting decida
+        # ese dia (a veces `AttributeError`, a veces algo mas raro). La GUI solo
+        # captura `ResolveError` (ver `core/resolve/bridge.py`), asi que dejar salir
+        # esa excepcion cruda tira la app entera en vez de mostrar un aviso. Aqui se
+        # convierte en `ResolveNoConectado`, que es justo lo que es: no se puede
+        # hablar con Resolve.
+        try:
+            pm = self._resolve.GetProjectManager()
+            proyecto = pm.GetCurrentProject() if pm else None
+        except Exception as exc:  # noqa: BLE001 - Resolve cerrado o sin responder
+            raise ResolveNoConectado(
+                "Resolve no responde. Puede que se haya cerrado, que se haya colgado, o que "
+                "haya soltado la conexion de scripting. Comprueba que DaVinci Resolve Studio "
+                f"sigue abierto. ({type(exc).__name__}: {exc})"
+            ) from exc
         if proyecto is None:
             raise ResolveNoConectado("no hay ningun proyecto abierto en Resolve")
         return proyecto
 
     def _timeline(self):
-        timeline = self._proyecto().GetCurrentTimeline()
+        try:
+            timeline = self._proyecto().GetCurrentTimeline()
+        except ResolveNoConectado:
+            raise
+        except Exception as exc:  # noqa: BLE001 - igual que en _proyecto: no se traga
+            raise ResolveNoConectado(
+                f"Resolve no responde al pedir el timeline actual ({type(exc).__name__}: {exc})"
+            ) from exc
         if timeline is None:
             raise TimelineNoAbierto("no hay ningun timeline abierto en Resolve")
         return timeline
+
+    def _firma_actual(self) -> tuple[str, str]:
+        """`(nombre de proyecto, nombre de timeline)` en este instante.
+
+        No decide nada por si sola: `_item()` la compara con `self._firma_cache`
+        para saber si la cache de clips sigue hablando del mismo proyecto/timeline
+        que cuando se lleno. Si `_proyecto()`/`_timeline()` fallan, la excepcion
+        sale tal cual -- aqui no hay nada que se pueda tragar seguro.
+        """
+        proyecto = self._proyecto()
+        timeline = self._timeline()
+        return (str(proyecto.GetName()), str(timeline.GetName()))
 
     @staticmethod
     def _id(item, track: int, posicion: int) -> str:
@@ -205,7 +247,29 @@ class LiveResolve(BaseResolveBridge):
         return f"v{track}-{posicion:03d}"
 
     def _item(self, clip_id: str):
-        if clip_id not in self._cache:
+        # No basta con mirar si `clip_id` esta en la cache: si Mario cambio de
+        # proyecto o de timeline desde el ultimo `list_clips()`, la cache puede
+        # tener un `clip_id` que por pura coincidencia (el respaldo pista+posicion
+        # de `_id()` no es globalmente unico) tambien exista en el timeline nuevo,
+        # apuntando a un `TimelineItem` de OTRO proyecto. Llamar a un metodo de
+        # escritura sobre ese objeto es, en el mejor caso, un error raro de la API;
+        # en el peor, escribe en el clip equivocado sin que nadie se entere. Por
+        # eso se comprueba la firma en cada acceso, no solo si falta la clave.
+        #
+        # Si `_firma_actual()` no puede preguntarle nada a Resolve (no hay
+        # conexion, o -- como en los tests de la regla de oro -- `self._resolve`
+        # es un doble que no implementa la API), no tiene sentido reventar aqui:
+        # la comprobacion de proyecto/timeline es una proteccion de MAS sobre la
+        # cache existente, no una condicion para poder usarla. Si de verdad no
+        # hay conexion, la escritura que venga detras (`SetCDL`, `SetLUT`...)
+        # fallara con su propio error, que es donde tiene que fallar.
+        cambio_de_proyecto = False
+        if clip_id in self._cache:
+            try:
+                cambio_de_proyecto = self._firma_actual() != self._firma_cache
+            except ResolveError:
+                cambio_de_proyecto = False
+        if clip_id not in self._cache or cambio_de_proyecto:
             self.list_clips()
         item = self._cache.get(clip_id)
         if item is None:
@@ -248,8 +312,10 @@ class LiveResolve(BaseResolveBridge):
     # -- clips ---------------------------------------------------------------
 
     def list_clips(self) -> list[ClipRef]:
+        proyecto = self._proyecto()
         timeline = self._timeline()
         self._cache.clear()
+        self._firma_cache = (str(proyecto.GetName()), str(timeline.GetName()))
         clips: list[ClipRef] = []
         for pista in range(1, int(timeline.GetTrackCount("video")) + 1):
             for posicion, item in enumerate(timeline.GetItemListInTrack("video", pista) or [], 1):
