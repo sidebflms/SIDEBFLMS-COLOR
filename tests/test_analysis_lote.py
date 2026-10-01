@@ -168,3 +168,44 @@ def test_callback_progreso_por_clip(monkeypatch):
     analizar_lote(clips, callback_progreso=progresos.append)
     assert [p.resultado.item_id for p in progresos] == ["c1", "c2"]
     assert all(p.total == 2 for p in progresos)
+
+
+# ---------------------------------------------------------------------------
+# concurrencia (issue #3): se pasa tal cual a core.batch.ejecutar_lote
+# ---------------------------------------------------------------------------
+
+
+def test_concurrencia_se_pasa_a_ejecutar_lote_y_analiza_todos(monkeypatch):
+    """No vuelve a probar la mecanica de concurrencia (eso es
+    tests/test_batch.py): aqui solo importa que `analizar_lote` la reenvia de
+    verdad, y que `_uno` (que escribe en `analisis`/`mensajes_fallo` desde
+    hilos trabajadores sin lock, a proposito -- ver el comentario del
+    modulo) no cruza resultados entre clips bajo concurrencia real."""
+
+    def analizar(ruta, *, clip_id=None, **kwargs):  # noqa: ANN001
+        return _AnalisisFalso(clip_id)
+
+    monkeypatch.setattr(lote_mod, "analizar_clip", analizar)
+    clips = {f"c{i}": f"/x/{i}.mov" for i in range(20)}
+
+    resultado = analizar_lote(clips, concurrencia=4)
+
+    assert set(resultado.analisis) == set(clips)
+    assert all(resultado.analisis[cid].clip_id == cid for cid in clips)
+    assert resultado.fallos == {}
+    assert set(resultado.hechos) == set(clips)
+
+
+def test_concurrencia_aisla_fallos_por_clip(monkeypatch):
+    def analizar(ruta, *, clip_id=None, **kwargs):  # noqa: ANN001
+        if clip_id in ("c2", "c7"):
+            raise ErrorFFmpeg(f"fallo de {clip_id}")
+        return _AnalisisFalso(clip_id)
+
+    monkeypatch.setattr(lote_mod, "analizar_clip", analizar)
+    clips = {f"c{i}": f"/x/{i}.mov" for i in range(10)}
+
+    resultado = analizar_lote(clips, concurrencia=3)
+
+    assert set(resultado.fallos) == {"c2", "c7"}
+    assert set(resultado.analisis) == set(clips) - {"c2", "c7"}

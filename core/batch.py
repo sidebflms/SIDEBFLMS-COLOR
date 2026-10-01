@@ -39,13 +39,36 @@ eventos de Qt (`app.processEvents()`), dejando que un botón "Cancelar" se
 pueda pulsar de verdad entre ítem e ítem. `debe_cancelar` se comprueba justo
 antes de cada ítem nuevo (nunca a mitad de uno: un ítem se hace entero o no
 se empieza, nunca a medias).
+
+`CONCURRENCIA` (issue #3): PARALELO SÓLO SI SE PIDE, Y SÓLO HILOS
+-------------------------------------------------------------------
+Lo anterior sigue siendo cierto con `concurrencia=1` (el defecto): el camino
+de código es LITERALMENTE el de siempre, sin tocar. `concurrencia>1` añade un
+segundo camino con `ThreadPoolExecutor` — hilos, no procesos, porque `funcion`
+en el caso real (`core.analysis.lote.analizar_lote` -> `analizar_clip` ->
+`subprocess.run(ffmpeg)`) pasa la mayor parte del tiempo esperando a un
+subproceso, con el GIL suelto; no hace falta pagar el coste de multiprocessing
+para eso.
+
+Sigue sin haber "cancelar a mitad de un ítem": los pendientes se procesan en
+TROZOS de tamaño `concurrencia`, y `debe_cancelar()` se comprueba entre
+trozos, nunca a mitad de uno — un trozo que ya se ha lanzado se termina
+entero (hasta `concurrencia - 1` ítems de más de los que habría con
+`concurrencia=1`, nunca ítems a medias). `callback_progreso` y la escritura
+del manifiesto siguen pasando SIEMPRE en el hilo que llamó a `ejecutar_lote`
+(nunca en un hilo trabajador): los trabajadores sólo ejecutan `funcion`, y el
+hilo llamante recoge cada resultado con `as_completed` uno a uno. Eso importa
+de verdad para quien llame desde la GUI con el patrón de `app.processEvents()`
+de más arriba -- Qt no tolera que se le llame desde un hilo que no sea el
+principal.
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -138,6 +161,21 @@ def _escribir_manifiesto(ruta: Path, resultados: dict[str, ResultadoItem]) -> No
         ruta.write_text(json.dumps(crudo, ensure_ascii=False), encoding="utf-8")
 
 
+def _ejecutar_uno(
+    funcion: Callable[[str], object], item_id: str, excepciones: tuple[type[Exception], ...]
+) -> ResultadoItem:
+    try:
+        funcion(item_id)
+    except excepciones as exc:
+        return ResultadoItem(item_id=item_id, estado="fallo", mensaje=str(exc))
+    return ResultadoItem(item_id=item_id, estado="hecho")
+
+
+def _en_trozos(pendientes: list[tuple[int, str]], tamano: int) -> Iterator[list[tuple[int, str]]]:
+    for inicio in range(0, len(pendientes), tamano):
+        yield pendientes[inicio : inicio + tamano]
+
+
 def ejecutar_lote(
     item_ids: Sequence[str],
     funcion: Callable[[str], object],
@@ -147,9 +185,10 @@ def ejecutar_lote(
     reintentar_fallidos: bool = True,
     callback_progreso: Callable[[ProgresoLote], None] | None = None,
     debe_cancelar: Callable[[], bool] | None = None,
+    concurrencia: int = 1,
 ) -> ResultadoLote:
-    """Llama a `funcion(item_id)` para cada `item_id` de `item_ids`, en orden,
-    aislando el fallo de cada uno.
+    """Llama a `funcion(item_id)` para cada `item_id` de `item_ids`, aislando
+    el fallo de cada uno.
 
     `excepciones` es obligatorio y explícito a propósito, igual que
     `aplicar()` sólo captura `ResolveError`: cualquier excepción que NO esté
@@ -167,20 +206,35 @@ def ejecutar_lote(
     (disco lleno un momento, Resolve ocupado) — con `False` también se
     saltan, y se quedan con su mensaje de fallo de la vez anterior.
 
-    `debe_cancelar`, si se da, se comprueba justo ANTES de cada ítem que vaya
-    a ejecutarse de verdad (nunca para los que se saltan por ya estar
-    hechos). Si devuelve `True`, el lote para ahí: los ítems que quedaban se
-    quedan fuera de `ResultadoLote.resultados` (ni hecho ni fallo), y
+    `debe_cancelar`, si se da, se comprueba justo ANTES de cada ítem nuevo que
+    vaya a ejecutarse de verdad (nunca para los que se saltan por ya estar
+    hechos; con `concurrencia>1`, antes de cada TROZO nuevo — ver el docstring
+    del módulo). Si devuelve `True`, el lote para ahí: los ítems que quedaban
+    se quedan fuera de `ResultadoLote.resultados` (ni hecho ni fallo), y
     `ResultadoLote.cancelado` sale `True`. Volver a llamar con el mismo
     `manifiesto` retoma justo donde se paró.
+
+    `concurrencia` (por defecto `1`, o sea el comportamiento de siempre, sin
+    ningún cambio): con un entero mayor, procesa los ítems pendientes en
+    trozos de ese tamaño con hasta `concurrencia` llamadas a `funcion` a la
+    vez, en hilos (ver el docstring del módulo sobre por qué hilos y no
+    procesos, y sobre en qué hilo se llama a `callback_progreso`).
     """
+    if isinstance(concurrencia, bool) or not isinstance(concurrencia, int) or concurrencia < 1:
+        raise ValueError(
+            f"concurrencia tiene que ser un entero >= 1, y llego {concurrencia!r} "
+            f"({type(concurrencia).__name__})"
+        )
+
     ruta_manifiesto = Path(manifiesto) if manifiesto is not None else None
     resultados: dict[str, ResultadoItem] = (
         dict(_leer_manifiesto(ruta_manifiesto)) if ruta_manifiesto is not None else {}
     )
-
     total = len(item_ids)
-    cancelado = False
+
+    # Comun a los dos caminos: que ya esta "hecho" (o fallo sin reintentar) se
+    # salta sin volver a llamar a `funcion`, avisando igual por el callback.
+    pendientes: list[tuple[int, str]] = []
     for indice, item_id in enumerate(item_ids, start=1):
         existente = resultados.get(item_id)
         ya_vale = existente is not None and (
@@ -192,22 +246,46 @@ def ejecutar_lote(
                     ProgresoLote(indice=indice, total=total, resultado=existente, reanudado=True)
                 )
             continue
+        pendientes.append((indice, item_id))
 
-        if debe_cancelar is not None and debe_cancelar():
-            cancelado = True
-            break
+    cancelado = False
 
-        try:
-            funcion(item_id)
-        except excepciones as exc:
-            resultado = ResultadoItem(item_id=item_id, estado="fallo", mensaje=str(exc))
-        else:
-            resultado = ResultadoItem(item_id=item_id, estado="hecho")
+    if concurrencia == 1:
+        # El camino de siempre, sin tocar: un item, una llamada, un resultado.
+        for indice, item_id in pendientes:
+            if debe_cancelar is not None and debe_cancelar():
+                cancelado = True
+                break
+            resultado = _ejecutar_uno(funcion, item_id, excepciones)
+            resultados[item_id] = resultado
+            if ruta_manifiesto is not None:
+                _escribir_manifiesto(ruta_manifiesto, resultados)
+            if callback_progreso is not None:
+                callback_progreso(ProgresoLote(indice=indice, total=total, resultado=resultado))
+        return ResultadoLote(resultados=resultados, cancelado=cancelado)
 
-        resultados[item_id] = resultado
-        if ruta_manifiesto is not None:
-            _escribir_manifiesto(ruta_manifiesto, resultados)
-        if callback_progreso is not None:
-            callback_progreso(ProgresoLote(indice=indice, total=total, resultado=resultado))
+    # concurrencia > 1: en trozos, con hilos dentro de cada trozo. El hilo que
+    # llamo a ejecutar_lote es el UNICO que escribe en `resultados`, escribe
+    # el manifiesto o llama a `callback_progreso` -- los trabajadores solo
+    # ejecutan `funcion` y devuelven su `ResultadoItem`.
+    with ThreadPoolExecutor(max_workers=concurrencia) as executor:
+        for trozo in _en_trozos(pendientes, concurrencia):
+            if debe_cancelar is not None and debe_cancelar():
+                cancelado = True
+                break
+            futuros = {
+                executor.submit(_ejecutar_uno, funcion, item_id, excepciones): (indice, item_id)
+                for indice, item_id in trozo
+            }
+            for futuro in as_completed(futuros):
+                indice, item_id = futuros[futuro]
+                resultado = futuro.result()
+                resultados[item_id] = resultado
+                if ruta_manifiesto is not None:
+                    _escribir_manifiesto(ruta_manifiesto, resultados)
+                if callback_progreso is not None:
+                    callback_progreso(
+                        ProgresoLote(indice=indice, total=total, resultado=resultado)
+                    )
 
     return ResultadoLote(resultados=resultados, cancelado=cancelado)

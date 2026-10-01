@@ -71,11 +71,12 @@ def analizar_lote(
     debe_cancelar: Callable[[], bool] | None = None,
     n_fotogramas: int | None = None,
     guardar_pixeles: bool = False,
+    concurrencia: int = 1,
 ) -> ResultadoLoteAnalisis:
-    """Analiza `clips` (clip_id -> ruta) uno a uno con `core.analysis.
-    analizar_clip`, aislando el fallo de cada uno (`ErrorAnalisis` y sus
-    hijas: fichero que no existe, formato que no se entiende, ffmpeg roto o
-    sin instalar, clip truncado — nunca un traceback por un clip suelto).
+    """Analiza `clips` (clip_id -> ruta) con `core.analysis.analizar_clip`,
+    aislando el fallo de cada uno (`ErrorAnalisis` y sus hijas: fichero que no
+    existe, formato que no se entiende, ffmpeg roto o sin instalar, clip
+    truncado — nunca un traceback por un clip suelto).
 
     `manifiesto`, si se da, hace esto reanudable de verdad: una segunda
     llamada con la misma ruta no vuelve a analizar los clips que ya salieron
@@ -88,7 +89,22 @@ def analizar_lote(
     `n_fotogramas`/`guardar_pixeles` se pasan tal cual a `analizar_clip` para
     cada clip, si se dan (si no, se usan los valores por defecto de esa
     función).
+
+    `concurrencia` (por defecto `1`: uno a uno, como siempre) se pasa tal
+    cual a `core.batch.ejecutar_lote` — con un entero mayor, analiza varios
+    clips a la vez en hilos, porque `analizar_clip` pasa la mayor parte del
+    tiempo esperando a `ffmpeg` como subproceso. Ver el docstring de
+    `ejecutar_lote` para la semántica exacta de cancelación en ese caso. Esta
+    función NO decide un valor por defecto distinto de `1` por su cuenta: más
+    concurrencia es más uso de CPU/disco a la vez, y eso lo decide quien
+    llama, no esta capa.
     """
+    # Con concurrencia>1, `_uno` la ejecutan varios hilos trabajadores de
+    # `ejecutar_lote` a la vez (ver su docstring): escriben aqui SIN lock.
+    # Es seguro sin uno porque cada hilo toca una clave DISTINTA (su propio
+    # `clip_id`, nunca el de otro) y `dict.__setitem__` es atomico en CPython
+    # (el GIL serializa el bytecode) -- no hay dos hilos escribiendo la MISMA
+    # clave a la vez, que es el unico caso que necesitaria proteccion.
     analisis: dict[str, ClipAnalysis] = {}
     mensajes_fallo: dict[str, str] = {}
 
@@ -112,6 +128,7 @@ def analizar_lote(
         reintentar_fallidos=reintentar_fallidos,
         callback_progreso=callback_progreso,
         debe_cancelar=debe_cancelar,
+        concurrencia=concurrencia,
     )
 
     pendientes = tuple(cid for cid in clips if cid not in resultado_lote.resultados)
