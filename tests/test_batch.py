@@ -7,6 +7,8 @@ forma de cancelar aplicar() a mitad").
 from __future__ import annotations
 
 import json
+import threading
+import time
 
 import pytest
 
@@ -304,3 +306,195 @@ def test_callback_progreso_puede_cancelar_desde_fuera():
     )
     assert vistos == ["a", "b"]
     assert resultado.cancelado is True
+
+
+# ---------------------------------------------------------------------------
+# concurrencia (issue #3): paralelo solo si se pide, y solo con concurrencia>1
+# ---------------------------------------------------------------------------
+
+
+def test_concurrencia_1_es_el_mismo_camino_de_siempre():
+    """`concurrencia=1` (el defecto) no es "paralelo con un solo hilo": es
+    literalmente el bucle de toda la vida. Lo unico que se puede comprobar
+    desde fuera es que el comportamiento es identico -- ya lo hacen todos los
+    tests de mas arriba, que no pasan `concurrencia` y siguen en verde."""
+    vistos = []
+    resultado = ejecutar_lote(
+        ["a", "b", "c"], vistos.append, excepciones=(_ErrorDeDominio,), concurrencia=1
+    )
+    assert vistos == ["a", "b", "c"]
+    assert resultado.hechos == ("a", "b", "c")
+
+
+@pytest.mark.parametrize("concurrencia", [0, -1, 1.5, True, "4"])
+def test_concurrencia_invalida_lanza_valueerror(concurrencia):
+    with pytest.raises(ValueError):
+        ejecutar_lote(["a"], lambda _i: None, excepciones=(_ErrorDeDominio,), concurrencia=concurrencia)
+
+
+def test_concurrencia_mayor_que_uno_llama_a_todos_aunque_el_orden_no_este_garantizado():
+    lock = threading.Lock()
+    vistos: list[str] = []
+
+    def funcion(item_id: str) -> None:
+        with lock:
+            vistos.append(item_id)
+
+    resultado = ejecutar_lote(
+        [f"c{i}" for i in range(12)], funcion, excepciones=(_ErrorDeDominio,), concurrencia=4
+    )
+    assert sorted(vistos) == sorted(f"c{i}" for i in range(12))
+    assert set(resultado.hechos) == {f"c{i}" for i in range(12)}
+    assert resultado.cancelado is False
+
+
+def test_concurrencia_de_verdad_corre_en_paralelo_no_solo_lo_dice():
+    """La prueba de que son hilos de verdad, no una simulacion: 8 items que
+    tardan 150ms cada uno, con concurrencia=8, tienen que tardar del orden de
+    150ms en total, no de 8*150ms=1.2s. Margen generoso (600ms) para no ser
+    fragil en una maquina de CI ocupada."""
+
+    def funcion(_item_id: str) -> None:
+        time.sleep(0.15)
+
+    inicio = time.monotonic()
+    ejecutar_lote(
+        [f"c{i}" for i in range(8)], funcion, excepciones=(_ErrorDeDominio,), concurrencia=8
+    )
+    duracion = time.monotonic() - inicio
+    assert duracion < 0.6, f"tardo {duracion:.2f}s; con concurrencia=8 no deberia acercarse a 1.2s"
+
+
+def test_concurrencia_aisla_fallos_igual_que_secuencial():
+    def funcion(item_id: str) -> None:
+        if item_id in ("b", "d"):
+            raise _ErrorDeDominio(f"fallo de {item_id}")
+
+    resultado = ejecutar_lote(
+        ["a", "b", "c", "d", "e"], funcion, excepciones=(_ErrorDeDominio,), concurrencia=3
+    )
+    assert set(resultado.hechos) == {"a", "c", "e"}
+    assert set(resultado.fallidos) == {"b", "d"}
+    assert resultado.resultados["b"].mensaje == "fallo de b"
+
+
+def test_concurrencia_propaga_excepcion_fuera_de_la_lista_igual_que_secuencial():
+    def funcion(item_id: str) -> None:
+        if item_id == "b":
+            raise _ErrorDeVerdad("bug de verdad, no fallo de item")
+
+    with pytest.raises(_ErrorDeVerdad):
+        ejecutar_lote(["a", "b", "c", "d"], funcion, excepciones=(_ErrorDeDominio,), concurrencia=2)
+
+
+def test_concurrencia_callback_y_manifiesto_se_llaman_desde_el_hilo_llamante(tmp_path):
+    """Importa de verdad para quien llame desde la GUI con el patron de
+    `app.processEvents()`: si `callback_progreso` llegara desde un hilo
+    trabajador, Qt no lo tolera. Los trabajadores SOLO ejecutan `funcion`."""
+    hilo_llamante = threading.current_thread()
+    hilos_de_funcion: set[int] = set()
+    hilos_de_callback: set[int] = set()
+    lock = threading.Lock()
+
+    def funcion(_item_id: str) -> None:
+        with lock:
+            hilos_de_funcion.add(threading.get_ident())
+        time.sleep(0.02)  # dar tiempo a que varios hilos se solapen de verdad
+
+    def callback(_progreso: ProgresoLote) -> None:
+        hilos_de_callback.add(threading.get_ident())
+
+    ejecutar_lote(
+        [f"c{i}" for i in range(8)],
+        funcion,
+        excepciones=(_ErrorDeDominio,),
+        concurrencia=4,
+        callback_progreso=callback,
+        manifiesto=tmp_path / "manifiesto.json",
+    )
+
+    assert hilos_de_callback == {hilo_llamante.ident}, (
+        "callback_progreso se ha llamado desde un hilo que no es el llamante"
+    )
+    # Y la prueba de que SI hubo paralelismo real: mas de un hilo trabajador.
+    assert len(hilos_de_funcion) > 1
+
+
+def test_concurrencia_cancela_entre_trozos_no_a_mitad_de_uno():
+    """Semantica distinta de concurrencia=1 a proposito (ver docstring del
+    modulo): el trozo ya lanzado se termina ENTERO -- puede haber hasta
+    `concurrencia - 1` items de mas de los que habria cancelando item a item,
+    pero nunca un item a medias."""
+    lock = threading.Lock()
+    vistos: list[str] = []
+
+    def funcion(item_id: str) -> None:
+        with lock:
+            vistos.append(item_id)
+
+    def debe_cancelar() -> bool:
+        with lock:
+            return len(vistos) >= 1  # pide cancelar tras el primer item visto
+
+    resultado = ejecutar_lote(
+        [f"c{i}" for i in range(6)],
+        funcion,
+        excepciones=(_ErrorDeDominio,),
+        concurrencia=3,
+        debe_cancelar=debe_cancelar,
+    )
+    # El PRIMER trozo (3 items) se lanzo entero antes de que hubiera ocasion
+    # de comprobar debe_cancelar() por segunda vez: los 3 se completan.
+    assert len(vistos) == 3
+    assert resultado.cancelado is True
+    assert len(resultado.resultados) == 3
+    # Los del segundo trozo no se intentaron ni a medias.
+    assert set(resultado.resultados) == set(vistos)
+
+
+def test_concurrencia_manifiesto_incremental_con_varios_trozos(tmp_path):
+    ruta = tmp_path / "manifiesto.json"
+    ejecutar_lote(
+        [f"c{i}" for i in range(10)],
+        lambda _i: None,
+        excepciones=(_ErrorDeDominio,),
+        concurrencia=3,
+        manifiesto=ruta,
+    )
+    final = json.loads(ruta.read_text(encoding="utf-8"))
+    assert final.keys() == {f"c{i}" for i in range(10)}
+    assert all(v["estado"] == "hecho" for v in final.values())
+
+
+def test_concurrencia_reanudar_tras_cancelar_continua_donde_lo_dejo(tmp_path):
+    ruta = tmp_path / "manifiesto.json"
+    lock = threading.Lock()
+    vistos_1: list[str] = []
+
+    def funcion_1(item_id: str) -> None:
+        with lock:
+            vistos_1.append(item_id)
+
+    r1 = ejecutar_lote(
+        [f"c{i}" for i in range(6)],
+        funcion_1,
+        excepciones=(_ErrorDeDominio,),
+        concurrencia=3,
+        manifiesto=ruta,
+        debe_cancelar=lambda: len(vistos_1) >= 1,
+    )
+    assert r1.cancelado is True
+    assert len(vistos_1) == 3  # el primer trozo entero
+
+    vistos_2: list[str] = []
+    r2 = ejecutar_lote(
+        [f"c{i}" for i in range(6)],
+        vistos_2.append,
+        excepciones=(_ErrorDeDominio,),
+        concurrencia=3,
+        manifiesto=ruta,
+    )
+    # Los 3 del primer trozo no se repiten; solo los 3 que faltaban.
+    assert set(vistos_2) == set(f"c{i}" for i in range(6)) - set(vistos_1)
+    assert r2.cancelado is False
+    assert set(r2.hechos) == {f"c{i}" for i in range(6)}
