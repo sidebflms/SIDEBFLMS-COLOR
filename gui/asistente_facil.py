@@ -43,7 +43,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from core.colormgmt import agrupar_ambiguos, detectar_espacios_timeline, verificar_proyecto
-from core.contracts import LUT3D, AvisoGestionColor, GrupoAmbiguo
+from core.contracts import LUT3D, AvisoGestionColor, GrupoAmbiguo, ResolveError
 from core.io.biblioteca import Preset
 from core.reverse.orden_repaso import CandidatoOrden, orden_de_repaso
 from gui.datos_demo import ClipDemo, EstadoDemo
@@ -125,15 +125,20 @@ def ejecutar_ordenar(estado: EstadoDemo) -> PasoOrdenar:
     grupos = tuple(agrupar_ambiguos(refs, detecciones))
     resueltos = tuple(d.clip_id for d in detecciones if d.segura)
 
-    nodos_por_clip = {
-        c.clip_id: estado.puente.list_nodes(c.clip_id) if estado.puente.is_connected() else []
-        for c in estado.clips
-    }
+    # La verificación del proyecto es un extra sobre el diagnóstico de los
+    # clips: si Resolve está abierto pero ya no hay proyecto (o el clip ya no
+    # existe), no se puede verificar nada y se sigue sin avisos, en vez de
+    # tumbar el paso. Un `verificar_proyecto` con nodos a medias daría avisos
+    # graves falsos, así que ante cualquier fallo se salta entero.
     avisos = ()
-    if estado.puente.is_connected():
-        avisos = tuple(
-            verificar_proyecto(estado.puente.project_info(), refs, nodos_por_clip, detecciones)
-        )
+    try:
+        if estado.puente.is_connected():
+            nodos_por_clip = {c.clip_id: estado.puente.list_nodes(c.clip_id) for c in estado.clips}
+            avisos = tuple(
+                verificar_proyecto(estado.puente.project_info(), refs, nodos_por_clip, detecciones)
+            )
+    except ResolveError:
+        avisos = ()
 
     n_graves = sum(1 for a in avisos if a.severidad == "grave")
     frase = _frase_ordenar(len(resueltos), sum(len(g.clip_ids) for g in grupos), n_graves)

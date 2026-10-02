@@ -597,8 +597,16 @@ class PantallaAplicar(QWidget):
         self._estado_botones(plan)
 
     def _banda(self, conectado: bool, error: str) -> None:
+        info = None
         if conectado:
-            info = self._estado.puente.project_info()
+            # El plan se calculó un instante antes: si el proyecto se ha
+            # cerrado entre medias, `project_info()` lanza aunque el plan
+            # viera Resolve conectado.
+            try:
+                info = self._estado.puente.project_info()
+            except ResolveError as exc:
+                error = str(exc)
+        if info is not None:
             self.rotulo_banda.setText("resolve conectado")
             self.texto_banda.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · "

@@ -271,12 +271,17 @@ class VentanaPrincipal(QMainWindow):
         )
 
     def _refrescar_pie(self) -> None:
+        # `is_connected()` sólo dice que Resolve contesta; con el proyecto
+        # cerrado (Mario vuelve al gestor de proyectos) sigue dando True y es
+        # `project_info()` quien lanza -- se trata igual que desconectado.
+        info = None
         try:
-            conectado = self._estado.puente.is_connected()
+            if self._estado.puente.is_connected():
+                info = self._estado.puente.project_info()
         except ResolveError:
-            conectado = False
-        if conectado:
-            info = self._estado.puente.project_info()
+            info = None
+        conectado = info is not None
+        if info is not None:
             self.estado_resolve.setText("resolve conectado")
             self.detalle_resolve.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · LUTs en {info.lut_dir}"
