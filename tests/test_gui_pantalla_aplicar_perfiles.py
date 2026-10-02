@@ -136,6 +136,79 @@ def test_perfil_que_no_se_puede_cargar_no_rompe_la_pantalla(tmp_path, monkeypatc
         v.close()
 
 
+def test_aplicar_perfil_sin_proyecto_abierto_avisa_y_no_deja_nada_a_medias(tmp_path, monkeypatch):
+    """`aplicar_perfil_a_estado` lee `project_info().lut_dir`: con Resolve
+    abierto pero sin proyecto, `is_connected()` sigue siendo True y esa
+    llamada lanza `ResolveError`. Antes subía sin capturar desde el handler
+    del boton; ahora se avisa igual que cuando el perfil no se puede cargar,
+    y ningun clip se queda con un `look_rel` a medias."""
+    carpeta = tmp_path / "perfiles"
+    perfil = PerfilTrabajo(
+        nombre="Fabrik", camaras=(PerfilCamara(fabricante_contiene="gopro", cdl_base=CDL(saturation=1.1)),)
+    )
+    guardar_perfil(perfil, carpeta / "fabrik", crear_directorios=True)
+
+    import gui.pantalla_aplicar as pa_mod
+
+    avisos = []
+    monkeypatch.setattr(pa_mod.QMessageBox, "warning", lambda *a, **k: avisos.append(a))
+
+    _app()
+    estado = _estado_sandbox(tmp_path)
+    v = VentanaPrincipal(estado, perfiles_carpeta=str(carpeta))
+    try:
+        v.ir_a(2)
+        estado.puente.fallar_en("project_info", "no hay ningun proyecto abierto en Resolve")
+        v.p_aplicar.btn_aplicar_perfil.click()
+        assert avisos
+        assert "no hay ningun proyecto abierto" in str(avisos[0])
+        assert all(c.look_rel is None for c in estado.clips)
+    finally:
+        v.close()
+
+
+def test_aplicar_perfil_con_fallo_de_disco_a_mitad_no_deja_el_perfil_a_medias(tmp_path, monkeypatch):
+    """Dos camaras en el perfil = dos `.cube`. Si el segundo no se puede
+    escribir, el primer clip NO puede quedarse ya con su `look_rel`."""
+    from core.io.errores import ErrorFormatoCube
+
+    carpeta = tmp_path / "perfiles"
+    perfil = PerfilTrabajo(
+        nombre="Fabrik",
+        camaras=(
+            PerfilCamara(fabricante_contiene="gopro", cdl_base=CDL(saturation=1.1)),
+            PerfilCamara(fabricante_contiene="dji", cdl_base=CDL(saturation=0.9)),
+        ),
+    )
+    guardar_perfil(perfil, carpeta / "fabrik", crear_directorios=True)
+
+    import gui.pantalla_aplicar as pa_mod
+    import gui.perfiles_trabajo as pt_mod
+
+    llamadas = []
+
+    def escribir_cube_que_falla_a_la_segunda(*a, **k):
+        llamadas.append(1)
+        if len(llamadas) == 2:
+            raise ErrorFormatoCube("disco lleno, a proposito")
+
+    monkeypatch.setattr(pt_mod, "escribir_cube", escribir_cube_que_falla_a_la_segunda)
+    avisos = []
+    monkeypatch.setattr(pa_mod.QMessageBox, "warning", lambda *a, **k: avisos.append(a))
+
+    _app()
+    estado = _estado_sandbox(tmp_path)
+    v = VentanaPrincipal(estado, perfiles_carpeta=str(carpeta))
+    try:
+        v.ir_a(2)
+        v.p_aplicar.btn_aplicar_perfil.click()
+        assert len(llamadas) == 2
+        assert avisos
+        assert all(c.look_rel is None for c in estado.clips)
+    finally:
+        v.close()
+
+
 # ---------------------------------------------------------------------------
 # "Gestionar…" (día 9, continuación 14): abre DialogoPerfiles
 # ---------------------------------------------------------------------------

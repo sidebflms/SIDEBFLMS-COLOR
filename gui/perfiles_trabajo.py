@@ -63,6 +63,9 @@ def aplicar_perfil_a_estado(estado: EstadoDemo, perfil: PerfilTrabajo) -> Estado
     lut_dir = Path(estado.puente.project_info().lut_dir)
     perfil_slug = _slug(perfil.nombre)
     rutas_por_camara: dict[str, str | None] = {}
+    # Se asigna al final, no clip a clip: si `escribir_cube` falla a mitad
+    # (disco lleno), ningun clip se queda con el perfil a medio aplicar.
+    asignaciones: list[tuple[object, str | None]] = []
 
     for clip in estado.clips:
         camara = camara_para_clip(perfil, clip.ref)
@@ -78,6 +81,8 @@ def aplicar_perfil_a_estado(estado: EstadoDemo, perfil: PerfilTrabajo) -> Estado
                 escribir_cube(lut, lut_dir / ruta_relativa, crear_directorios=True)
                 rutas_por_camara[clave] = ruta_relativa
 
-        clip.look_rel = rutas_por_camara[clave]
+        asignaciones.append((clip, rutas_por_camara[clave]))
 
+    for clip, ruta in asignaciones:
+        clip.look_rel = ruta
     return estado
