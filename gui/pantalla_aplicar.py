@@ -46,7 +46,7 @@ from PySide6.QtWidgets import (
 
 from core.batch import ProgresoLote, ejecutar_lote
 from core.contracts import NODE_BALANCE, NODE_LOOK, VERSION_NAME, ResolveError
-from core.io.errores import ErrorPerfil
+from core.io.errores import ErrorIO, ErrorPerfil
 from core.io.perfiles import cargar_perfil, listar_perfiles
 from core.resolve import (
     ResultadoAplicacion,
@@ -740,7 +740,15 @@ class PantallaAplicar(QWidget):
             QMessageBox.warning(self, "Perfil de trabajo", f"No se ha podido cargar «{nombre}»: {exc}")
             return
 
-        aplicar_perfil_a_estado(self._estado, perfil)
+        try:
+            aplicar_perfil_a_estado(self._estado, perfil)
+        except (ResolveError, ErrorIO) as exc:
+            # Sin proyecto abierto (`project_info()`) o sin poder escribir el
+            # .cube (disco lleno, permisos): se avisa y no se toca ningun clip.
+            QMessageBox.warning(
+                self, "Perfil de trabajo", f"No se ha podido aplicar «{nombre}»: {exc}"
+            )
+            return
 
         # `ruta_look`/`texto_look` (arriba, columna izquierda) siguen
         # mostrando el look COMPARTIDO de todo el lote (`estado.look_rel`) —
