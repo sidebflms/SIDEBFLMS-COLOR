@@ -164,7 +164,7 @@ que no están:
 | Qué hacía falta | Qué se hizo | Por qué |
 |---|---|---|
 | texto secundario | `brand-50` al **62%** | la identidad no trae un token de texto apagado |
-| texto tenue | `brand-50` al **40%** | ídem |
+| texto tenue | `brand-50` al **56%** (era 40%: 3,55:1, no pasaba AA; ahora ≥5,95:1) | ídem |
 | borde | `brand-50` al **12%** | ídem |
 | borde fuerte | `brand-50` al **22%** | ídem |
 

@@ -3314,3 +3314,39 @@ Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
 el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
 deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
 ambos sin arreglo posible hoy.
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 2: contraste del texto tenue
+
+**Qué cambia:** `TEXTO_TENUE_A` pasa de **0,40 a 0,56** (`gui/identidad.py`; la
+tabla de `gui/NOTAS.md` §4 también). Sigue siendo `brand-50` bajado de opacidad:
+**no se ha inventado ningún gris** (`#71717b` sigue reservado al inventario).
+
+**Por qué:** la auditoría midió el texto tenue a 3,55-3,63:1 sobre las cuatro
+superficies, por debajo del 4,5:1 de WCAG AA para texto normal.
+
+**Medido antes → después** (calculado sobre FONDO/HONDO/PANEL/CRISTAL, y por
+píxel en los `QLabel#tenue` de la ventana real, 5 pantallas):
+
+| | Antes | Después |
+|---|---|---|
+| calculado | 3,55 / 3,57 / 3,63 / 3,62 | **6,06 / 6,00 / 5,98 / 5,95** |
+| por píxel (mejor píxel de texto) | 3,55-3,62 | **5,96-6,00** |
+
+(La auditoría estimaba ≈5,6:1; sale algo más: ≈6,0:1.) La anchura/altura mínima
+no cambia (973×727).
+
+**Tests nuevos:** `tests/test_gui_contraste.py` — AA calculado para tenue y
+apagado sobre cada superficie, y AA medido por píxel en la ventana real (con
+guarda de que no se queda ciego: ≥5 textos medidos). Fallan sin el cambio (5
+rojos) y pasan con él.
+
+**Qué hacer al actualizar:**
+- **Cuidado con la jerarquía:** tenue (0,56) queda cerca de apagado (0,62); se
+  distinguen por el uso, ya no tanto por el tono. Si esa jerarquía importa, la
+  decisión es de diseño (subir apagado), no de este bloque.
+- Un texto tenue nuevo hereda el contraste solo si usa `QLabel#tenue` o
+  `TEXTO_TENUE_A`; si pinta con otro alfa a mano, `test_gui_contraste` no lo ve.
+- Los controles deshabilitados (`QPushButton:disabled`) también usan el tono
+  tenue: ahora se ven más; WCAG no exige contraste a los deshabilitados.
