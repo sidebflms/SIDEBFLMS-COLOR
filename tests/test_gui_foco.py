@@ -203,3 +203,20 @@ def test_los_botones_de_navegacion_anuncian_su_atajo():
             assert str(i + 1) in boton.toolTip(), boton.toolTip()
     finally:
         v.close()
+
+
+def test_los_botones_de_navegacion_caben_en_el_carril():
+    """El borde transparente del foco no puede ensanchar el botón: el carril mide
+    186 px fijos y «INGENIERÍA INVERSA» va justa. (Con el cuerpo a 12 px del
+    bloque 3, un borde de más la dejaba a 2 px de caber: se descuenta del relleno.)"""
+    from gui.ventana import ANCHO_CARRIL
+
+    app_qt()
+    v = ventana(demo())
+    try:
+        for boton in [v.boton_modo_facil, *v.grupo.buttons()]:
+            assert boton.sizeHint().width() <= ANCHO_CARRIL, (
+                f"«{boton.text()}» pide {boton.sizeHint().width()} px y el carril mide {ANCHO_CARRIL}"
+            )
+    finally:
+        v.close()

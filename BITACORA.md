@@ -3355,7 +3355,9 @@ había `border: none`, y el botón crecía 2 px (32→34) al recibir el foco; ah
 tiene un borde transparente de base y el foco sólo cambia su color. El test
 exige tamaño idéntico con y sin foco.
 
-**Tests nuevos:** `tests/test_gui_foco.py` (15: píxeles que cambian en tabla,
+**Efecto cruzado cazado al integrar los siete bloques:** con el cuerpo a 12 px (bloque 3), el borde transparente del botón de navegación lo dejaba 2 px más ancho que el carril (186 px fijos, «Ingeniería inversa» 188). Se descuenta del relleno (`padding: 9px 13px 9px 14px`): el botón mide exactamente lo mismo que antes. Test: `test_los_botones_de_navegacion_caben_en_el_carril`.
+
+**Tests nuevos:** `tests/test_gui_foco.py` (16: píxeles que cambian en tabla,
 lista, visor y botones; trazo de 2 px exacto en `#ff6a3d`; nombres accesibles;
 celdas de la tabla; ningún botón sin nombre; Ctrl+1..4 con `QTest.keyClick`;
 tooltips con el atajo).

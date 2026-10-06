@@ -387,7 +387,10 @@ def hoja_de_estilo() -> str:
         border: 1px solid transparent;
         border-left: 2px solid transparent;
         border-radius: 0px;
-        padding: 10px 14px;
+        /* El borde transparente de arriba (1 px arriba, abajo y a la derecha) se
+           descuenta del relleno: el boton mide EXACTAMENTE lo mismo que antes. El
+           carril mide 186 px fijos y «INGENIERIA INVERSA» ya va justa. */
+        padding: 9px 13px 9px 14px;
         color: {apagado};
         font-family: {rotulo};
         font-weight: 600;
