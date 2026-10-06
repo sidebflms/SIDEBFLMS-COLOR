@@ -366,11 +366,17 @@ class InsigniaConfianza(QWidget):
         self._forma = forma
         self._score = float(score)
         self.setFixedSize(INSIGNIA_ANCHO, INSIGNIA_ALTO)
-        self.setToolTip(f"confianza {forma.value}: {self._score * 100:.0f}%")
+        self._describir()
+
+    def _describir(self) -> None:
+        """Tooltip y nombre accesible: la confianza se distingue por FORMA, que un
+        lector de pantalla no ve; el nombre accesible la dice con palabras."""
+        self.setToolTip(f"confianza {self._forma.value}: {self._score * 100:.0f}%")
+        self.setAccessibleName(f"Confianza {self._forma.value}, {self._score * 100:.0f}%")
 
     def actualizar(self, forma: idn.FormaConfianza, score: float) -> None:
         self._forma, self._score = forma, float(score)
-        self.setToolTip(f"confianza {forma.value}: {self._score * 100:.0f}%")
+        self._describir()
         self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -391,6 +397,7 @@ class MarcaDesajuste(QWidget):
         super().__init__(parent)
         self.setFixedSize(lado, lado)
         self.setToolTip("desajuste de contenido: las dos escenas no son comparables")
+        self.setAccessibleName("Aviso: desajuste de contenido, las dos escenas no son comparables")
 
     def paintEvent(self, event) -> None:  # noqa: N802
         p = QPainter(self)
@@ -468,6 +475,10 @@ class MarcaLimite(QWidget):
             f"{que + ': ' if que else ''}{self._valor:.2f} frente a un límite de "
             f"{self._limite:.1f}. Ese límite es el objetivo que fijó el encargo, "
             f"no una medida de dónde empieza a notarse la diferencia."
+        )
+        self.setAccessibleName(
+            f"{que + ': ' if que else ''}{'cumple' if self.cumple() else 'no cumple'} "
+            f"el límite de {self._limite:.1f} (valor {self._valor:.2f})"
         )
         self.updateGeometry()
         self.update()

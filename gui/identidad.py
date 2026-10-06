@@ -362,6 +362,10 @@ def hoja_de_estilo() -> str:
     QPushButton:hover {{ border-color: {BRAND_400}; color: {BRAND_400}; }}
     QPushButton:pressed {{ background: {rgba(BRAND_500, 0.16)}; }}
     QPushButton:disabled {{ color: {tenue}; border-color: {borde}; }}
+    /* FOCO VISIBLE (auditoria de diseno 2026-10-06): sin indicador, el recorrido
+       con Tab no se ve. Mismo naranja de marca que el texto de acento
+       (`brand-400`, #ff6a3d) como TRAZO, nunca como pastilla ni relleno. */
+    QPushButton:focus {{ border-color: {BRAND_400}; }}
     QPushButton#primario {{
         background: {BRAND_600};
         border: 1px solid {BRAND_500};
@@ -376,7 +380,11 @@ def hoja_de_estilo() -> str:
     }}
     QPushButton#navegacion {{
         text-align: left;
-        border: none;
+        /* Borde transparente de 1 px (2 a la izquierda) y no `none`: asi el foco
+           (abajo) solo cambia su COLOR. Con `none`, el foco le anadia un borde y
+           el boton crecia 2 px al recibirlo -- un indicador de foco no puede
+           mover el layout. */
+        border: 1px solid transparent;
         border-left: 2px solid transparent;
         border-radius: 0px;
         padding: 10px 14px;
@@ -389,6 +397,11 @@ def hoja_de_estilo() -> str:
         color: {BRAND_400};
         border-left: 2px solid {BRAND_500};
         background: {rgba(BRAND_500, 0.10)};
+    }}
+    /* Despues de `:checked` a proposito: con foco Y marcado, gana el foco. El
+       boton de navegacion tiene un borde transparente que el foco colorea. */
+    QPushButton#navegacion:focus {{
+        border-color: {BRAND_400};
     }}
 
     /* --- entradas --- */
@@ -446,6 +459,7 @@ def hoja_de_estilo() -> str:
         font-size: 10px;
         font-weight: 600;
     }}
+    QTableView:focus {{ border-color: {BRAND_400}; }}
     QTableView::item {{ padding: 4px 6px; }}
     QTableCornerButton::section {{ background: {HONDO}; border: none; }}
 
@@ -455,6 +469,7 @@ def hoja_de_estilo() -> str:
         border-radius: 6px;
         outline: none;
     }}
+    QListWidget:focus {{ border-color: {BRAND_400}; }}
     QListWidget::item {{ padding: 6px 8px; border-bottom: 1px solid {rgba(BRAND_50, 0.05)}; }}
     QListWidget::item:selected {{ background: {rgba(BRAND_500, 0.22)}; color: {BRAND_50}; }}
 

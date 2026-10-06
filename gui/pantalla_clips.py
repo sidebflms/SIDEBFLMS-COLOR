@@ -132,6 +132,18 @@ class ModeloClips(QAbstractTableModel):
             return clip.nombre
         if rol == Qt.ItemDataRole.ToolTipRole and col == COL_AVISO and clip.match.content_mismatch:
             return "desajuste de contenido: las dos escenas no son comparables"
+        # Insignia y rombo se pintan a mano en un delegado: sin esto un lector de
+        # pantalla no recibe nada de esas dos celdas.
+        if rol == Qt.ItemDataRole.AccessibleTextRole:
+            if col == COL_CONFIANZA:
+                c = clip.match.confidence
+                return f"Confianza {c.level}, {c.score * 100:.0f}%"
+            if col == COL_AVISO:
+                return (
+                    "Aviso: desajuste de contenido"
+                    if clip.match.content_mismatch
+                    else "Sin aviso de desajuste"
+                )
         return None
 
 
