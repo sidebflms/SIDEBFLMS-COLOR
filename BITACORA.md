@@ -3314,3 +3314,51 @@ Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
 el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
 deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
 ambos sin arreglo posible hoy.
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 1: recortes en «Aplicar»
+
+La auditoría de diseño del 2026-10-06 (skill `sidebflms-design`, veredicto
+**Mejorable**) midió tres controles de la pantalla Aplicar con menos ancho del
+que necesitan, **a 1024 y a 973 px** (tres a cada anchura). Este bloque es el
+primero de siete PRs independientes, uno por bloque, sin fusionar.
+
+**Qué cambia** (`gui/pantalla_aplicar.py`):
+
+| Control | Tenía / necesitaba | Ahora |
+|---|---|---|
+| «Copiar la estructura de nodos al resto marcado» | 210 / 304 px | «Copiar nodos al resto»; el texto largo, en el tooltip |
+| «Aplicar perfil a todo el lote» | 102 / 182 px | «Aplicar perfil»; el alcance («a todo el lote»), en el tooltip |
+| combo «(sin carpeta de perfiles configurada)» | 210 / 298 px | `AdjustToMinimumContentsLengthWithIcon`, mensajes «(sin carpeta)» y «(sin perfiles)»; el largo, en el tooltip |
+
+Además la fila «Aplicar perfil · Gestionar…» tiene ahora 4 px de hueco y no 8:
+a 973 px la fila mide 206 px y sus botones piden 103 + 100; con 8 de hueco,
+«Aplicar perfil» se quedaba en 99 (el test nuevo lo cazó al primer intento).
+
+**Por qué:** un `QPushButton` o un `QComboBox` al que la columna no le da lo que
+pide se pinta cortado en silencio, igual que un `QLabel`. El detector de
+etiquetas de `tests/test_gui_apoyo.py` (`linea_que_no_cabe`) no veía controles.
+
+**Medido antes → después** (offscreen, HOME temporal, sin tipografías de marca,
+5 pantallas × 4 estados): controles cortados a 1024 px **3 → 0**; a 973 px
+**3 → 0**.
+
+**Tests nuevos:** `controles_cortados()` en `tests/test_gui_apoyo.py` (con sus
+propios tests: un detector que no detecta pasa siempre) y
+`tests/test_gui_controles_cortados.py` (cinco pantallas × cuatro estados × dos
+anchuras, y el combo con un perfil guardado).
+
+**Qué hacer al actualizar:**
+- Si se añade un botón o un combo a cualquier pantalla, `test_gui_controles_cortados`
+  lo vigila solo: si falla, acorta el texto (y pon el largo en el tooltip) antes
+  que ensanchar la columna, que está fijada por el carril de 186 px y el mínimo
+  de 973.
+- Un combo con `AdjustToMinimumContentsLengthWithIcon` ya no crece con su
+  texto: el mensaje tiene que caber en ~170 px (≈23 caracteres monoespaciados a
+  12 px).
+- **Este Mac (usuario `sidebflms`) tiene Chakra Petch instalada**, así que
+  `test_la_anchura_minima_real_es_la_medida` se SALTA aquí y las medidas de
+  mínimo salen distintas (960×730) de las de CI y de la auditoría (973×727).
+  Para medir en igualdad de condiciones hay que simular que no está instalada
+  (quitarla de `idn.FAMILIAS_ROTULO` y de `tipografias_de_marca_instaladas`).

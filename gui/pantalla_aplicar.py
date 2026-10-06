@@ -408,7 +408,10 @@ class PantallaAplicar(QWidget):
         self.texto_preparar_nodos.setMinimumWidth(0)
         self.texto_preparar_nodos.setFont(idn.fuente_texto(11))
         izq.caja.addWidget(self.texto_preparar_nodos)
-        self.btn_preparar_nodos = QPushButton("Copiar la estructura de nodos al resto marcado")
+        # El texto largo no cabía en la columna (210 px de 304): texto corto en
+        # el botón y el largo en el tooltip.
+        self.btn_preparar_nodos = QPushButton("Copiar nodos al resto")
+        self.btn_preparar_nodos.setToolTip("Copiar la estructura de nodos al resto marcado")
         izq.caja.addWidget(self.btn_preparar_nodos)
 
         izq.caja.addWidget(separador())
@@ -442,10 +445,21 @@ class PantallaAplicar(QWidget):
         izq.caja.addWidget(Rotulo("perfil de trabajo", acento=True))
         self.selector_perfil = QComboBox()
         self.selector_perfil.setFont(idn.fuente_texto(12))
+        # El mensaje de «sin perfiles» ensanchaba el combo más que la columna
+        # (210 px de 298): ahora el combo no crece con el texto y los mensajes
+        # son cortos; el largo va en el tooltip.
+        self.selector_perfil.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.selector_perfil.setMinimumContentsLength(12)
         izq.caja.addWidget(self.selector_perfil)
         fila_perfil = QHBoxLayout()
-        fila_perfil.setSpacing(8)
-        self.btn_aplicar_perfil = QPushButton("Aplicar perfil a todo el lote")
+        # 4 px y no 8: a la anchura mínima (973) la fila tiene 206 px y sus dos
+        # botones piden 103 + 100; con 8 de hueco «Aplicar perfil» se quedaba en 99.
+        fila_perfil.setSpacing(4)
+        # 102 px de 182: texto corto; el alcance («a todo el lote») va al tooltip.
+        self.btn_aplicar_perfil = QPushButton("Aplicar perfil")
+        self.btn_aplicar_perfil.setToolTip("Aplicar perfil a todo el lote")
         fila_perfil.addWidget(self.btn_aplicar_perfil, 1)
         # Día 9 (continuación 14): hasta hoy `guardar_perfil` existía en
         # código pero nadie en la GUI lo llamaba — un perfil sólo se podía
@@ -715,14 +729,17 @@ class PantallaAplicar(QWidget):
     def _refrescar_perfiles_disponibles(self) -> None:
         self.selector_perfil.clear()
         self.btn_gestionar_perfiles.setEnabled(self._perfiles_carpeta is not None)
+        self.selector_perfil.setToolTip("")
         if self._perfiles_carpeta is None:
-            self.selector_perfil.addItem("(sin carpeta de perfiles configurada)")
+            self.selector_perfil.addItem("(sin carpeta)")
+            self.selector_perfil.setToolTip("Sin carpeta de perfiles configurada")
             self.selector_perfil.setEnabled(False)
             self.btn_aplicar_perfil.setEnabled(False)
             return
         nombres = listar_perfiles(self._perfiles_carpeta)
         if not nombres:
-            self.selector_perfil.addItem("(no hay ningún perfil guardado todavía)")
+            self.selector_perfil.addItem("(sin perfiles)")
+            self.selector_perfil.setToolTip("No hay ningún perfil guardado todavía")
             self.selector_perfil.setEnabled(False)
             self.btn_aplicar_perfil.setEnabled(False)
             return

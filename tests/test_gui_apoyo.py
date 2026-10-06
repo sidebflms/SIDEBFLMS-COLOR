@@ -21,7 +21,15 @@ import functools  # noqa: E402
 import pytest  # noqa: E402
 from PySide6.QtGui import QFontDatabase, QFontMetrics  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
-from PySide6.QtWidgets import QLabel, QWidget  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QPushButton,
+    QStyle,
+    QStyleOptionComboBox,
+    QWidget,
+)
 
 from gui import datos_demo as dd  # noqa: E402
 from gui import identidad as idn  # noqa: E402
@@ -241,6 +249,39 @@ def linea_que_no_cabe(lab: QLabel) -> str | None:
     return None
 
 
+def controles_cortados(raiz: QWidget) -> list[tuple[str, int, int]]:
+    """Botones, casillas y combos visibles cuyo texto NO cabe en su ancho.
+
+    Devuelve `(texto, ancho_que_tiene, ancho_que_necesita)`. El detector de
+    etiquetas (`linea_que_no_cabe`) no ve los controles: un `QPushButton` al
+    que la columna no le da lo que pide su `sizeHint()` se pinta cortado en
+    silencio, igual que un `QLabel`. Se detectó en la auditoría de diseño del
+    2026-10-06 (tres controles de la pantalla Aplicar, a 1024 y a 973 px).
+
+    * botones y casillas: el ancho tiene que alcanzar su `sizeHint()`;
+    * combos: el TEXTO ACTUAL tiene que caber en el campo de edición que
+      calcula el estilo (con la política de ajuste a un largo mínimo, el
+      `sizeHint()` ya no sigue al texto y no sirve de medida).
+    """
+    fuera: list[tuple[str, int, int]] = []
+    for clase in (QPushButton, QCheckBox):
+        for w in raiz.findChildren(clase):
+            if w.isVisible() and w.text().strip() and w.width() < w.sizeHint().width() - 1:
+                fuera.append((w.text(), w.width(), w.sizeHint().width()))
+    for combo in raiz.findChildren(QComboBox):
+        if not combo.isVisible() or not combo.currentText().strip():
+            continue
+        opcion = QStyleOptionComboBox()
+        combo.initStyleOption(opcion)
+        campo = combo.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox, opcion, QStyle.SubControl.SC_ComboBoxEditField, combo
+        )
+        necesita = QFontMetrics(combo.font()).horizontalAdvance(combo.currentText())
+        if necesita > campo.width():
+            fuera.append((combo.currentText(), campo.width(), necesita))
+    return fuera
+
+
 # ---------------------------------------------------------------------------
 # Tests DEL apoyo: que los detectores detectan
 # ---------------------------------------------------------------------------
@@ -287,6 +328,45 @@ def test_el_detector_de_corte_caza_una_palabra_larga_con_wordwrap():
     lab.setWordWrap(True)
     lab.resize(80, 200)
     assert linea_que_no_cabe(lab) is not None
+
+
+def test_el_detector_de_controles_ve_un_boton_estrecho():
+    app_qt()
+    caja = QWidget()
+    caja.resize(400, 100)
+    boton = QPushButton("Copiar la estructura de nodos al resto marcado", caja)
+    boton.resize(120, 30)
+    caja.show()
+    asentar()
+    assert controles_cortados(caja)
+
+
+def test_el_detector_de_controles_ve_un_combo_con_el_texto_demasiado_largo():
+    app_qt()
+    caja = QWidget()
+    combo = QComboBox(caja)
+    combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.addItem("(sin carpeta de perfiles configurada)")
+    combo.resize(150, 30)
+    caja.resize(200, 60)
+    caja.show()
+    asentar()
+    assert controles_cortados(caja)
+
+
+def test_el_detector_de_controles_no_se_inventa_nada():
+    app_qt()
+    caja = QWidget()
+    boton = QPushButton("Aplicar", caja)
+    combo = QComboBox(caja)
+    combo.addItem("(sin carpeta)")
+    combo.move(0, 40)
+    boton.adjustSize()
+    combo.resize(260, 30)
+    caja.resize(300, 100)
+    caja.show()
+    asentar()
+    assert controles_cortados(caja) == []
 
 
 def test_el_detector_de_elision_ve_una_etiqueta_elidida():
