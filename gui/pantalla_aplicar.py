@@ -453,21 +453,21 @@ class PantallaAplicar(QWidget):
         )
         self.selector_perfil.setMinimumContentsLength(12)
         izq.caja.addWidget(self.selector_perfil)
-        fila_perfil = QHBoxLayout()
-        # 4 px y no 8: a la anchura mínima (973) la fila tiene 206 px y sus dos
-        # botones piden 103 + 100; con 8 de hueco «Aplicar perfil» se quedaba en 99.
-        fila_perfil.setSpacing(4)
+        # Los dos botones van APILADOS, no en fila: la columna mide 206 px a la
+        # anchura mínima y «Aplicar perfil» + «Gestionar…» piden 103 + 100 (más de
+        # 205 con el cuerpo a 14 px, que es lo que pinta un botón), así que en
+        # fila uno de los dos se cortaba. Apilados, cada uno tiene la columna
+        # entera y no depende del tamaño de la letra.
         # 102 px de 182: texto corto; el alcance («a todo el lote») va al tooltip.
         self.btn_aplicar_perfil = QPushButton("Aplicar perfil")
         self.btn_aplicar_perfil.setToolTip("Aplicar perfil a todo el lote")
-        fila_perfil.addWidget(self.btn_aplicar_perfil, 1)
+        izq.caja.addWidget(self.btn_aplicar_perfil)
         # Día 9 (continuación 14): hasta hoy `guardar_perfil` existía en
         # código pero nadie en la GUI lo llamaba — un perfil sólo se podía
         # montar a mano en Python. Ver `gui/dialogo_perfil.py`.
         self.btn_gestionar_perfiles = QPushButton("Gestionar…")
         self.btn_gestionar_perfiles.clicked.connect(self._gestionar_perfiles)
-        fila_perfil.addWidget(self.btn_gestionar_perfiles, 0)
-        izq.caja.addLayout(fila_perfil)
+        izq.caja.addWidget(self.btn_gestionar_perfiles)
         self._refrescar_perfiles_disponibles()
         division.addWidget(izq)
 

@@ -3332,9 +3332,11 @@ primero de siete PRs independientes, uno por bloque, sin fusionar.
 | «Aplicar perfil a todo el lote» | 102 / 182 px | «Aplicar perfil»; el alcance («a todo el lote»), en el tooltip |
 | combo «(sin carpeta de perfiles configurada)» | 210 / 298 px | `AdjustToMinimumContentsLengthWithIcon`, mensajes «(sin carpeta)» y «(sin perfiles)»; el largo, en el tooltip |
 
-Además la fila «Aplicar perfil · Gestionar…» tiene ahora 4 px de hueco y no 8:
-a 973 px la fila mide 206 px y sus botones piden 103 + 100; con 8 de hueco,
-«Aplicar perfil» se quedaba en 99 (el test nuevo lo cazó al primer intento).
+Además «Aplicar perfil» y «Gestionar…» van ahora **apilados** y no en fila: a
+973 px la fila tiene 206 px y los botones piden 103 + 100 (con 8 px de hueco,
+«Aplicar perfil» se quedaba en 99; el test nuevo lo cazó al primer intento), y
+con el cuerpo a 14 px (bloque 3) piden 108 + 105: apilados, cada uno tiene la
+columna entera y no depende del tamaño de la letra.
 
 **Por qué:** un `QPushButton` o un `QComboBox` al que la columna no le da lo que
 pide se pinta cortado en silencio, igual que un `QLabel`. El detector de
