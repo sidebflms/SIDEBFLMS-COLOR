@@ -121,6 +121,15 @@ TEXTO_TENUE_A = 0.40
 BORDE_A = 0.12
 BORDE_FUERTE_A = 0.22
 
+#: Prefijos de estado (auditoria de diseno 2026-10-06): una averia o un aviso se
+#: reconocen por una PALABRA delante, no solo por el color, y la conexion con
+#: Resolve por la FORMA del circulo (lleno / vacio), no por un color de
+#: semaforo. Cero rojo: las averias van en `brand-400`, como el resto de la marca.
+PREFIJO_AVERIA = "AVERÍA ·"
+PREFIJO_AVISO = "AVISO ·"
+MARCA_CONECTADO = "●"
+MARCA_DESCONECTADO = "○"
+
 # ---------------------------------------------------------------------------
 # Tipografia
 # ---------------------------------------------------------------------------
@@ -498,6 +507,10 @@ def hoja_de_estilo() -> str:
 __all__ = [
     "BORDE_A",
     "BORDE_FUERTE_A",
+    "MARCA_CONECTADO",
+    "MARCA_DESCONECTADO",
+    "PREFIJO_AVERIA",
+    "PREFIJO_AVISO",
     "BRAND_50",
     "BRAND_400",
     "BRAND_500",

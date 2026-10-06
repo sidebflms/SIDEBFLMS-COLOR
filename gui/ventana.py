@@ -282,12 +282,12 @@ class VentanaPrincipal(QMainWindow):
             info = None
         conectado = info is not None
         if info is not None:
-            self.estado_resolve.setText("resolve conectado")
+            self.estado_resolve.setText(f"{idn.MARCA_CONECTADO} resolve conectado")
             self.detalle_resolve.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · LUTs en {info.lut_dir}"
             )
         else:
-            self.estado_resolve.setText("resolve desconectado")
+            self.estado_resolve.setText(f"{idn.MARCA_DESCONECTADO} resolve desconectado")
             self.detalle_resolve.setText(
                 "no hay conexión; se puede mirar todo, pero no se escribe nada"
             )

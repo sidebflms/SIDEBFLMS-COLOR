@@ -554,7 +554,7 @@ class PantallaAplicar(QWidget):
             self.texto_look.setText(f"QC: {informe.resumen()}")
             self.texto_look.setStyleSheet(f"color: {idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)};")
             return
-        lineas = [f"QC: {informe.resumen()}"]
+        lineas = [f"{idn.PREFIJO_AVISO} QC: {informe.resumen()}"]
         lineas += [f"· {p.mensaje}" for p in informe.problemas[:3]]
         if len(informe.problemas) > 3:
             lineas.append(f"· … y {len(informe.problemas) - 3} más")
@@ -607,13 +607,13 @@ class PantallaAplicar(QWidget):
             except ResolveError as exc:
                 error = str(exc)
         if info is not None:
-            self.rotulo_banda.setText("resolve conectado")
+            self.rotulo_banda.setText(f"{idn.MARCA_CONECTADO} resolve conectado")
             self.texto_banda.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · "
                 f"{info.resolve_version}"
             )
         else:
-            self.rotulo_banda.setText("resolve desconectado")
+            self.rotulo_banda.setText(f"{idn.MARCA_DESCONECTADO} resolve desconectado")
             self.texto_banda.setText(error or "No hay conexión con DaVinci Resolve.")
 
     def _estado_botones(self, plan: Plan | None = None) -> None:
@@ -644,7 +644,8 @@ class PantallaAplicar(QWidget):
         apagado = idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)
         if plan.error_global:
             return (
-                f'<div style="color:{idn.BRAND_400};">{plan.error_global}</div>'
+                f'<div style="color:{idn.BRAND_400};">{_marca(idn.PREFIJO_AVERIA)} '
+                f"{_escapar(plan.error_global)}</div>"
                 f'<div style="color:{apagado}; margin-top:8px;">'
                 f"No se puede aplicar nada mientras no haya conexión. "
                 f"El plan y los números siguen aquí; no se pierde nada.</div>"
@@ -656,7 +657,7 @@ class PantallaAplicar(QWidget):
         nuevas = sum(1 for linea in plan.lineas if linea.puede and not linea.version_ya_existe)
         reusadas = sum(1 for linea in plan.lineas if linea.puede and linea.version_ya_existe)
         partes.append(
-            f'<div style="color:{idn.BRAND_400};">'
+            f'<div style="color:{idn.BRAND_50};">'
             f"Se crea la versión <span style='font-family:{cifra};'>{VERSION_NAME}</span> "
             f"en {nuevas} clip(s) y se reutiliza en {reusadas}. "
             f"El grado original de cada clip se queda en su versión, intacto.</div><br>"
@@ -665,7 +666,7 @@ class PantallaAplicar(QWidget):
         if informe is not None and not informe.ok:
             partes.append(
                 f'<div style="color:{idn.BRAND_400}; margin-bottom:10px;">'
-                f"El look que va al nodo {NODE_LOOK} no pasa el QC: "
+                f"{_marca(idn.PREFIJO_AVERIA)} El look que va al nodo {NODE_LOOK} no pasa el QC: "
                 f"{_escapar(informe.resumen())}</div>"
             )
         for linea in plan.lineas:
@@ -685,7 +686,7 @@ class PantallaAplicar(QWidget):
                     f"<span style='font-family:{cifra};'>{_escapar(linea.look_rel)}</span>"
                     f"<br>· nodo 1 (normalización): no se toca</span>"
                     + "".join(
-                        f'<br><span style="color:{idn.BRAND_400};">· aviso: {_escapar(a)}</span>'
+                        f'<br><span style="color:{idn.BRAND_400};">· {_marca(idn.PREFIJO_AVISO)} {_escapar(a)}</span>'
                         for a in linea.avisos
                     )
                     + "</div>"
@@ -695,7 +696,7 @@ class PantallaAplicar(QWidget):
                     f'<div style="margin-bottom:10px;">'
                     f'<span style="font-family:{cifra}; color:{apagado};">{linea.clip_id}</span> '
                     f"<b>{_escapar(linea.nombre)}</b><br>"
-                    f'<span style="color:{idn.BRAND_400};">· NO SE PUEDE: '
+                    f'<span style="color:{idn.BRAND_400};">· {_marca(idn.PREFIJO_AVERIA)} NO SE PUEDE: '
                     f"{_escapar(linea.motivo)}</span></div>"
                 )
         return "".join(partes)
@@ -822,6 +823,7 @@ class PantallaAplicar(QWidget):
         for r in mal:
             partes.append(
                 f'<div style="margin-bottom:8px; color:{idn.BRAND_400};">'
+                f"{_marca(idn.PREFIJO_AVERIA)} "
                 f'<span style="font-family:{cifra};">{r.clip_id or "—"}</span> '
                 f"{_escapar(r.nombre)}<br>· {_escapar(r.mensaje)}</div>"
             )
@@ -832,10 +834,19 @@ class PantallaAplicar(QWidget):
                 f"{_escapar(r.nombre)} → versión "
                 f'<span style="font-family:{cifra};">{_escapar(r.version)}</span><br>'
                 f"· {_escapar(r.mensaje)}"
-                + "".join(f"<br>· aviso: {_escapar(a)}" for a in r.avisos)
+                + "".join(
+                    f'<br><span style="color:{idn.BRAND_400};">· {_marca(idn.PREFIJO_AVISO)} '
+                    f"{_escapar(a)}</span>"
+                    for a in r.avisos
+                )
                 + "</div>"
             )
         return "".join(partes)
+
+
+def _marca(prefijo: str) -> str:
+    """El prefijo de una averia o un aviso, en negrita y `brand-400`."""
+    return f'<b style="color:{idn.BRAND_400};">{prefijo}</b>'
 
 
 def _escapar(texto: str) -> str:

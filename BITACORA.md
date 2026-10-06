@@ -3314,3 +3314,43 @@ Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
 el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
 deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
 ambos sin arreglo posible hoy.
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 5: estados que no dependen del color
+
+**Qué cambia** (`gui/pantalla_aplicar.py`, `gui/ventana.py`, constantes en
+`gui/identidad.py`):
+- **Avería → «AVERÍA ·» delante; aviso → «AVISO ·» delante**, en negrita y
+  `brand-400` (cero rojo). Averías: error global («No hay conexión…»), «el look
+  no pasa el QC» del plan, «NO SE PUEDE» de un clip y los clips sin escribir del
+  resultado. Avisos: las líneas «aviso» del plan y del resultado, y el QC del
+  panel del look (que se puede escribir igualmente).
+- **La información normal, en crema** (`brand-50`): «Se crea la versión
+  SIDEB COLOR en N clip(s)…» iba en naranja, igual que las averías.
+- **«resolve conectado» / «resolve desconectado»** llevan un círculo lleno /
+  vacío delante (`idn.MARCA_CONECTADO` ●, `idn.MARCA_DESCONECTADO` ○), en el pie
+  de la ventana y en la banda de Aplicar: se distinguen por la forma, no por la
+  palabra ni por un color de semáforo.
+
+**Por qué:** averías, avisos e información normal compartían color, y conectado /
+desconectado sólo se distinguían leyendo la palabra.
+
+**Medido antes → después:** el plan de Aplicar tenía **0** marcas textuales en
+sus líneas de avería/aviso (todo era el mismo naranja, incluido lo normal); ahora
+cada una lleva su prefijo y lo normal ya no es naranja. Mínimo de ventana sin
+cambios (973 × 727).
+
+**No cambiado, a propósito:** el nombre de un clip de confianza baja en la lista
+de Aplicar sigue en naranja (la confianza se distingue por forma en la tabla y
+en la insignia; prefijar 200 filas de la lista no aporta). El rombo
+(`MarcaDesajuste`) no se ha reutilizado: se usó el rótulo, que es lo que el
+encargo permitía y no introduce una forma nueva.
+
+**Tests nuevos:** `tests/test_gui_estados_marcados.py` (6). Los dos tests de
+`test_gui_sin_proyecto_abierto.py` comparan ahora con `endswith(...)`.
+
+**Qué hacer al actualizar:** una línea de error o de aviso nueva en Aplicar
+tiene que llevar `_marca(idn.PREFIJO_AVERIA | idn.PREFIJO_AVISO)`; la
+información normal, `idn.BRAND_50`. Si Mario prefiere el rombo como marca, es un
+cambio de `_marca()` y de las constantes.
