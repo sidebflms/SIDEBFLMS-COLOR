@@ -447,7 +447,7 @@ def test_la_pila_de_fuentes_pide_primero_la_familia_de_marca():
 
 
 def test_los_rotulos_van_en_mayusculas_y_con_el_tracking_de_la_identidad():
-    """10-11px, MAYUSCULAS, tracking 0.15-0.18em. QSS no tiene `text-transform`,
+    """12px (suelo informativo; eran 10-11), MAYUSCULAS, tracking 0.15-0.18em. QSS no tiene `text-transform`,
     asi que las mayusculas son de la fuente y hay que comprobarlo ahi."""
     from PySide6.QtGui import QFont
 
@@ -463,7 +463,7 @@ def test_los_rotulos_van_en_mayusculas_y_con_el_tracking_de_la_identidad():
                 continue
             f = r.font()
             assert f.capitalization() == QFont.Capitalization.AllUppercase
-            assert 10 <= f.pixelSize() <= 11, f"rotulo a {f.pixelSize()}px"
+            assert f.pixelSize() == idn.PX_MIN_INFORMATIVO, f"rotulo a {f.pixelSize()}px"
             em = f.letterSpacing() / f.pixelSize()
             assert 0.15 <= em <= 0.18, f"tracking de {em:.3f}em"
     finally:

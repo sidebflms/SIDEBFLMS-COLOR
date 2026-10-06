@@ -116,9 +116,9 @@ class ModeloClips(QAbstractTableModel):
             return None
         if rol == Qt.ItemDataRole.FontRole:
             if col in (COL_INDICE, COL_ANTES, COL_DESPUES):
-                return idn.fuente_cifra(12)  # toda cifra, monoespaciada
+                return idn.fuente_cifra(idn.PX_CUERPO)  # toda cifra, monoespaciada
             if col == COL_NOMBRE:
-                return idn.fuente_texto(13)
+                return idn.fuente_texto(idn.PX_CUERPO)
         if rol == Qt.ItemDataRole.ForegroundRole:
             if col == COL_INDICE:
                 return idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)
@@ -186,6 +186,7 @@ class DelegadoAviso(QStyledItemDelegate):
         painter.setPen(QPen(idn.color(idn.BRAND_400), 1.2))
         painter.setBrush(QBrush(idn.color(idn.BRAND_400, 0.16)))
         painter.drawPolygon(rombo)
+        # Glifo «!» del rombo, no texto informativo: se queda bajo el suelo de 12 px.
         painter.setFont(idn.fuente_cifra(9, QFont.Weight.Bold))
         painter.setPen(QPen(idn.color(idn.BRAND_400)))
         painter.drawText(r, int(Qt.AlignmentFlag.AlignCenter), "!")
@@ -229,9 +230,9 @@ class FichaClip(QWidget):
         self.nombre.setFont(idn.fuente_texto(15, QFont.Weight.DemiBold))
         self.panel.caja.addWidget(self.nombre)
 
-        self.identificador = Cifra("", px=11)
+        self.identificador = Cifra("", px=idn.PX_MIN_INFORMATIVO)
         self.identificador.setObjectName("apagado")
-        self.identificador.setFont(idn.fuente_cifra(11))
+        self.identificador.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         self.panel.caja.addWidget(self.identificador)
 
         self.panel.caja.addWidget(separador())
@@ -543,7 +544,7 @@ class PantallaClips(QWidget):
         cifra (en monoespaciada de 12) o su propia cabecera. Ninguna cabecera se
         recorta, y hay un test que lo comprueba preguntandole al estilo.
         """
-        m_cifra = QFontMetrics(idn.fuente_cifra(12))
+        m_cifra = QFontMetrics(idn.fuente_cifra(idn.PX_CUERPO))
         # La de la cabecera se mide **como la pinta la hoja de estilo**, o sea
         # sin el tracking: el QSS no sabe escribirlo y un `setFont()` sobre la
         # cabecera Qt lo borra en el siguiente `polish` (comprobado). Medir con

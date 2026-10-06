@@ -250,7 +250,7 @@ class EditorCDL(QWidget):
 
         rejilla.addWidget(QLabel(""), 0, 0)
         for c, canal in enumerate("RGB"):
-            e = Cifra(canal, px=11)
+            e = Cifra(canal, px=idn.PX_MIN_INFORMATIVO)
             e.setAlignment(Qt.AlignmentFlag.AlignCenter)
             e.setObjectName("apagado")
             rejilla.addWidget(e, 0, c + 1)
@@ -519,7 +519,7 @@ class PantallaReverse(QWidget):
         # y el `setFont()` trae el tamano.
         self.datos_lut = QLabel("—")
         self.datos_lut.setObjectName("cifraApagada")
-        self.datos_lut.setFont(idn.fuente_cifra(11))
+        self.datos_lut.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         # Riesgo conocido y no arreglado (`gui/NOTAS.md`) si esto entra algún
         # día en una columna con scroll horizontal apagado.
         self.datos_lut.setMinimumWidth(0)
@@ -600,7 +600,7 @@ class PantallaReverse(QWidget):
         fila_cifra.setSpacing(6)
         self._de_max = Cifra("—", px=PX_TITULAR, peso=QFont.Weight.DemiBold)
         fila_cifra.addWidget(self._de_max, 0, Qt.AlignmentFlag.AlignBaseline)
-        self.limite_max = Cifra(f"/ {LIMITE_T1_DELTA_E_MAXIMO:.1f}", px=13)
+        self.limite_max = Cifra(f"/ {LIMITE_T1_DELTA_E_MAXIMO:.1f}", px=idn.PX_CUERPO)
         self.limite_max.setObjectName("apagado")
         self.limite_max.setToolTip(
             "Límite del ΔE2000 máximo que fijó el encargo (criterio T1). Es un objetivo, "
@@ -641,7 +641,7 @@ class PantallaReverse(QWidget):
         inventado.addWidget(self.cifra_inventado, 0)
         etq_inventado = QLabel("inventado")
         etq_inventado.setObjectName("apagado")
-        etq_inventado.setFont(idn.fuente_texto(11))
+        etq_inventado.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         inventado.addWidget(etq_inventado, 0)
         inventado.addStretch(1)
         # Antes del estirador que pone `_bloque_titular`, no despues.
@@ -666,7 +666,7 @@ class PantallaReverse(QWidget):
         # [dia 4] Aqui queda solo el recuento de celdas, pequeno. El porcentaje
         # sube al diagnostico, al tamano de la reproducibilidad: antes estaba
         # aqui a 13 px y era la cifra que menos se veia de la pantalla.
-        self.celdas_cobertura = Cifra("—", px=13)
+        self.celdas_cobertura = Cifra("—", px=idn.PX_CUERPO)
         self.celdas_cobertura.setObjectName("apagado")
         cab.addWidget(self.celdas_cobertura, 0)
         panel_cob.caja.addLayout(cab)
@@ -677,7 +677,7 @@ class PantallaReverse(QWidget):
             "Cortes por el azul: horizontal = rojo, vertical = verde."
         )
         self.leyenda.setObjectName("tenue")
-        self.leyenda.setFont(idn.fuente_texto(11))
+        self.leyenda.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         panel_cob.caja.addWidget(self.leyenda)
         self.vista_cobertura = VistaMapa(alto_minimo=ALTO_MINIMO_MAPA)
         panel_cob.caja.addWidget(self.vista_cobertura, 1)

@@ -125,7 +125,7 @@ class VentanaPrincipal(QMainWindow):
         marca = QVBoxLayout()
         marca.setContentsMargins(16, 0, 16, 14)
         marca.setSpacing(2)
-        titulo = Rotulo("sidebflms", px=11, acento=True)
+        titulo = Rotulo("sidebflms", px=idn.PX_MIN_INFORMATIVO, acento=True)
         marca.addWidget(titulo)
         sub = Rotulo("color")
         marca.addWidget(sub)
@@ -138,7 +138,7 @@ class VentanaPrincipal(QMainWindow):
         # fácil, la navegación de abajo se oculta entera (ver `_aplicar_modo`).
         self.boton_modo_facil = QPushButton("Modo fácil")
         self.boton_modo_facil.setObjectName("navegacion")
-        self.boton_modo_facil.setFont(idn.fuente_rotulo(10))
+        self.boton_modo_facil.setFont(idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO))
         self.boton_modo_facil.setCheckable(True)
         self.boton_modo_facil.setCursor(Qt.CursorShape.PointingHandCursor)
         self.boton_modo_facil.toggled.connect(self._cambiar_modo)
@@ -152,7 +152,7 @@ class VentanaPrincipal(QMainWindow):
             b.setObjectName("navegacion")
             # En MAYUSCULAS con el tracking de marca. QSS no tiene
             # `text-transform`, asi que la unica forma es la fuente.
-            b.setFont(idn.fuente_rotulo(10))
+            b.setFont(idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO))
             b.setCheckable(True)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             self.grupo.addButton(b, i)
@@ -169,7 +169,7 @@ class VentanaPrincipal(QMainWindow):
         col.addSpacing(12)
         self.btn_reanalizar = QPushButton("Reanalizar timeline")
         self.btn_reanalizar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_reanalizar.setFont(idn.fuente_texto(11))
+        self.btn_reanalizar.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         self.btn_reanalizar.clicked.connect(self._reanalizar_timeline)
         col.addWidget(self.btn_reanalizar)
         col.addStretch(1)
@@ -181,7 +181,7 @@ class VentanaPrincipal(QMainWindow):
         # que tiene que decir.
         nota = QLabel(f"escribe en\n«{VERSION_NAME}»")
         nota.setObjectName("tenue")
-        nota.setFont(idn.fuente_texto(10))
+        nota.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         nota.setWordWrap(True)
         nota.setContentsMargins(16, 0, 16, 0)
         col.addWidget(nota)
@@ -192,7 +192,7 @@ class VentanaPrincipal(QMainWindow):
         fila = QHBoxLayout(cab)
         fila.setContentsMargins(0, 0, 0, 0)
         fila.setSpacing(14)
-        self.titulo_pantalla = Rotulo(PANTALLAS[0][1], px=11, acento=True)
+        self.titulo_pantalla = Rotulo(PANTALLAS[0][1], px=idn.PX_MIN_INFORMATIVO, acento=True)
         fila.addWidget(self.titulo_pantalla, 0)
         self.sub_pantalla = EtiquetaElidida("", ancho_minimo_px=60)
         self.sub_pantalla.setObjectName("apagado")
@@ -209,9 +209,9 @@ class VentanaPrincipal(QMainWindow):
         fila.addWidget(self.estado_resolve, 0)
         self.detalle_resolve = EtiquetaElidida("", ancho_minimo_px=60)
         self.detalle_resolve.setObjectName("tenue")
-        self.detalle_resolve.setFont(idn.fuente_texto(11))
+        self.detalle_resolve.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         fila.addWidget(self.detalle_resolve, 1)
-        self.cifra_clips = Cifra("", px=11)
+        self.cifra_clips = Cifra("", px=idn.PX_MIN_INFORMATIVO)
         self.cifra_clips.setObjectName("apagado")
         fila.addWidget(self.cifra_clips, 0)
         return pie
@@ -389,7 +389,7 @@ def crear_app(argv: list[str] | None = None) -> QApplication:
     if app is None:
         app = QApplication(argv or [])
     app.setApplicationName(TITULO)
-    app.setFont(idn.fuente_texto(13))
+    app.setFont(idn.fuente_texto(idn.PX_CUERPO))
     app.setStyleSheet(idn.hoja_de_estilo())
     return app
 

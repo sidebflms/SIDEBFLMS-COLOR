@@ -137,14 +137,15 @@ class Rotulo(EtiquetaElidida):
     ultimo recurso no se usa en ninguna pantalla.
     """
 
-    #: Tamanos de la identidad: 10px el rotulo normal, 11px el de acento. Son
+    #: Tamanos: 12px (suelo informativo, antes 10 y 11 -- auditoria de diseno
+    #: 2026-10-06); el de acento se distingue por el peso. Son
     #: los mismos que declara la hoja de estilo para `#rotulo` y `#titulo`, y
     #: tienen que coincidir: **el QSS pisa a `setFont()` en familia y tamano,
     #: pero NO en el tracking**, que no se puede escribir en QSS. Si aqui se
     #: construye la fuente a 10px y el QSS la pinta a 11, el tracking absoluto
     #: se queda en el de 10 y sale un 0.145em donde la identidad pide 0.15-0.18.
-    PX_NORMAL = 10
-    PX_ACENTO = 11
+    PX_NORMAL = idn.PX_MIN_INFORMATIVO
+    PX_ACENTO = idn.PX_MIN_INFORMATIVO
 
     def __init__(self, texto: str = "", *, px: int | None = None, acento: bool = False,
                  ancho_minimo_px: int = 30, parent: QWidget | None = None) -> None:
@@ -213,7 +214,7 @@ class TextoAjustado(QLabel):
 class Cifra(QLabel):
     """Toda cifra de la app. Monoespaciada, sin excepcion (identidad)."""
 
-    def __init__(self, texto: str = "", *, px: int = 13, peso: QFont.Weight = QFont.Weight.Normal,
+    def __init__(self, texto: str = "", *, px: int = idn.PX_CUERPO, peso: QFont.Weight = QFont.Weight.Normal,
                  secundario: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(texto, parent)
         self.setFont(idn.fuente_cifra(px, peso))
@@ -341,7 +342,7 @@ def pintar_insignia_confianza(
     # Nivel + puntuacion. La puntuacion, en monoespaciada.
     p.setPen(QPen(forma.texto))
     x_texto = x + 6.0
-    f_nivel = idn.fuente_rotulo(10)
+    f_nivel = idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO)
     p.setFont(f_nivel)
     ancho_nivel = QFontMetrics(f_nivel).horizontalAdvance(forma.value.upper()) + 4
     p.drawText(
@@ -349,7 +350,7 @@ def pintar_insignia_confianza(
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
         forma.value.upper(),
     )
-    p.setFont(idn.fuente_cifra(11))
+    p.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
     p.drawText(
         QRectF(x_texto + ancho_nivel + 4, r.top(), r.right() - x_texto - ancho_nivel - 8, r.height()),
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
@@ -410,6 +411,8 @@ class MarcaDesajuste(QWidget):
         p.setPen(QPen(idn.color(idn.BRAND_400), 1.2))
         p.setBrush(QBrush(idn.color(idn.BRAND_400, 0.16)))
         p.drawPath(ruta)
+        # El «!» del rombo es un GLIFO, no un texto informativo, y el rombo no se toca
+        # (auditoría de diseño 2026-10-06): se queda a 10 px, bajo el suelo de 12.
         p.setFont(idn.fuente_cifra(10, QFont.Weight.Bold))
         p.setPen(QPen(idn.color(idn.BRAND_400)))
         p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), "!")
@@ -499,9 +502,9 @@ class MarcaLimite(QWidget):
     @staticmethod
     def _fuentes() -> tuple[QFont, QFont, QFont]:
         return (
-            idn.fuente_rotulo(10, QFont.Weight.Bold),
-            idn.fuente_rotulo(10),
-            idn.fuente_cifra(11, QFont.Weight.DemiBold),
+            idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO, QFont.Weight.Bold),
+            idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO),
+            idn.fuente_cifra(idn.PX_MIN_INFORMATIVO, QFont.Weight.DemiBold),
         )
 
     def _anchos(self) -> tuple[int, int, int]:

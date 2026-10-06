@@ -406,7 +406,7 @@ class PantallaAplicar(QWidget):
         )
         self.texto_preparar_nodos.setWordWrap(True)
         self.texto_preparar_nodos.setMinimumWidth(0)
-        self.texto_preparar_nodos.setFont(idn.fuente_texto(11))
+        self.texto_preparar_nodos.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         izq.caja.addWidget(self.texto_preparar_nodos)
         self.btn_preparar_nodos = QPushButton("Copiar la estructura de nodos al resto marcado")
         izq.caja.addWidget(self.btn_preparar_nodos)
@@ -421,7 +421,7 @@ class PantallaAplicar(QWidget):
         # aqui pedia JetBrains Mono y la regla `QWidget` le devolvia Inter, que
         # es justo donde mas se nota (ruta con espacios, elidida por el medio).
         self.ruta_look.setProperty("class", "cifra")
-        self.ruta_look.setFont(idn.fuente_cifra(11))
+        self.ruta_look.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         izq.caja.addWidget(self.ruta_look)
         self.texto_look = QLabel("")
         self.texto_look.setWordWrap(True)
@@ -429,7 +429,7 @@ class PantallaAplicar(QWidget):
         # de una columna acotada con scroll horizontal apagado, así que no se
         # nota — se romperá igual si algún día se mete en algo así.
         self.texto_look.setMinimumWidth(0)
-        self.texto_look.setFont(idn.fuente_texto(11))
+        self.texto_look.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         izq.caja.addWidget(self.texto_look)
 
         # --- perfil de trabajo (día 9, continuación 10) ---

@@ -79,7 +79,7 @@ class _IndicadorPasos(QWidget):
         self._fila.setSpacing(6)
         self._rotulos: list[Rotulo] = []
         for i, pid in enumerate(ID_PASOS):
-            r = Rotulo(f"{i + 1} · {TITULOS_PASO[pid]}", px=10)
+            r = Rotulo(f"{i + 1} · {TITULOS_PASO[pid]}", px=idn.PX_MIN_INFORMATIVO)
             self._fila.addWidget(r)
             self._rotulos.append(r)
             if i < len(ID_PASOS) - 1:
@@ -305,7 +305,7 @@ class _PanelTutor(QWidget):
         self._etiquetas.clear()
         for frase in frases:
             etiqueta = TextoAjustado(f"·  {frase.texto}")
-            etiqueta.setFont(idn.fuente_texto(13))
+            etiqueta.setFont(idn.fuente_texto(idn.PX_CUERPO))
             self._columna.addWidget(etiqueta)
             self._etiquetas.append(etiqueta)
         self.setVisible(bool(frases))

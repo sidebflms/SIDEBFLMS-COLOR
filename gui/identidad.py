@@ -125,6 +125,15 @@ BORDE_FUERTE_A = 0.22
 # Tipografia
 # ---------------------------------------------------------------------------
 
+#: Suelo de tamano para TODO texto informativo (rotulos, cabeceras de tabla,
+#: insignias, pie, notas, cifras pequenas) y tamano del cuerpo (tablas y
+#: parrafos). Auditoria de diseno 2026-10-06: habia 44 textos a 10 px y 44 a
+#: 11 px; por debajo de 12 px no se lee con comodidad en una pantalla de
+#: trabajo. **Aqui y en ningun otro sitio se decide el numero**: el error de
+#: raiz de la escala tipografica era justo dos sitios decidiendo lo mismo.
+PX_MIN_INFORMATIVO = 12
+PX_CUERPO = 14
+
 #: Se pide SIEMPRE primero la familia de marca. Ninguna de las tres esta
 #: instalada en este Mac (comprobado con QFontDatabase) y no se pueden
 #: descargar, asi que hoy caen en la alternativa; el dia que Mario las instale
@@ -147,7 +156,7 @@ def _qss_familias(familias: list[str]) -> str:
     return ", ".join(f'"{f}"' if " " in f else f for f in familias)
 
 
-def fuente_texto(px: int = 13, peso: QFont.Weight = QFont.Weight.Normal) -> QFont:
+def fuente_texto(px: int = PX_CUERPO, peso: QFont.Weight = QFont.Weight.Normal) -> QFont:
     f = QFont()
     f.setFamilies(FAMILIAS_TEXTO)
     f.setPixelSize(px)
@@ -155,7 +164,7 @@ def fuente_texto(px: int = 13, peso: QFont.Weight = QFont.Weight.Normal) -> QFon
     return f
 
 
-def fuente_cifra(px: int = 13, peso: QFont.Weight = QFont.Weight.Normal) -> QFont:
+def fuente_cifra(px: int = PX_CUERPO, peso: QFont.Weight = QFont.Weight.Normal) -> QFont:
     """Monoespaciada. **Toda cifra pasa por aqui.**"""
     f = QFont()
     f.setFamilies(FAMILIAS_CIFRA)
@@ -165,8 +174,9 @@ def fuente_cifra(px: int = 13, peso: QFont.Weight = QFont.Weight.Normal) -> QFon
     return f
 
 
-def fuente_rotulo(px: int = 10, peso: QFont.Weight = QFont.Weight.DemiBold) -> QFont:
-    """Rotulo de marca: MAYUSCULAS, 10-11px, tracking 0.15-0.18em.
+def fuente_rotulo(px: int = PX_MIN_INFORMATIVO, peso: QFont.Weight = QFont.Weight.DemiBold) -> QFont:
+    """Rotulo de marca: MAYUSCULAS, 12px (era 10-11; ver `PX_MIN_INFORMATIVO`),
+    tracking 0.15-0.18em.
 
     El tracking se pone en pixeles absolutos (0.16em * px) y no en porcentaje:
     `PercentageSpacing` de Qt es relativo al ancho de cada glifo, o sea que un
@@ -185,7 +195,7 @@ def fuente_rotulo(px: int = 10, peso: QFont.Weight = QFont.Weight.DemiBold) -> Q
 def fuente_cabecera_tabla() -> QFont:
     """La fuente con la que la hoja de estilo pinta las cabeceras de tabla.
 
-    Es `fuente_rotulo(10)` **sin el tracking**, y no porque nos guste: la
+    Es `fuente_rotulo(PX_MIN_INFORMATIVO)` **sin el tracking**, y no porque nos guste: la
     cabecera de una tabla es un pseudo-elemento de QSS y es el unico rotulo de
     la app que no se puede vestir desde el codigo. Comprobado: un
     `QHeaderView.setFont()` lo borra Qt en el siguiente `polish`, y el
@@ -198,7 +208,7 @@ def fuente_cabecera_tabla() -> QFont:
     """
     f = QFont()
     f.setFamilies(FAMILIAS_ROTULO)
-    f.setPixelSize(10)
+    f.setPixelSize(PX_MIN_INFORMATIVO)
     f.setWeight(QFont.Weight.DemiBold)
     f.setCapitalization(QFont.Capitalization.AllUppercase)
     return f
@@ -281,7 +291,7 @@ def hoja_de_estilo() -> str:
        casa gana a `setFont()`. Con `font-size: 13px` aqui, los 22, 24 y 26 px
        de las cifras grandes y los 10, 11, 12 y 15 px del texto de cuerpo se
        pintaban todos a 13: la jerarquia entera aplanada. El tamano base lo pone
-       ahora `QApplication.setFont(fuente_texto(13))` en `crear_app()`, que SI
+       ahora `QApplication.setFont(fuente_texto(PX_CUERPO))` en `crear_app()`, que SI
        cede ante un `setFont()` del widget.
        La familia se queda: es la unica declaracion de fuente que se quiere
        universal (que nada salga en la fuente del sistema por descuido), y la
@@ -341,7 +351,7 @@ def hoja_de_estilo() -> str:
     /* Bloques de cifras apagadas: el CDL del lateral de «antes/despues» y los
        datos del LUT del panel de ingenieria inversa. El id hace falta para la
        FAMILIA -- la regla `QWidget` reparte la de texto a todo el mundo y gana a
-       `setFont()`--, pero el TAMANO lo pone la pantalla con `fuente_cifra(11)`.
+       `setFont()`--, pero el TAMANO lo pone la pantalla con `fuente_cifra(PX_MIN_INFORMATIVO)`.
        (Aqui habia ademas un `QLabel#cifraGrande` con `font-size: 26px` que no
        usaba nadie. Se ha quitado: era una trampa esperando a que alguien le
        pusiera ese id a una cifra de otro tamano.) */
@@ -427,7 +437,7 @@ def hoja_de_estilo() -> str:
        excepcion con motivo medido: la cabecera de una tabla es un
        PSEUDO-ELEMENTO, y no hay forma de darle la fuente desde el codigo.
        Comprobadas las dos:
-         * `QHeaderView.setFont(fuente_rotulo(10))` -> Qt se la borra en el
+         * `QHeaderView.setFont(fuente_rotulo(PX_MIN_INFORMATIVO))` -> Qt se la borra en el
            siguiente `polish` y la deja en la heredada (13 px, familia de texto).
          * `headerData(..., Qt.FontRole)` -> el dibujo de la cabecera no cambia
            ni un pixel; manda esta regla.
@@ -443,7 +453,7 @@ def hoja_de_estilo() -> str:
         border-bottom: 1px solid {borde};
         padding: 8px {RELLENO_CABECERA_PX}px;
         font-family: {rotulo};
-        font-size: 10px;
+        font-size: {PX_MIN_INFORMATIVO}px;
         font-weight: 600;
     }}
     QTableView::item {{ padding: 4px 6px; }}
@@ -498,6 +508,8 @@ def hoja_de_estilo() -> str:
 __all__ = [
     "BORDE_A",
     "BORDE_FUERTE_A",
+    "PX_CUERPO",
+    "PX_MIN_INFORMATIVO",
     "BRAND_50",
     "BRAND_400",
     "BRAND_500",

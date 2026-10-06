@@ -170,7 +170,7 @@ class VisorCortinilla(QWidget):
         p.end()
 
     def _rotulos(self, p: QPainter, marco: QRect, corte: int) -> None:
-        f = idn.fuente_rotulo(10)
+        f = idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO)
         p.setFont(f)
         metricas = QFontMetrics(f)
         for texto, a_la_izquierda in (("antes", True), ("después", False)):
@@ -267,7 +267,7 @@ class Miniatura(QWidget):
             p.drawImage(caja, self._img)
         else:
             p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)))
-            p.setFont(idn.fuente_texto(11))
+            p.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), "sin imagen")
         p.setPen(QPen(idn.color(idn.BRAND_50, idn.BORDE_A), 1))
         p.setBrush(Qt.BrushStyle.NoBrush)
@@ -305,7 +305,7 @@ class PantallaComparar(QWidget):
             ancho_minimo_px=60,
         )
         ayuda.setObjectName("tenue")
-        ayuda.setFont(idn.fuente_texto(11))
+        ayuda.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         pie.addWidget(ayuda, 1)
         marco.caja.addLayout(pie)
         cuerpo.addWidget(marco, 1)
@@ -387,7 +387,7 @@ class PantallaComparar(QWidget):
         panel_tutor.caja.addWidget(Rotulo("el tutor", acento=True))
         self.texto_tutor = QLabel("—")
         self.texto_tutor.setObjectName("apagado")
-        self.texto_tutor.setFont(idn.fuente_texto(11))
+        self.texto_tutor.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         self.texto_tutor.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_tutor.setWordWrap(True)
         panel_tutor.caja.addWidget(self.texto_tutor)
@@ -417,7 +417,7 @@ class PantallaComparar(QWidget):
         # el `setFont()` trae el TAMANO, que ya no lo pisa nadie.
         self.texto_cdl = QLabel("—")
         self.texto_cdl.setObjectName("cifraApagada")
-        self.texto_cdl.setFont(idn.fuente_cifra(11))
+        self.texto_cdl.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         self.texto_cdl.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_cdl.setWordWrap(True)
         panel_cdl.caja.addWidget(self.texto_cdl)
@@ -435,7 +435,7 @@ class PantallaComparar(QWidget):
         panel_ensenar.caja.addWidget(Rotulo("por qué", acento=True))
         self.texto_ensenar = QLabel("—")
         self.texto_ensenar.setObjectName("apagado")
-        self.texto_ensenar.setFont(idn.fuente_texto(11))
+        self.texto_ensenar.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         self.texto_ensenar.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_ensenar.setWordWrap(True)
         panel_ensenar.caja.addWidget(self.texto_ensenar)
