@@ -61,6 +61,9 @@ PANTALLAS = (
 #: Ancho del carril de navegacion. Fijo: es un carril, no un panel.
 ANCHO_CARRIL = 186
 
+#: Alto mínimo de un botón pulsable (px). El de «Reanalizar timeline» lo exige.
+ALTO_MINIMO_BOTON = 32
+
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, estado: EstadoDemo | None = None, *,
@@ -170,6 +173,9 @@ class VentanaPrincipal(QMainWindow):
         self.btn_reanalizar = QPushButton("Reanalizar timeline")
         self.btn_reanalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reanalizar.setFont(idn.fuente_texto(11))
+        # Mínimo 32 px de alto (auditoría de diseño 2026-10-06): con la letra de 11
+        # px el botón quedaba por debajo de lo cómodo para pulsar.
+        self.btn_reanalizar.setMinimumHeight(ALTO_MINIMO_BOTON)
         self.btn_reanalizar.clicked.connect(self._reanalizar_timeline)
         col.addWidget(self.btn_reanalizar)
         col.addStretch(1)

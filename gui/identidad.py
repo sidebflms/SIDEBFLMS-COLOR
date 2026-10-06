@@ -119,7 +119,10 @@ def color(hex_color: str, alpha: float = 1.0) -> QColor:
 TEXTO_APAGADO_A = 0.62
 TEXTO_TENUE_A = 0.40
 BORDE_A = 0.12
-BORDE_FUERTE_A = 0.22
+#: 0,22 -> 0,40 (auditoria de diseno 2026-10-06): el borde de botones, campos y
+#: casillas daba 1,84-1,93:1 sobre las superficies; el minimo de WCAG 1.4.11 para
+#: componentes de interfaz es 3:1. A 0,40 da 3,55-3,63:1.
+BORDE_FUERTE_A = 0.40
 
 # ---------------------------------------------------------------------------
 # Tipografia

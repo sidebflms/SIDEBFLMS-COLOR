@@ -3314,3 +3314,40 @@ Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
 el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
 deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
 ambos sin arreglo posible hoy.
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 6: «Reanalizar timeline» a 32 px y borde fuerte a 3:1
+
+**Qué cambia:**
+- `btn_reanalizar` («Reanalizar timeline», `gui/ventana.py`) tiene un alto mínimo
+  de **32 px** (`ALTO_MINIMO_BOTON`). Medía 29: mandaba el `sizeHint` de la letra
+  de 11 px.
+- `BORDE_FUERTE_A` **0,22 → 0,40** (`gui/identidad.py`). Es el borde de botones,
+  campos de texto, combos y casillas. Sigue siendo `brand-50` bajado de opacidad.
+
+**Por qué:** el botón era más pequeño que lo cómodo de pulsar, y el borde de los
+controles daba 1,84-1,93:1 sobre las superficies, por debajo del 3:1 de WCAG
+1.4.11 (componentes de interfaz).
+
+**Medido antes → después:**
+
+| | Antes | Después |
+|---|---|---|
+| alto de «Reanalizar timeline» | 29 px | **32 px** |
+| contraste del borde (calculado, 4 superficies) | 1,84-1,93:1 | **3,55-3,63:1** |
+| píxel del borde de «Todos» | (71, 67, 64) | **(112, 108, 105)** sobre (19, 17, 16) |
+
+**¿Rompe el aspecto?** Se han comparado las capturas de Aplicar a 1024 px antes
+y después: ningún cambio de layout (el borde sigue siendo de 1 px; sólo es más
+visible) y el botón del carril gana 3 px de alto. Mínimo de ventana sin cambios
+(973 × 727: el carril tiene altura de sobra, como ya decía el comentario del
+botón). El juicio de «aspecto» es subjetivo: si Mario lo ve demasiado marcado,
+se baja `BORDE_FUERTE_A` (a 0,32 ya da ≈2,8:1, por debajo de 3:1).
+
+**Tests nuevos:** `tests/test_gui_borde_y_boton.py` (calculado ≥3:1 en las 4
+superficies, medido por píxel en un botón real, y alto ≥32).
+
+**Qué hacer al actualizar:** un control nuevo que dibuje su propio borde tiene
+que usar `idn.BORDE_FUERTE_A`, no un alfa suelto; y un botón de acción
+frecuente, `ALTO_MINIMO_BOTON`.
