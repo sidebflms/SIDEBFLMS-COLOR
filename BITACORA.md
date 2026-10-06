@@ -3314,3 +3314,39 @@ Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
 el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
 deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
 ambos sin arreglo posible hoy.
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 7: copy (tildes y cifras del tutor)
+
+**Qué cambia:**
+- **Tildes** en `core/colormgmt/deteccion.py` (`_pregunta_grupo`): «No he podido
+  reconocer la **cámara** de estos N clips. ¿De **qué cámara** son…?» (decía
+  «camara» y «¿De que camara…»).
+- **Cifras de «El tutor»:** salían con 17 cifras (`0.13566423773765565`, el
+  `repr` de un `float`). Ahora se **muestran a 4 decimales**
+  (`gui/tutor_datos.py::redondear_para_mostrar`, `DECIMALES_MOSTRADOS = 4`) y el
+  texto completo va en el **tooltip** del panel (en «Antes / después»; en modo
+  fácil, el tooltip de cada frase). **Sólo se redondea al mostrar:** `Frase` y lo
+  que mide `core.tutor` no se tocan (un test lo vigila).
+
+**Por qué:** una cifra de 17 decimales no se lee, y el copy sin tildes
+se ve descuidado.
+
+**Medido antes → después:** cifras con ≥5 decimales visibles en el panel del
+tutor de los clips de la demo: **7 clips con cifras de 17 cifras → 0** (4
+decimales visibles; completas en el tooltip).
+
+**No tocado, a propósito:** el encargo cita sólo `deteccion.py:208`. En el mismo
+fichero hay más texto sin tildes (`razon=` de las detecciones: «camara», «mas»,
+«que no cuadra con esa curva»…). Si se muestra al usuario, conviene un barrido
+de ortografía aparte; no se ha hecho aquí para no ampliar el alcance.
+
+**Tests nuevos:** `tests/test_gui_copy_y_cifras_del_tutor.py` (tildes; el
+redondeo: floats largos, negativos, decimales justos, versiones tipo `21.1.0.17`
+sin tocar; el panel real sin cifras largas y con el valor completo en el tooltip;
+el núcleo sin redondear).
+
+**Qué hacer al actualizar:** un texto nuevo del tutor que lleve números se
+redondea solo si pasa por `redondear_para_mostrar`; un panel nuevo que pinte
+`Frase.valor_medido` debe hacer lo mismo y poner el original en el tooltip.

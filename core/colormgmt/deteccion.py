@@ -205,7 +205,7 @@ def _pregunta_grupo(clip_ids: tuple[str, ...], hints: set[ColorSpaceName | None]
             espacio,
         )
     return (
-        f"No he podido reconocer la camara de estos {n} clips. ¿De que camara son "
+        f"No he podido reconocer la cámara de estos {n} clips. ¿De qué cámara son "
         "(Sony FX3, Panasonic Lumix, Canon, DJI, o ya convertidos a Rec.709)?",
         None,
     )

@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.imagen import a_qimage
-from gui.tutor_datos import frases_de_clip, lecciones_de_clip
+from gui.tutor_datos import frases_de_clip, lecciones_de_clip, redondear_para_mostrar
 from gui.widgets import Cifra, EtiquetaElidida, InsigniaConfianza, MarcaDesajuste, Panel, Rotulo
 
 #: Cuanto se mueve la cortinilla con una flecha, y con Shift+flecha.
@@ -477,6 +477,7 @@ class PantallaComparar(QWidget):
         self.visor.poner(None, None, mensaje="No hay clips que comparar.")
         self.nombre_ref.setText("—")
         self.texto_tutor.setText("—")
+        self.texto_tutor.setToolTip("")
         self.texto_ensenar.setText("—")
 
     def _cambio(self) -> None:
@@ -515,6 +516,7 @@ class PantallaComparar(QWidget):
         frases = frases_de_clip(self._estado, clip)
         if not frases:
             self.texto_tutor.setText("Nada que decir sobre este clip por ahora.")
+            self.texto_tutor.setToolTip("")
         else:
             bloques = []
             for frase in frases:
@@ -527,7 +529,11 @@ class PantallaComparar(QWidget):
                     partes.append(f"umbral: {_permitir_partir(frase.umbral)}")
                 partes.append(f"validación: {frase.validacion} ({frase.cifras_ref})")
                 bloques.append("\n".join(partes))
-            self.texto_tutor.setText("\n\n".join(bloques))
+            completo = "\n\n".join(bloques)
+            # Sólo al mostrar: 4 decimales; el valor completo, en el tooltip.
+            mostrado = redondear_para_mostrar(completo)
+            self.texto_tutor.setText(mostrado)
+            self.texto_tutor.setToolTip(completo if mostrado != completo else "")
 
         # `lecciones_de_clip` siempre da algo (las dos mínimas del encargo,
         # aunque no haya frases de diagnóstico) — por eso va SIEMPRE, no
