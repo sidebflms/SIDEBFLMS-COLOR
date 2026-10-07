@@ -38,6 +38,8 @@ delante de un cliente. Si hay que equivocarse, se hace hacia «no lo se» o haci
 
 from __future__ import annotations
 
+import html
+
 import numpy as np
 from PySide6.QtCore import QLocale, QRect, Qt
 from PySide6.QtGui import QBrush, QFont, QImage, QPainter, QPen
@@ -71,6 +73,7 @@ from gui.widgets import (
     Panel,
     Rotulo,
     TextoAjustado,
+    marca_html,
     separador,
 )
 
@@ -418,7 +421,7 @@ class PantallaReverse(QWidget):
         # positivo, así que sólo funciona mientras esta etiqueta no viva
         # dentro de un contenedor con scroll horizontal apagado.
         self.texto_sustituto.setMinimumWidth(0)
-        self.texto_sustituto.setStyleSheet(f"color: {idn.BRAND_400};")
+        self.texto_sustituto.setTextFormat(Qt.TextFormat.RichText)
         self.aviso_sustituto.caja.addWidget(self.texto_sustituto)
         caja.addWidget(self.aviso_sustituto)
         self.aviso_sustituto.setVisible(False)
@@ -824,7 +827,8 @@ class PantallaReverse(QWidget):
         if not fiable:
             fallo = self._inversion.fallo if self._inversion is not None else ""
             self.texto_sustituto.setText(
-                f"Lo que se ve aquí lo ha calculado el sustituto de la GUI. {fallo}\n"
+                marca_html("aviso")
+                + f"Lo que se ve aquí lo ha calculado el sustituto de la GUI. {html.escape(fallo)}<br>"
                 f"Los números son medidos y sirven para trabajar, pero el veredicto de "
                 f"«es un LUT puro» NO se ha emitido: ese lo da sólo core.reverse, y hasta "
                 f"que conteste la pantalla dice que no lo sabe."
@@ -851,15 +855,17 @@ class PantallaReverse(QWidget):
         )
         informe = qc_lut(lut)
         if informe.ok:
+            self.texto_qc.setTextFormat(Qt.TextFormat.PlainText)
             self.texto_qc.setText(informe.resumen())
             self.texto_qc.setStyleSheet("")
         else:
-            lineas = [informe.resumen()]
-            lineas += [f"· {p.mensaje}" for p in informe.problemas[:6]]
+            lineas = [html.escape(informe.resumen())]
+            lineas += [f"· {html.escape(p.mensaje)}" for p in informe.problemas[:6]]
             if len(informe.problemas) > 6:
                 lineas.append(f"· … y {len(informe.problemas) - 6} más")
-            self.texto_qc.setText("\n".join(lineas))
-            self.texto_qc.setStyleSheet(f"color: {idn.BRAND_400};")
+            self.texto_qc.setTextFormat(Qt.TextFormat.RichText)
+            self.texto_qc.setText(marca_html("aviso") + "<br>".join(lineas))
+            self.texto_qc.setStyleSheet("")
 
         cob = res.coverage
         fraccion = cob.coverage_fraction()

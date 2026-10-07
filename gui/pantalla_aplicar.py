@@ -60,7 +60,7 @@ from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.dialogo_perfil import DialogoPerfiles
 from gui.perfiles_trabajo import aplicar_perfil_a_estado
-from gui.widgets import Cifra, EtiquetaElidida, Panel, PuntoEstado, Rotulo, separador
+from gui.widgets import Cifra, EtiquetaElidida, Panel, PuntoEstado, Rotulo, marca_html, separador
 
 # ---------------------------------------------------------------------------
 # El plan. Logica pura: se puede probar sin abrir una ventana.
@@ -562,6 +562,7 @@ class PantallaAplicar(QWidget):
         enterarse despues de haberlo puesto en 200 clips no es enterarse.
         """
         informe = self._estado.informe_lut
+        self.texto_look.setTextFormat(Qt.TextFormat.PlainText)
         if informe is None:
             self.texto_look.setText("Sin LUT de look: sólo se escribe el CDL del nodo 2.")
             self.texto_look.setStyleSheet("")
@@ -570,13 +571,15 @@ class PantallaAplicar(QWidget):
             self.texto_look.setText(f"QC: {informe.resumen()}")
             self.texto_look.setStyleSheet(f"color: {idn.SMOKE};")
             return
-        lineas = [f"QC: {informe.resumen()}"]
-        lineas += [f"· {p.mensaje}" for p in informe.problemas[:3]]
+        lineas = [f"QC: {_escapar(informe.resumen())}"]
+        lineas += [f"· {_escapar(p.mensaje)}" for p in informe.problemas[:3]]
         if len(informe.problemas) > 3:
             lineas.append(f"· … y {len(informe.problemas) - 3} más")
         lineas.append("Se puede escribir igualmente; el aviso queda aquí.")
-        self.texto_look.setText("\n".join(lineas))
-        self.texto_look.setStyleSheet(f"color: {idn.BRAND_400};")
+        # SUITE: aviso = rombo + rotulo; el texto en crema, no en naranja.
+        self.texto_look.setTextFormat(Qt.TextFormat.RichText)
+        self.texto_look.setText(marca_html("aviso") + "<br>".join(lineas))
+        self.texto_look.setStyleSheet("")
 
     def _marcar_todos(self, marcado: bool) -> None:
         self.lista.blockSignals(True)
@@ -662,7 +665,7 @@ class PantallaAplicar(QWidget):
         apagado = idn.SMOKE
         if plan.error_global:
             return (
-                f'<div style="color:{idn.BRAND_400};">{plan.error_global}</div>'
+                f'<div>{marca_html("aviso")}{_escapar(plan.error_global)}</div>'
                 f'<div style="color:{apagado}; margin-top:8px;">'
                 f"No se puede aplicar nada mientras no haya conexión. "
                 f"El plan y los números siguen aquí; no se pierde nada.</div>"
@@ -674,7 +677,7 @@ class PantallaAplicar(QWidget):
         nuevas = sum(1 for linea in plan.lineas if linea.puede and not linea.version_ya_existe)
         reusadas = sum(1 for linea in plan.lineas if linea.puede and linea.version_ya_existe)
         partes.append(
-            f'<div style="color:{idn.BRAND_400};">'
+            f'<div>'
             f"Se crea la versión <span style='font-family:{cifra};'>{VERSION_NAME}</span> "
             f"en {nuevas} clip(s) y se reutiliza en {reusadas}. "
             f"El grado original de cada clip se queda en su versión, intacto.</div><br>"
@@ -682,7 +685,7 @@ class PantallaAplicar(QWidget):
         informe = self._estado.informe_lut
         if informe is not None and not informe.ok:
             partes.append(
-                f'<div style="color:{idn.BRAND_400}; margin-bottom:10px;">'
+                f'<div style="margin-bottom:10px;">{marca_html("aviso")}'
                 f"El look que va al nodo {NODE_LOOK} no pasa el QC: "
                 f"{_escapar(informe.resumen())}</div>"
             )
@@ -703,7 +706,7 @@ class PantallaAplicar(QWidget):
                     f"<span style='font-family:{cifra};'>{_escapar(linea.look_rel)}</span>"
                     f"<br>· nodo 1 (normalización): no se toca</span>"
                     + "".join(
-                        f'<br><span style="color:{idn.BRAND_400};">· aviso: {_escapar(a)}</span>'
+                        f'<br>{marca_html("aviso")}{_escapar(a)}'
                         for a in linea.avisos
                     )
                     + "</div>"
@@ -713,8 +716,8 @@ class PantallaAplicar(QWidget):
                     f'<div style="margin-bottom:10px;">'
                     f'<span style="font-family:{cifra}; color:{apagado};">{linea.clip_id}</span> '
                     f"<b>{_escapar(linea.nombre)}</b><br>"
-                    f'<span style="color:{idn.BRAND_400};">· NO SE PUEDE: '
-                    f"{_escapar(linea.motivo)}</span></div>"
+                    f'{marca_html("aviso")}No se puede: '
+                    f"{_escapar(linea.motivo)}</div>"
                 )
         return "".join(partes)
 
@@ -842,7 +845,7 @@ class PantallaAplicar(QWidget):
         ]
         for r in mal:
             partes.append(
-                f'<div style="margin-bottom:8px; color:{idn.BRAND_400};">'
+                f'<div style="margin-bottom:8px;">{marca_html("averia")}'
                 f'<span style="font-family:{cifra};">{r.clip_id or "—"}</span> '
                 f"{_escapar(r.nombre)}<br>· {_escapar(r.mensaje)}</div>"
             )

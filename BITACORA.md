@@ -3586,3 +3586,59 @@ filete de 2 px, navegación en mayúsculas con tracking y texto completo con til
 **Qué hacer al actualizar:** un título nuevo en Akira va en ASCII y a ≥ 18 px (con tilde →
 Montserrat 800); una pantalla nueva añade su entrada a `TITULOS_AKIRA`; un botón nuevo no
 lleva `text-transform`; un indicador de estado nuevo se distingue por forma, no por color.
+
+## SUITE 3/3 — vacío, carga y error (2026-10-07)
+
+Tercera de tres PRs (apilada sobre `agente/suite-2-cabecera-boton-pastilla`). Mismo origen:
+prototipo `reviews/2026-10-06-suite-color/` de `sidebflms-design`; el patch es guía.
+
+**Qué cambia**
+- `gui/widgets.py`: `marca_html("aviso" | "averia")` devuelve el rótulo de la suite: un
+  **rombo** (de contorno = aviso, relleno = avería; mismo dibujo que `MarcaDesajuste`,
+  incrustado como PNG `data:` en naranja `BRAND_400`) + **«AVISO»** / **«AVERÍA»** en negrita
+  + « · » en `SMOKE`. El mensaje que sigue va en crema. **Ni un píxel de rojo**: el estado
+  se distingue por forma y por palabra, no por color.
+- `gui/pantalla_aplicar.py`: el plan marca avisos, bloqueos («No se puede…») y la falta de
+  conexión como **AVISO**; un clip que no se pudo escribir en Resolve, como **AVERÍA**. La
+  información normal del plan deja de ir en naranja y pasa a crema. El QC del look que
+  falla sale con rombo + «AVISO ·» (texto enriquecido, ya no un bloque entero en naranja).
+- `gui/pantalla_reverse.py`: el mismo aviso para el QC del LUT.
+- `gui/identidad.py`: `QProgressBar` de marca (surco neutro, relleno `BRAND_600`, radio de
+  control): el diálogo de «Reanalizar timeline» ya no pinta el azul del sistema.
+
+**Vacío / carga / error — lo que NO hay:** no hay esqueletos de carga. Ninguna pantalla de
+esta app carga datos en segundo plano (lo único con espera es el diálogo de «Reanalizar»,
+que ya tiene su barra); el prototipo tampoco los incluyó. Los estados vacíos ya eran frases
+llanas («No hay clips que comparar.»); queda cubierto por test.
+
+**Detector de recortes:** `linea_que_no_cabe` medía el HTML crudo, y el `data:` del rombo
+(miles de caracteres) disparaba falsos «no cabe». Ahora mide el texto que se ve
+(`_texto_que_se_ve`: `QTextDocument.toPlainText()` si la etiqueta es texto enriquecido).
+Con dos tests nuevos, incluido el del rombo.
+
+**Medidas antes → después** (sin Akira; antes = SUITE 2/3):
+
+| Medida | Antes (SUITE 2/3) | Después (SUITE 3/3) |
+|---|---|---|
+| Anchura mínima | 1017 | **1017** |
+| `ALTO_MINIMO` | 745 | **745** |
+| `anchos_fijos()` de la tabla de clips | 387 | **387** |
+| Textos < 12 px | 0 | **0** |
+| Controles cortados (1024 y 973) | 0 | **0** |
+
+**Tests nuevos:** `tests/test_gui_suite_estados.py` (10: rombo de contorno vs relleno, rótulo
+con palabra y punto medio, **cero rojo** en el rombo, mismos vértices que `MarcaDesajuste`,
+plan con aviso/bloqueo/sin conexión, avería al fallar la escritura, QC con rombo, estado
+desconectado por forma y rótulo, barra de progreso sin azul de sistema, vacío con palabras).
+
+**Rojos declarados (1):** `test_gui_estados.py::test_un_look_que_no_pasa_el_qc_se_avisa_antes_de_escribirlo`
+exigía el naranja de marca en la hoja de estilo del bloque de QC; ahora el aviso es rombo + «AVISO ·»
+y el texto en crema (se comprueba eso, y que sigue sin haber rojo).
+
+**Pendiente de conciliar:** la auditoría 5 (#11) usa prefijos de texto «AVERÍA ·» / «AVISO ·»
+en las mismas frases. Al fusionar, se conserva lo de #11 (la lógica de qué es aviso y qué
+es avería) y se queda aquí el rótulo con rombo.
+
+**Qué hacer al actualizar:** un estado nuevo de error/aviso se escribe con
+`marca_html("aviso"|"averia")` y el mensaje en crema; nunca con color rojo ni con un color
+como único distintivo.

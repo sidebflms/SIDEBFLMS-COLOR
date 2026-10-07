@@ -615,6 +615,18 @@ def hoja_de_estilo() -> str:
     QScrollBar::add-line, QScrollBar::sub-line {{ width: 0px; height: 0px; }}
     QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 
+    /* Barra de progreso de MARCA (era el azul del sistema): vidrio de campo, borde de
+       control y relleno brand-600. Solo la usa el dialogo de «Reanalizar timeline». */
+    QProgressBar {{
+        background: {vidrio_campo};
+        border: 1px solid {borde_control};
+        border-radius: {RADIO_CONTROL}px;
+        text-align: center;
+        color: {BRAND_50};
+        min-height: 16px;
+    }}
+    QProgressBar::chunk {{ background: {BRAND_600}; border-radius: 7px; }}
+
     QSplitter::handle {{ background: transparent; }}
     QSplitter::handle:horizontal {{ width: 8px; }}
     QSplitter::handle:vertical {{ height: 8px; }}

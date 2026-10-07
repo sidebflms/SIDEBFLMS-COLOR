@@ -17,9 +17,11 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import functools  # noqa: E402
+import re  # noqa: E402
 
 import pytest  # noqa: E402
-from PySide6.QtGui import QFont, QFontInfo, QFontMetrics  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QFont, QFontInfo, QFontMetrics, QTextDocument  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QCheckBox,
@@ -258,6 +260,27 @@ def esta_elidida(lab: QLabel) -> bool:
     return isinstance(lab, EtiquetaElidida) and lab.text() != lab.texto_completo()
 
 
+def _texto_que_se_ve(lab: QLabel) -> str:
+    """El texto de un `QLabel` tal y como se PINTA: sin etiquetas HTML.
+
+    Un `QLabel` en texto enriquecido (los avisos con rombo: `<img src="data:image/png;
+    base64,...">`) devuelve en `.text()` el HTML crudo, y el detector medía los miles de
+    caracteres del `data:` como una linea que «no cabe». Se pasa por `QTextDocument`
+    (el mismo motor que pinta) y se mide solo lo visible.
+    """
+    texto = lab.text()
+    formato = lab.textFormat()
+    # `Qt.mightBeRichText` no esta expuesto en PySide6: misma idea, una etiqueta HTML.
+    es_rico = formato == Qt.TextFormat.RichText or (
+        formato == Qt.TextFormat.AutoText and re.search(r"<[a-zA-Z/!][^>]*>", texto) is not None
+    )
+    if not es_rico:
+        return texto
+    doc = QTextDocument()
+    doc.setHtml(texto)
+    return doc.toPlainText()
+
+
 def linea_que_no_cabe(lab: QLabel) -> str | None:
     """La primera linea de un `QLabel` normal que NO cabe en su ancho.
 
@@ -275,7 +298,7 @@ def linea_que_no_cabe(lab: QLabel) -> str | None:
     Se mide contra `contentsRect()` y no contra `width()`: con margenes
     puestos, `width()` se pasa por lo que midan los margenes.
     """
-    texto = lab.text()
+    texto = _texto_que_se_ve(lab)
     if not texto.strip():
         return None
     disponible = lab.contentsRect().width()
@@ -333,6 +356,28 @@ def test_el_detector_de_corte_ve_un_qlabel_estrecho():
     """Un `QLabel` normal al que no le cabe el texto tiene que salir cazado."""
     app_qt()
     lab = QLabel("una frase que desde luego no cabe en cuarenta pixeles")
+    lab.setFont(idn.fuente_texto(13))
+    lab.resize(40, 20)
+    assert linea_que_no_cabe(lab) is not None
+
+
+def test_el_detector_de_corte_ignora_el_data_uri_de_un_rombo_en_html():
+    """Antes leia el `<img src="data:...">` del rombo como texto plano que «no cabe»."""
+    app_qt()
+    from gui.widgets import marca_html
+
+    lab = QLabel(marca_html("aviso") + "texto corto")
+    lab.setTextFormat(Qt.TextFormat.RichText)
+    lab.setFont(idn.fuente_texto(13))
+    lab.resize(300, 20)
+    assert len(lab.text()) > 300, "el HTML crudo es mucho mas largo que el ancho"
+    assert linea_que_no_cabe(lab) is None
+
+
+def test_el_detector_de_corte_sigue_cazando_un_texto_rico_que_de_verdad_no_cabe():
+    app_qt()
+    lab = QLabel("<b>una frase en negrita que desde luego no cabe en cuarenta pixeles</b>")
+    lab.setTextFormat(Qt.TextFormat.RichText)
     lab.setFont(idn.fuente_texto(13))
     lab.resize(40, 20)
     assert linea_que_no_cabe(lab) is not None

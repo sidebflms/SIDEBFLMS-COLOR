@@ -258,6 +258,59 @@ class Panel(QFrame):
         p.end()
 
 
+# ---------------------------------------------------------------------------
+# Averia y aviso: FORMA + ROTULO, sin pastillas de color de estado (suite)
+# ---------------------------------------------------------------------------
+
+_CACHE_ROMBOS: dict[str, str] = {}
+
+
+def _rombo_data_uri(relleno: bool) -> str:
+    """PNG (data URI) de un rombo de 12 px para meter en HTML de Qt."""
+    clave = "r" if relleno else "c"
+    if clave in _CACHE_ROMBOS:
+        return _CACHE_ROMBOS[clave]
+    import base64
+
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtGui import QPixmap
+
+    dpr, lado = 2, 12
+    pm = QPixmap(lado * dpr, lado * dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    c = lado * dpr / 2.0
+    poli = QPolygonF([QPointF(c, 1.5), QPointF(lado * dpr - 1.5, c), QPointF(c, lado * dpr - 1.5), QPointF(1.5, c)])
+    p.setPen(QPen(idn.color(idn.BRAND_400), 2.0))
+    p.setBrush(QBrush(idn.color(idn.BRAND_400)) if relleno else Qt.BrushStyle.NoBrush)
+    p.drawPolygon(poli)
+    p.end()
+    ba = QByteArray()
+    buf = QBuffer(ba)
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    pm.save(buf, "PNG")
+    uri = "data:image/png;base64," + base64.b64encode(bytes(ba)).decode()
+    _CACHE_ROMBOS[clave] = uri
+    return uri
+
+
+def marca_html(tipo: str) -> str:
+    """`AVISO` = rombo de contorno + rotulo; `AVERIA` = rombo relleno + rotulo.
+
+    El mensaje que sigue va en crema: el estado lo dicen la forma y la palabra,
+    no un color (la suite de color no lleva pastillas de estado, y aqui no hay
+    rojo). Rombo del mismo dibujo que `MarcaDesajuste`.
+    """
+    relleno = tipo == "averia"
+    palabra = "AVERÍA" if relleno else "AVISO"
+    return (
+        f'<img src="{_rombo_data_uri(relleno)}" width="12" height="12"> '
+        f'<span style="font-weight:700; letter-spacing:1px; color:{idn.BRAND_400};">{palabra}</span>'
+        f'<span style="color:{idn.SMOKE};"> · </span>'
+    )
+
+
 class PuntoEstado(QWidget):
     """Conexion con Resolve por FORMA: disco relleno (conectado) o contorno
     discontinuo (desconectado). Sin verde/rojo y sin pastilla (suite de color)."""

@@ -4,6 +4,20 @@ Cambios que afectan a **cómo se ve o se usa la app**, en orden inverso (lo últ
 arriba). Para el detalle técnico, medidas y qué hacer al actualizar, ver
 `BITACORA.md`.
 
+## SUITE 3/3 · 2026-10-07 — avisos, averías y barra de progreso de la suite
+
+- **Avisos y averías por forma y palabra, sin rojo:** un aviso lleva un rombo de contorno
+  y «AVISO ·»; una avería, un rombo relleno y «AVERÍA ·». El mensaje va en crema. Es el
+  mismo rombo del desajuste de color.
+- **Aplicar:** los avisos del plan, los clips bloqueados y la falta de conexión salen como
+  AVISO; un clip que no se pudo escribir en Resolve, como AVERÍA. La información normal ya
+  no va en naranja.
+- **Aviso del look (QC):** también con rombo y «AVISO ·», en Aplicar y en Reverse.
+- **Barra de progreso de «Reanalizar timeline»** con los colores de la marca (no el azul
+  del sistema).
+- **No hay pantallas de carga con esqueleto:** la app no carga datos en segundo plano.
+- **Ventana:** el mínimo no cambia (1017×745).
+
 ## SUITE 2/3 · 2026-10-07 — cabecera de marca, botones y pastilla de la suite
 
 - **Cabecera de marca** en la esquina superior izquierda: casete + wordmark SIDEBFLMS
