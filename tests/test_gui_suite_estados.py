@@ -101,9 +101,9 @@ def test_el_plan_de_aplicar_marca_avisos_y_averias_por_forma_y_pone_lo_normal_en
             clip_id="c1", nombre="uno", version_actual="?", version_ya_existe=False,
             n_nodos=0, puede=False, motivo="tiene 1 nodo",
         )]))
-        assert "No se puede" in bloqueado and "AVISO" in bloqueado
+        assert "No se puede" in bloqueado and "AVERÍA" in bloqueado
         sin_conexion = p._plan_a_html(Plan(error_global="No hay conexión con DaVinci Resolve."))
-        assert "AVISO" in sin_conexion and "No hay conexión" in sin_conexion
+        assert "AVERÍA" in sin_conexion and "No hay conexión" in sin_conexion
     finally:
         v.close()
 
@@ -122,13 +122,13 @@ def test_el_resultado_de_una_escritura_fallida_es_una_averia_con_rombo_relleno()
         v.close()
 
 
-def test_el_qc_del_look_que_falla_sale_con_rombo_y_aviso_en_aplicar_y_en_reverse():
+def test_el_qc_del_look_que_falla_sale_con_rombo_y_averia_en_aplicar():
     app_qt()
     v = ventana(lut_malo())
     try:
         v.ir_a(2)
         t = v.p_aplicar.texto_look
-        assert "data:image/png" in t.text() and "AVISO" in t.text()
+        assert "data:image/png" in t.text() and "AVERÍA" in t.text()
         assert v.p_aplicar.texto_look.styleSheet() == "", "ya no se pinta en naranja el bloque entero"
     finally:
         v.close()
@@ -143,7 +143,7 @@ def test_el_estado_desconectado_se_ve_por_forma_y_por_rotulo_no_por_color():
         assert v.p_aplicar.punto_banda._ok is False
         assert v.punto_resolve._ok is False
         assert "desconectado" in v.p_aplicar.rotulo_banda.text()
-        assert "AVISO" in v.p_aplicar.texto_plan.toHtml().upper()
+        assert "AVERÍA" in v.p_aplicar.texto_plan.toHtml().upper()
     finally:
         v.close()
 

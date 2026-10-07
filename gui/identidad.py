@@ -143,6 +143,15 @@ BORDE_CONTROL_A = 0.55
 #: Radios de la suite (la web): tarjeta 16, control 8, pildora.
 RADIO_TARJETA = 16
 RADIO_CONTROL = 8
+#: Vocabulario de estado, UNO SOLO (auditoria de diseno 2026-10-06 + suite): AVERIA = algo
+#: que impide o estropea (sin conexion, QC fallido, «no se puede», escritura fallida);
+#: AVISO = lo leve (se puede seguir). Se reconocen por la FORMA (rombo relleno / de
+#: contorno) y por la PALABRA, nunca por el color. Cero rojo. La conexion con Resolve va
+#: por la forma del `PuntoEstado` (disco / contorno discontinuo).
+PALABRA_AVERIA = "AVERÍA"
+PALABRA_AVISO = "AVISO"
+PREFIJO_AVERIA = f"{PALABRA_AVERIA} ·"
+PREFIJO_AVISO = f"{PALABRA_AVISO} ·"
 
 # ---------------------------------------------------------------------------
 # Tipografia
@@ -667,6 +676,10 @@ __all__ = [
     "BORDE_FUERTE_A",
     "PX_CUERPO",
     "PX_MIN_INFORMATIVO",
+    "PALABRA_AVERIA",
+    "PALABRA_AVISO",
+    "PREFIJO_AVERIA",
+    "PREFIJO_AVISO",
     "BRAND_50",
     "BRAND_400",
     "BRAND_500",

@@ -303,7 +303,7 @@ def marca_html(tipo: str) -> str:
     rojo). Rombo del mismo dibujo que `MarcaDesajuste`.
     """
     relleno = tipo == "averia"
-    palabra = "AVERÍA" if relleno else "AVISO"
+    palabra = idn.PALABRA_AVERIA if relleno else idn.PALABRA_AVISO
     return (
         f'<img src="{_rombo_data_uri(relleno)}" width="12" height="12"> '
         f'<span style="font-weight:700; letter-spacing:1px; color:{idn.BRAND_400};">{palabra}</span>'

@@ -60,7 +60,7 @@ def test_el_pie_de_la_ventana_no_revienta_sin_proyecto_abierto():
     crear_app([])
     v = VentanaPrincipal(_estado_sin_proyecto())
     try:
-        assert v.estado_resolve.text() == "resolve desconectado"
+        assert v.estado_resolve.text().endswith("resolve desconectado")
         assert "no hay conexión" in v.detalle_resolve.text()
     finally:
         v.close()
@@ -77,7 +77,7 @@ def test_la_banda_de_aplicar_no_revienta_si_el_proyecto_se_cierra_tras_el_plan()
     try:
         estado.puente.fallar_en("project_info", "no hay ningun proyecto abierto en Resolve")
         v.p_aplicar.refrescar_plan()
-        assert v.p_aplicar.rotulo_banda.text() == "resolve desconectado"
+        assert v.p_aplicar.rotulo_banda.text().endswith("resolve desconectado")
         assert "no hay ningun proyecto abierto" in v.p_aplicar.texto_banda.text()
     finally:
         v.close()

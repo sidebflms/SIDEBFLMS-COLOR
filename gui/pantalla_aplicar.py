@@ -575,10 +575,10 @@ class PantallaAplicar(QWidget):
         lineas += [f"· {_escapar(p.mensaje)}" for p in informe.problemas[:3]]
         if len(informe.problemas) > 3:
             lineas.append(f"· … y {len(informe.problemas) - 3} más")
-        lineas.append("Se puede escribir igualmente; el aviso queda aquí.")
-        # SUITE: aviso = rombo + rotulo; el texto en crema, no en naranja.
+        lineas.append("Se puede escribir igualmente; el QC queda aquí.")
+        # SUITE: QC fallido = averia (rombo relleno + rotulo); el texto en crema, no en naranja.
         self.texto_look.setTextFormat(Qt.TextFormat.RichText)
-        self.texto_look.setText(marca_html("aviso") + "<br>".join(lineas))
+        self.texto_look.setText(marca_html("averia") + "<br>".join(lineas))
         self.texto_look.setStyleSheet("")
 
     def _marcar_todos(self, marcado: bool) -> None:
@@ -665,7 +665,7 @@ class PantallaAplicar(QWidget):
         apagado = idn.SMOKE
         if plan.error_global:
             return (
-                f'<div>{marca_html("aviso")}{_escapar(plan.error_global)}</div>'
+                f'<div>{marca_html("averia")}{_escapar(plan.error_global)}</div>'
                 f'<div style="color:{apagado}; margin-top:8px;">'
                 f"No se puede aplicar nada mientras no haya conexión. "
                 f"El plan y los números siguen aquí; no se pierde nada.</div>"
@@ -685,7 +685,7 @@ class PantallaAplicar(QWidget):
         informe = self._estado.informe_lut
         if informe is not None and not informe.ok:
             partes.append(
-                f'<div style="margin-bottom:10px;">{marca_html("aviso")}'
+                f'<div style="margin-bottom:10px;">{marca_html("averia")}'
                 f"El look que va al nodo {NODE_LOOK} no pasa el QC: "
                 f"{_escapar(informe.resumen())}</div>"
             )
@@ -716,7 +716,7 @@ class PantallaAplicar(QWidget):
                     f'<div style="margin-bottom:10px;">'
                     f'<span style="font-family:{cifra}; color:{apagado};">{linea.clip_id}</span> '
                     f"<b>{_escapar(linea.nombre)}</b><br>"
-                    f'{marca_html("aviso")}No se puede: '
+                    f'{marca_html("averia")}No se puede: '
                     f"{_escapar(linea.motivo)}</div>"
                 )
         return "".join(partes)
@@ -856,7 +856,10 @@ class PantallaAplicar(QWidget):
                 f"{_escapar(r.nombre)} → versión "
                 f'<span style="font-family:{cifra};">{_escapar(r.version)}</span><br>'
                 f"· {_escapar(r.mensaje)}"
-                + "".join(f"<br>· aviso: {_escapar(a)}" for a in r.avisos)
+                + "".join(
+                    f'<br>{marca_html("aviso")}{_escapar(a)}'
+                    for a in r.avisos
+                )
                 + "</div>"
             )
         return "".join(partes)

@@ -864,7 +864,7 @@ class PantallaReverse(QWidget):
             if len(informe.problemas) > 6:
                 lineas.append(f"· … y {len(informe.problemas) - 6} más")
             self.texto_qc.setTextFormat(Qt.TextFormat.RichText)
-            self.texto_qc.setText(marca_html("aviso") + "<br>".join(lineas))
+            self.texto_qc.setText(marca_html("averia") + "<br>".join(lineas))
             self.texto_qc.setStyleSheet("")
 
         cob = res.coverage
