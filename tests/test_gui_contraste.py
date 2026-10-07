@@ -68,7 +68,9 @@ def test_el_texto_tenue_de_la_ventana_real_pasa_aa_por_pixel():
         for indice in range(5):
             v.ir_a(indice)
             asentar()
-            for lab in v.findChildren(QLabel):
+            etiquetas = v.findChildren(QLabel)
+            assert etiquetas, f"no hay nada que comprobar: la pantalla {indice} tiene etiquetas"
+            for lab in etiquetas:
                 if not lab.isVisible() or lab.objectName() != "tenue" or not lab.text().strip():
                     continue
                 img = v.grab(QRect(lab.mapTo(v, QPoint(0, 0)), lab.size())).toImage()
