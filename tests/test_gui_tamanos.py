@@ -83,13 +83,14 @@ def test_ningun_texto_visible_baja_del_suelo_en_ninguna_pantalla():
         for indice in range(5):
             v.ir_a(indice)
             asentar()
-            for clase in (QLabel, QPushButton, QCheckBox):
-                for w in v.findChildren(clase):
-                    if not w.isVisible() or not w.text().strip():
-                        continue
-                    px = w.font().pixelSize()
-                    assert px >= idn.PX_MIN_INFORMATIVO, f"«{w.text()[:30]}» ({indice}): {px}px"
-                    revisados += 1
+            widgets = [w for clase in (QLabel, QPushButton, QCheckBox) for w in v.findChildren(clase)]
+            assert widgets, f"no hay nada que comprobar: la pantalla {indice} tiene etiquetas y botones"
+            for w in widgets:
+                if not w.isVisible() or not w.text().strip():
+                    continue
+                px = w.font().pixelSize()
+                assert px >= idn.PX_MIN_INFORMATIVO, f"«{w.text()[:30]}» ({indice}): {px}px"
+                revisados += 1
     finally:
         v.close()
     assert revisados > 50, "el test se ha quedado ciego: casi no hay textos que revisar"
