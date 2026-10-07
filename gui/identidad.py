@@ -509,10 +509,19 @@ def hoja_de_estilo() -> str:
     }}
     QPushButton#navegacion {{
         text-align: left;
-        border: none;
+        /* Borde transparente de 1 px (2 a la izquierda) y no `none`: asi el foco
+           (abajo) solo cambia su COLOR. Con `none`, el foco le anadia un borde y
+           el boton crecia 2 px al recibirlo -- un indicador de foco no puede
+           mover el layout. */
+        border: 1px solid transparent;
         border-left: 2px solid transparent;
         border-radius: 0px;
-        padding: 10px 14px;
+        /* El borde transparente de arriba (1 px arriba, abajo y a la derecha) se
+           descuenta del relleno: el boton no crece por el. El carril mide 186 px
+           fijos y «INGENIERIA INVERSA» va justa: con la letra de 12 px (bloque 3
+           de la auditoria de diseno) pide 187, asi que a la derecha se quita 1 px
+           mas. El texto va alineado a la izquierda: no se nota. */
+        padding: 9px 12px 9px 14px;
         color: {apagado};
         font-family: {rotulo};
         font-weight: 600;
@@ -523,6 +532,15 @@ def hoja_de_estilo() -> str:
         color: {BRAND_400};
         border-left: 2px solid {BRAND_500};
         background: {rgba(BRAND_50, 0.05)};
+    }}
+    /* Despues de `:checked` a proposito: con foco Y marcado, gana el foco. El
+       boton de navegacion tiene un borde transparente que el foco colorea. */
+    QPushButton#navegacion:focus {{
+        /* Misma geometria que en reposo (el `QPushButton:focus` generico pasa el
+           borde a 2 px y haria crecer el boton): aqui solo cambia el COLOR. */
+        border: 1px solid {BRAND_400};
+        border-left: 2px solid {BRAND_400};
+        padding: 9px 12px 9px 14px;
     }}
 
     /* --- entradas --- */
@@ -571,6 +589,7 @@ def hoja_de_estilo() -> str:
         font-size: {PX_MIN_INFORMATIVO}px;
         font-weight: 600;
     }}
+    QTableView:focus {{ border-color: {BRAND_400}; }}
     QTableView::item {{ padding: 4px 6px; }}
     QTableCornerButton::section {{ background: transparent; border: none; }}
 

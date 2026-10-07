@@ -102,6 +102,10 @@ class VisorCortinilla(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.SizeHorCursor)
+        self.setAccessibleName("Visor antes y después")
+        self.setAccessibleDescription(
+            "Flechas izquierda y derecha mueven la cortinilla; con Mayúsculas, paso fino."
+        )
 
     # -- datos -------------------------------------------------------------
 
@@ -147,6 +151,7 @@ class VisorCortinilla(QWidget):
             p.setPen(QPen(idn.color(idn.SMOKE)))
             p.setFont(idn.fuente_texto(13))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), self._mensaje)
+            self._trazo_de_foco(p)
             p.end()
             return
 
@@ -167,7 +172,18 @@ class VisorCortinilla(QWidget):
         p.setPen(QPen(idn.color(idn.BRAND_50, idn.BORDE_A), 1))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(marco.adjusted(0, 0, -1, -1))
+        self._trazo_de_foco(p)
         p.end()
+
+    def _trazo_de_foco(self, p: QPainter) -> None:
+        """Trazo de 2 px en `brand-400` alrededor del visor cuando tiene el foco
+        (auditoría de diseño 2026-10-06: sin él, Tab llegaba al visor sin que se
+        viera). Dentro del widget, para que no lo recorte el borde."""
+        if not self.hasFocus():
+            return
+        p.setPen(QPen(idn.color(idn.BRAND_400), 2))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(self.rect().adjusted(1, 1, -1, -1))
 
     def _rotulos(self, p: QPainter, marco: QRect, corte: int) -> None:
         f = idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO)

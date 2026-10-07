@@ -3642,3 +3642,64 @@ es avería) y se queda aquí el rótulo con rombo.
 **Qué hacer al actualizar:** un estado nuevo de error/aviso se escribe con
 `marca_html("aviso"|"averia")` y el mensaje en crema; nunca con color rojo ni con un color
 como único distintivo.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 4: foco visible, nombres accesibles y Cmd+1..4
+
+**Qué cambia:**
+- **Foco visible** (`gui/identidad.py`): `QPushButton:focus`, `QListWidget:focus` y
+  `QTableView:focus` con borde `#ff6a3d` (`BRAND_400`); el botón de navegación
+  del carril (que no tenía borde) lo recibe de un borde transparente que el foco
+  colorea. `VisorCortinilla.paintEvent` pinta un trazo de 2 px `#ff6a3d`
+  alrededor del visor cuando `hasFocus()`. Es **trazo**, nunca pastilla ni
+  relleno (la regla de `BRAND_400`).
+- **Nombres accesibles** (`setAccessibleName`): insignia de confianza («Confianza
+  alta, 90%», se actualiza con `actualizar()`), rombo de desajuste, marca de
+  límite, visor (con descripción de las flechas) y, en la tabla de clips, las
+  celdas de insignia y aviso (`Qt.AccessibleTextRole` del modelo, porque se
+  pintan a mano en un delegado y un lector de pantalla no recibía nada). Botones
+  sin texto: **hoy no hay ninguno**; un test lo vigila.
+- **Cmd+1..4** a las cuatro pantallas del modo avanzado (`QShortcut`; «Ctrl» en
+  Qt es Cmd en macOS). El atajo se anuncia en el tooltip del botón de cada
+  pantalla.
+
+**Por qué:** recorrer la app con Tab no cambiaba ni un píxel en lista, tabla ni
+visor: no se veía dónde estaba el foco.
+
+**Medido antes → después** (captura del widget sin foco y con foco; se comprueba
+`hasFocus()` para que el test no mida un 0 vacío):
+
+| | Antes | Después |
+|---|---|---|
+| tabla de clips | 0 px | **3109 px** |
+| lista de Aplicar | 0 px | **1472 px** |
+| visor | 0 px | **6722 px** |
+| botón (navegación) | 0 px | **468 px** |
+
+Mínimo de ventana sin cambios: 973 × 727. **Defecto cazado en la medición:** el
+primer intento de foco para el botón de navegación le añadía un borde donde
+había `border: none`, y el botón crecía 2 px (32→34) al recibir el foco; ahora
+tiene un borde transparente de base y el foco sólo cambia su color. El test
+exige tamaño idéntico con y sin foco.
+
+**Efecto cruzado cazado al integrar los siete bloques:** con el cuerpo a 12 px (bloque 3), el borde transparente del botón de navegación lo dejaba 2 px más ancho que el carril (186 px fijos, «Ingeniería inversa» 188). Se descuenta del relleno (`padding: 9px 12px 9px 14px`): el botón no crece por el borde, y se quita 1 px más a la derecha porque, **sólo con el bloque 3** (letra de 12 px), «Ingeniería inversa» ya pedía 187 px frente a los 186 del carril (1 px que el relleno absorbía sin recortar nada visible, pero que el test estricto ve). Test: `test_los_botones_de_navegacion_caben_en_el_carril`.
+
+**Tests nuevos:** `tests/test_gui_foco.py` (16: píxeles que cambian en tabla,
+lista, visor y botones; trazo de 2 px exacto en `#ff6a3d`; nombres accesibles;
+celdas de la tabla; ningún botón sin nombre; Ctrl+1..4 con `QTest.keyClick`;
+tooltips con el atajo).
+
+**Discrepancia anotada:** el encargo dice «como ya hace `QLineEdit:focus`»
+con `#ff6a3d`, pero `QLineEdit:focus` usa `BRAND_500` (`#e8451d`). Se ha seguido
+el hexadecimal pedido (`#ff6a3d`) y **no se ha tocado `QLineEdit:focus`** («naranjas
+actuales» están en la lista de no tocar): hoy hay dos naranjas de foco. Decisión
+de diseño pendiente de Mario.
+
+**Qué hacer al actualizar:**
+- Un widget nuevo que reciba foco (`StrongFocus`/`TabFocus`) y se pinte a mano
+  tiene que dibujar su propio trazo (como el visor); los controles estándar lo
+  heredan de la hoja de estilo. Un indicador de foco **no puede cambiar el
+  tamaño del widget**: usa borde transparente de base.
+- Un widget pintado a mano con información (insignias, marcas) necesita
+  `setAccessibleName`; en una celda de tabla, `AccessibleTextRole` en el modelo.
+- `Cmd+1..4` sólo cubre las cuatro pantallas del modo avanzado; el modo fácil
+  se activa con su botón.

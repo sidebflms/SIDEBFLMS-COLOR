@@ -18,6 +18,7 @@ es mas pequeno de lo real y la captura sale enganosa.
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -184,6 +185,16 @@ class VentanaPrincipal(QMainWindow):
             self.grupo.addButton(b, i)
             col.addWidget(b)
         self.grupo.idClicked.connect(self.ir_a)
+        # Cmd+1..4 (Ctrl+1..4 fuera de macOS: Qt mapea «Ctrl» a Cmd en Mac) van a
+        # las cuatro pantallas del modo avanzado; el atajo también va en el
+        # tooltip del botón para que se descubra.
+        self._atajos: list[QShortcut] = []
+        for i, boton in enumerate(self.grupo.buttons()):
+            secuencia = QKeySequence(f"Ctrl+{i + 1}")
+            boton.setToolTip(f"{PANTALLAS[i][1]} ({secuencia.toString(QKeySequence.SequenceFormat.NativeText)})")
+            atajo = QShortcut(secuencia, self)
+            atajo.activated.connect(lambda i=i: self.ir_a(i))
+            self._atajos.append(atajo)
         # Día 9 (continuación 13), punto 3 de la lista de Mario: hasta hoy,
         # analizar el timeline sólo pasaba una vez, al arrancar `lanzar.py`.
         # Vive en el carril —visible en las cinco pantallas— porque "qué
