@@ -65,7 +65,7 @@ from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.despliegue_presets import desplegar_preset_elegido
 from gui.imagen import a_qimage
 from gui.pantalla_comparar import VisorCortinilla
-from gui.tutor_datos import frases_de_clip
+from gui.tutor_datos import frases_de_clip, redondear_para_mostrar
 from gui.widgets import Panel, Rotulo, TextoAjustado, separador
 
 
@@ -304,7 +304,10 @@ class _PanelTutor(QWidget):
             etiqueta.setParent(None)
         self._etiquetas.clear()
         for frase in frases:
-            etiqueta = TextoAjustado(f"·  {frase.texto}")
+            texto = f"·  {frase.texto}"
+            etiqueta = TextoAjustado(redondear_para_mostrar(texto))
+            if etiqueta.text() != texto:
+                etiqueta.setToolTip(texto)
             etiqueta.setFont(idn.fuente_texto(idn.PX_CUERPO))
             self._columna.addWidget(etiqueta)
             self._etiquetas.append(etiqueta)

@@ -3458,6 +3458,174 @@ pantallas; cabecera QSS y fuente base). `ANCHURA_MINIMA`/`ALTO_MINIMO` de
 
 ---
 
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 4: foco visible, nombres accesibles y Cmd+1..4
+
+**Qué cambia:**
+- **Foco visible** (`gui/identidad.py`): `QPushButton:focus`, `QListWidget:focus` y
+  `QTableView:focus` con borde `#ff6a3d` (`BRAND_400`); el botón de navegación
+  del carril (que no tenía borde) lo recibe de un borde transparente que el foco
+  colorea. `VisorCortinilla.paintEvent` pinta un trazo de 2 px `#ff6a3d`
+  alrededor del visor cuando `hasFocus()`. Es **trazo**, nunca pastilla ni
+  relleno (la regla de `BRAND_400`).
+- **Nombres accesibles** (`setAccessibleName`): insignia de confianza («Confianza
+  alta, 90%», se actualiza con `actualizar()`), rombo de desajuste, marca de
+  límite, visor (con descripción de las flechas) y, en la tabla de clips, las
+  celdas de insignia y aviso (`Qt.AccessibleTextRole` del modelo, porque se
+  pintan a mano en un delegado y un lector de pantalla no recibía nada). Botones
+  sin texto: **hoy no hay ninguno**; un test lo vigila.
+- **Cmd+1..4** a las cuatro pantallas del modo avanzado (`QShortcut`; «Ctrl» en
+  Qt es Cmd en macOS). El atajo se anuncia en el tooltip del botón de cada
+  pantalla.
+
+**Por qué:** recorrer la app con Tab no cambiaba ni un píxel en lista, tabla ni
+visor: no se veía dónde estaba el foco.
+
+**Medido antes → después** (captura del widget sin foco y con foco; se comprueba
+`hasFocus()` para que el test no mida un 0 vacío):
+
+| | Antes | Después |
+|---|---|---|
+| tabla de clips | 0 px | **3109 px** |
+| lista de Aplicar | 0 px | **1472 px** |
+| visor | 0 px | **6722 px** |
+| botón (navegación) | 0 px | **468 px** |
+
+Mínimo de ventana sin cambios: 973 × 727. **Defecto cazado en la medición:** el
+primer intento de foco para el botón de navegación le añadía un borde donde
+había `border: none`, y el botón crecía 2 px (32→34) al recibir el foco; ahora
+tiene un borde transparente de base y el foco sólo cambia su color. El test
+exige tamaño idéntico con y sin foco.
+
+**Efecto cruzado cazado al integrar los siete bloques:** con el cuerpo a 12 px (bloque 3), el borde transparente del botón de navegación lo dejaba 2 px más ancho que el carril (186 px fijos, «Ingeniería inversa» 188). Se descuenta del relleno (`padding: 9px 12px 9px 14px`): el botón no crece por el borde, y se quita 1 px más a la derecha porque, **sólo con el bloque 3** (letra de 12 px), «Ingeniería inversa» ya pedía 187 px frente a los 186 del carril (1 px que el relleno absorbía sin recortar nada visible, pero que el test estricto ve). Test: `test_los_botones_de_navegacion_caben_en_el_carril`.
+
+**Tests nuevos:** `tests/test_gui_foco.py` (16: píxeles que cambian en tabla,
+lista, visor y botones; trazo de 2 px exacto en `#ff6a3d`; nombres accesibles;
+celdas de la tabla; ningún botón sin nombre; Ctrl+1..4 con `QTest.keyClick`;
+tooltips con el atajo).
+
+**Discrepancia anotada:** el encargo dice «como ya hace `QLineEdit:focus`»
+con `#ff6a3d`, pero `QLineEdit:focus` usa `BRAND_500` (`#e8451d`). Se ha seguido
+el hexadecimal pedido (`#ff6a3d`) y **no se ha tocado `QLineEdit:focus`** («naranjas
+actuales» están en la lista de no tocar): hoy hay dos naranjas de foco. Decisión
+de diseño pendiente de Mario.
+
+**Qué hacer al actualizar:**
+- Un widget nuevo que reciba foco (`StrongFocus`/`TabFocus`) y se pinte a mano
+  tiene que dibujar su propio trazo (como el visor); los controles estándar lo
+  heredan de la hoja de estilo. Un indicador de foco **no puede cambiar el
+  tamaño del widget**: usa borde transparente de base.
+- Un widget pintado a mano con información (insignias, marcas) necesita
+  `setAccessibleName`; en una celda de tabla, `AccessibleTextRole` en el modelo.
+- `Cmd+1..4` sólo cubre las cuatro pantallas del modo avanzado; el modo fácil
+  se activa con su botón.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 5: estados que no dependen del color
+
+**Qué cambia** (`gui/pantalla_aplicar.py`, `gui/ventana.py`, constantes en
+`gui/identidad.py`):
+- **Avería → «AVERÍA ·» delante; aviso → «AVISO ·» delante**, en negrita y
+  `brand-400` (cero rojo). Averías: error global («No hay conexión…»), «el look
+  no pasa el QC» del plan, «NO SE PUEDE» de un clip y los clips sin escribir del
+  resultado. Avisos: las líneas «aviso» del plan y del resultado, y el QC del
+  panel del look (que se puede escribir igualmente).
+- **La información normal, en crema** (`brand-50`): «Se crea la versión
+  SIDEB COLOR en N clip(s)…» iba en naranja, igual que las averías.
+- **«resolve conectado» / «resolve desconectado»** llevan un círculo lleno /
+  vacío delante (`idn.MARCA_CONECTADO` ●, `idn.MARCA_DESCONECTADO` ○), en el pie
+  de la ventana y en la banda de Aplicar: se distinguen por la forma, no por la
+  palabra ni por un color de semáforo.
+
+**Por qué:** averías, avisos e información normal compartían color, y conectado /
+desconectado sólo se distinguían leyendo la palabra.
+
+**Medido antes → después:** el plan de Aplicar tenía **0** marcas textuales en
+sus líneas de avería/aviso (todo era el mismo naranja, incluido lo normal); ahora
+cada una lleva su prefijo y lo normal ya no es naranja. Mínimo de ventana sin
+cambios (973 × 727).
+
+**No cambiado, a propósito:** el nombre de un clip de confianza baja en la lista
+de Aplicar sigue en naranja (la confianza se distingue por forma en la tabla y
+en la insignia; prefijar 200 filas de la lista no aporta). El rombo
+(`MarcaDesajuste`) no se ha reutilizado: se usó el rótulo, que es lo que el
+encargo permitía y no introduce una forma nueva.
+
+**Tests nuevos:** `tests/test_gui_estados_marcados.py` (6). Los dos tests de
+`test_gui_sin_proyecto_abierto.py` comparan ahora con `endswith(...)`.
+
+**Qué hacer al actualizar:** una línea de error o de aviso nueva en Aplicar
+tiene que llevar `_marca(idn.PREFIJO_AVERIA | idn.PREFIJO_AVISO)`; la
+información normal, `idn.BRAND_50`. Si Mario prefiere el rombo como marca, es un
+cambio de `_marca()` y de las constantes.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 6: «Reanalizar timeline» a 32 px y borde fuerte a 3:1
+
+**Qué cambia:**
+- `btn_reanalizar` («Reanalizar timeline», `gui/ventana.py`) tiene un alto mínimo
+  de **32 px** (`ALTO_MINIMO_BOTON`). Medía 29: mandaba el `sizeHint` de la letra
+  de 11 px.
+- `BORDE_FUERTE_A` **0,22 → 0,40** (`gui/identidad.py`). Es el borde de botones,
+  campos de texto, combos y casillas. Sigue siendo `brand-50` bajado de opacidad.
+
+**Por qué:** el botón era más pequeño que lo cómodo de pulsar, y el borde de los
+controles daba 1,84-1,93:1 sobre las superficies, por debajo del 3:1 de WCAG
+1.4.11 (componentes de interfaz).
+
+**Medido antes → después:**
+
+| | Antes | Después |
+|---|---|---|
+| alto de «Reanalizar timeline» | 29 px | **32 px** |
+| contraste del borde (calculado, 4 superficies) | 1,84-1,93:1 | **3,55-3,63:1** |
+| píxel del borde de «Todos» | (71, 67, 64) | **(112, 108, 105)** sobre (19, 17, 16) |
+
+**¿Rompe el aspecto?** Se han comparado las capturas de Aplicar a 1024 px antes
+y después: ningún cambio de layout (el borde sigue siendo de 1 px; sólo es más
+visible) y el botón del carril gana 3 px de alto. Mínimo de ventana sin cambios
+(973 × 727: el carril tiene altura de sobra, como ya decía el comentario del
+botón). El juicio de «aspecto» es subjetivo: si Mario lo ve demasiado marcado,
+se baja `BORDE_FUERTE_A` (a 0,32 ya da ≈2,8:1, por debajo de 3:1).
+
+**Tests nuevos:** `tests/test_gui_borde_y_boton.py` (calculado ≥3:1 en las 4
+superficies, medido por píxel en un botón real, y alto ≥32).
+
+**Qué hacer al actualizar:** un control nuevo que dibuje su propio borde tiene
+que usar `idn.BORDE_FUERTE_A`, no un alfa suelto; y un botón de acción
+frecuente, `ALTO_MINIMO_BOTON`.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 7: copy (tildes y cifras del tutor)
+
+**Qué cambia:**
+- **Tildes** en `core/colormgmt/deteccion.py` (`_pregunta_grupo`): «No he podido
+  reconocer la **cámara** de estos N clips. ¿De **qué cámara** son…?» (decía
+  «camara» y «¿De que camara…»).
+- **Cifras de «El tutor»:** salían con 17 cifras (`0.13566423773765565`, el
+  `repr` de un `float`). Ahora se **muestran a 4 decimales**
+  (`gui/tutor_datos.py::redondear_para_mostrar`, `DECIMALES_MOSTRADOS = 4`) y el
+  texto completo va en el **tooltip** del panel (en «Antes / después»; en modo
+  fácil, el tooltip de cada frase). **Sólo se redondea al mostrar:** `Frase` y lo
+  que mide `core.tutor` no se tocan (un test lo vigila).
+
+**Por qué:** una cifra de 17 decimales no se lee, y el copy sin tildes
+se ve descuidado.
+
+**Medido antes → después:** cifras con ≥5 decimales visibles en el panel del
+tutor de los clips de la demo: **7 clips con cifras de 17 cifras → 0** (4
+decimales visibles; completas en el tooltip).
+
+**No tocado, a propósito:** el encargo cita sólo `deteccion.py:208`. En el mismo
+fichero hay más texto sin tildes (`razon=` de las detecciones: «camara», «mas»,
+«que no cuadra con esa curva»…). Si se muestra al usuario, conviene un barrido
+de ortografía aparte; no se ha hecho aquí para no ampliar el alcance.
+
+**Tests nuevos:** `tests/test_gui_copy_y_cifras_del_tutor.py` (tildes; el
+redondeo: floats largos, negativos, decimales justos, versiones tipo `21.1.0.17`
+sin tocar; el panel real sin cifras largas y con el valor completo en el tooltip;
+el núcleo sin redondear).
+
+**Qué hacer al actualizar:** un texto nuevo del tutor que lleve números se
+redondea solo si pasa por `redondear_para_mostrar`; un panel nuevo que pinte
+`Frase.valor_medido` debe hacer lo mismo y poner el original en el tooltip.
+
 ## SUITE 1/3 — tokens, tipografía, radios y cristal (2026-10-07)
 
 **Contexto.** Mario decidió (2026-10-06) que todas sus apps parezcan una suite, con
@@ -3642,137 +3810,3 @@ es avería) y se queda aquí el rótulo con rombo.
 **Qué hacer al actualizar:** un estado nuevo de error/aviso se escribe con
 `marca_html("aviso"|"averia")` y el mensaje en crema; nunca con color rojo ni con un color
 como único distintivo.
-
-## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 4: foco visible, nombres accesibles y Cmd+1..4
-
-**Qué cambia:**
-- **Foco visible** (`gui/identidad.py`): `QPushButton:focus`, `QListWidget:focus` y
-  `QTableView:focus` con borde `#ff6a3d` (`BRAND_400`); el botón de navegación
-  del carril (que no tenía borde) lo recibe de un borde transparente que el foco
-  colorea. `VisorCortinilla.paintEvent` pinta un trazo de 2 px `#ff6a3d`
-  alrededor del visor cuando `hasFocus()`. Es **trazo**, nunca pastilla ni
-  relleno (la regla de `BRAND_400`).
-- **Nombres accesibles** (`setAccessibleName`): insignia de confianza («Confianza
-  alta, 90%», se actualiza con `actualizar()`), rombo de desajuste, marca de
-  límite, visor (con descripción de las flechas) y, en la tabla de clips, las
-  celdas de insignia y aviso (`Qt.AccessibleTextRole` del modelo, porque se
-  pintan a mano en un delegado y un lector de pantalla no recibía nada). Botones
-  sin texto: **hoy no hay ninguno**; un test lo vigila.
-- **Cmd+1..4** a las cuatro pantallas del modo avanzado (`QShortcut`; «Ctrl» en
-  Qt es Cmd en macOS). El atajo se anuncia en el tooltip del botón de cada
-  pantalla.
-
-**Por qué:** recorrer la app con Tab no cambiaba ni un píxel en lista, tabla ni
-visor: no se veía dónde estaba el foco.
-
-**Medido antes → después** (captura del widget sin foco y con foco; se comprueba
-`hasFocus()` para que el test no mida un 0 vacío):
-
-| | Antes | Después |
-|---|---|---|
-| tabla de clips | 0 px | **3109 px** |
-| lista de Aplicar | 0 px | **1472 px** |
-| visor | 0 px | **6722 px** |
-| botón (navegación) | 0 px | **468 px** |
-
-Mínimo de ventana sin cambios: 973 × 727. **Defecto cazado en la medición:** el
-primer intento de foco para el botón de navegación le añadía un borde donde
-había `border: none`, y el botón crecía 2 px (32→34) al recibir el foco; ahora
-tiene un borde transparente de base y el foco sólo cambia su color. El test
-exige tamaño idéntico con y sin foco.
-
-**Efecto cruzado cazado al integrar los siete bloques:** con el cuerpo a 12 px (bloque 3), el borde transparente del botón de navegación lo dejaba 2 px más ancho que el carril (186 px fijos, «Ingeniería inversa» 188). Se descuenta del relleno (`padding: 9px 12px 9px 14px`): el botón no crece por el borde, y se quita 1 px más a la derecha porque, **sólo con el bloque 3** (letra de 12 px), «Ingeniería inversa» ya pedía 187 px frente a los 186 del carril (1 px que el relleno absorbía sin recortar nada visible, pero que el test estricto ve). Test: `test_los_botones_de_navegacion_caben_en_el_carril`.
-
-**Tests nuevos:** `tests/test_gui_foco.py` (16: píxeles que cambian en tabla,
-lista, visor y botones; trazo de 2 px exacto en `#ff6a3d`; nombres accesibles;
-celdas de la tabla; ningún botón sin nombre; Ctrl+1..4 con `QTest.keyClick`;
-tooltips con el atajo).
-
-**Discrepancia anotada:** el encargo dice «como ya hace `QLineEdit:focus`»
-con `#ff6a3d`, pero `QLineEdit:focus` usa `BRAND_500` (`#e8451d`). Se ha seguido
-el hexadecimal pedido (`#ff6a3d`) y **no se ha tocado `QLineEdit:focus`** («naranjas
-actuales» están en la lista de no tocar): hoy hay dos naranjas de foco. Decisión
-de diseño pendiente de Mario.
-
-**Qué hacer al actualizar:**
-- Un widget nuevo que reciba foco (`StrongFocus`/`TabFocus`) y se pinte a mano
-  tiene que dibujar su propio trazo (como el visor); los controles estándar lo
-  heredan de la hoja de estilo. Un indicador de foco **no puede cambiar el
-  tamaño del widget**: usa borde transparente de base.
-- Un widget pintado a mano con información (insignias, marcas) necesita
-  `setAccessibleName`; en una celda de tabla, `AccessibleTextRole` en el modelo.
-- `Cmd+1..4` sólo cubre las cuatro pantallas del modo avanzado; el modo fácil
-  se activa con su botón.
-
-## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 5: estados que no dependen del color
-
-**Qué cambia** (`gui/pantalla_aplicar.py`, `gui/ventana.py`, constantes en
-`gui/identidad.py`):
-- **Avería → «AVERÍA ·» delante; aviso → «AVISO ·» delante**, en negrita y
-  `brand-400` (cero rojo). Averías: error global («No hay conexión…»), «el look
-  no pasa el QC» del plan, «NO SE PUEDE» de un clip y los clips sin escribir del
-  resultado. Avisos: las líneas «aviso» del plan y del resultado, y el QC del
-  panel del look (que se puede escribir igualmente).
-- **La información normal, en crema** (`brand-50`): «Se crea la versión
-  SIDEB COLOR en N clip(s)…» iba en naranja, igual que las averías.
-- **«resolve conectado» / «resolve desconectado»** llevan un círculo lleno /
-  vacío delante (`idn.MARCA_CONECTADO` ●, `idn.MARCA_DESCONECTADO` ○), en el pie
-  de la ventana y en la banda de Aplicar: se distinguen por la forma, no por la
-  palabra ni por un color de semáforo.
-
-**Por qué:** averías, avisos e información normal compartían color, y conectado /
-desconectado sólo se distinguían leyendo la palabra.
-
-**Medido antes → después:** el plan de Aplicar tenía **0** marcas textuales en
-sus líneas de avería/aviso (todo era el mismo naranja, incluido lo normal); ahora
-cada una lleva su prefijo y lo normal ya no es naranja. Mínimo de ventana sin
-cambios (973 × 727).
-
-**No cambiado, a propósito:** el nombre de un clip de confianza baja en la lista
-de Aplicar sigue en naranja (la confianza se distingue por forma en la tabla y
-en la insignia; prefijar 200 filas de la lista no aporta). El rombo
-(`MarcaDesajuste`) no se ha reutilizado: se usó el rótulo, que es lo que el
-encargo permitía y no introduce una forma nueva.
-
-**Tests nuevos:** `tests/test_gui_estados_marcados.py` (6). Los dos tests de
-`test_gui_sin_proyecto_abierto.py` comparan ahora con `endswith(...)`.
-
-**Qué hacer al actualizar:** una línea de error o de aviso nueva en Aplicar
-tiene que llevar `_marca(idn.PREFIJO_AVERIA | idn.PREFIJO_AVISO)`; la
-información normal, `idn.BRAND_50`. Si Mario prefiere el rombo como marca, es un
-cambio de `_marca()` y de las constantes.
-
-## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 6: «Reanalizar timeline» a 32 px y borde fuerte a 3:1
-
-**Qué cambia:**
-- `btn_reanalizar` («Reanalizar timeline», `gui/ventana.py`) tiene un alto mínimo
-  de **32 px** (`ALTO_MINIMO_BOTON`). Medía 29: mandaba el `sizeHint` de la letra
-  de 11 px.
-- `BORDE_FUERTE_A` **0,22 → 0,40** (`gui/identidad.py`). Es el borde de botones,
-  campos de texto, combos y casillas. Sigue siendo `brand-50` bajado de opacidad.
-
-**Por qué:** el botón era más pequeño que lo cómodo de pulsar, y el borde de los
-controles daba 1,84-1,93:1 sobre las superficies, por debajo del 3:1 de WCAG
-1.4.11 (componentes de interfaz).
-
-**Medido antes → después:**
-
-| | Antes | Después |
-|---|---|---|
-| alto de «Reanalizar timeline» | 29 px | **32 px** |
-| contraste del borde (calculado, 4 superficies) | 1,84-1,93:1 | **3,55-3,63:1** |
-| píxel del borde de «Todos» | (71, 67, 64) | **(112, 108, 105)** sobre (19, 17, 16) |
-
-**¿Rompe el aspecto?** Se han comparado las capturas de Aplicar a 1024 px antes
-y después: ningún cambio de layout (el borde sigue siendo de 1 px; sólo es más
-visible) y el botón del carril gana 3 px de alto. Mínimo de ventana sin cambios
-(973 × 727: el carril tiene altura de sobra, como ya decía el comentario del
-botón). El juicio de «aspecto» es subjetivo: si Mario lo ve demasiado marcado,
-se baja `BORDE_FUERTE_A` (a 0,32 ya da ≈2,8:1, por debajo de 3:1).
-
-**Tests nuevos:** `tests/test_gui_borde_y_boton.py` (calculado ≥3:1 en las 4
-superficies, medido por píxel en un botón real, y alto ≥32).
-
-**Qué hacer al actualizar:** un control nuevo que dibuje su propio borde tiene
-que usar `idn.BORDE_FUERTE_A`, no un alfa suelto; y un botón de acción
-frecuente, `ALTO_MINIMO_BOTON`.
