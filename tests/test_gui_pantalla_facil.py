@@ -19,7 +19,7 @@ from gui import ventana as ventana_mod  # noqa: E402
 from gui.asistente_facil import ID_PASOS, ejecutar_ordenar  # noqa: E402
 from gui.pantalla_facil import PantallaFacil  # noqa: E402
 from gui.ventana import CLAVE_MODO_FACIL, VentanaPrincipal  # noqa: E402
-from tests.test_gui_apoyo import app_qt, asentar  # noqa: E402
+from tests.test_gui_apoyo import ANCHURA_MINIMA, app_qt, asentar  # noqa: E402
 
 pytestmark = pytest.mark.gui
 
@@ -188,7 +188,7 @@ def test_panel_del_tutor_nunca_empuja_los_botones_fuera_de_la_ventana(monkeypatc
 
     p = PantallaFacil(dd.estado_demo())
     p.show()
-    minimo_ancho = p.anchura_minima() if hasattr(p, "anchura_minima") else 973
+    minimo_ancho = p.anchura_minima() if hasattr(p, "anchura_minima") else ANCHURA_MINIMA
     for _ in range(3):
         p.siguiente()
     assert p.paso_actual() == "look"

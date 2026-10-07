@@ -52,7 +52,7 @@ se pintan de rojo: se distinguen por forma y por texto.
 ```
 Inter                      texto
 Chakra Petch 500/600/700   titulares y rotulos EN MAYUSCULAS,
-                           tracking 0.15-0.18em, 10-11px
+                           tracking 0.15-0.18em, 12px (eran 10-11px; subido en la auditoría de diseño 2026-10-06, ver BITACORA.md)
 JetBrains Mono             cifras, codigos, IDs
 ```
 

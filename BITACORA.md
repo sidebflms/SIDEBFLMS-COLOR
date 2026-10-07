@@ -3397,3 +3397,61 @@ rojos) y pasan con él.
   `TEXTO_TENUE_A`; si pinta con otro alfa a mano, `test_gui_contraste` no lo ve.
 - Los controles deshabilitados (`QPushButton:disabled`) también usan el tono
   tenue: ahora se ven más; WCAG no exige contraste a los deshabilitados.
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 3: tamaños de letra (suelo de 12 px, cuerpo a 14)
+
+**Qué cambia:**
+- **Suelo de 12 px para todo texto informativo.** Rótulos 10→12 (el de acento
+  11→12, se distingue por el peso), cabecera de las tablas 10→12, insignia de
+  confianza 10→12, pie y notas 10-11→12, cifras pequeñas 11→12. El tracking sigue
+  siendo 0,16 em **absoluto** y se recalcula solo (`fuente_rotulo(px)`).
+- **Cuerpo 13→14 en tablas y párrafos:** fuente base de la app, celdas de la
+  tabla de clips (nombre y cifras), párrafos del modo fácil y `Cifra()` por
+  defecto. Las dos cifras sueltas de ingeniería inversa que iban a 13 también.
+- **Un solo sitio decide el número:** `idn.PX_MIN_INFORMATIVO = 12` e
+  `idn.PX_CUERPO = 14` (`gui/identidad.py`); todos los `fuente_*(10|11)`,
+  `Rotulo(px=…)` y `Cifra(px=…)` de `gui/` las usan. `anchos_fijos()` de
+  `pantalla_clips.py` mide ahora con esas mismas constantes (cifra a 14,
+  cabecera a 12), así que se recalcula solo.
+- **Excepción documentada:** el «!» de los dos rombos (10 px en `MarcaDesajuste`,
+  9 px en el delegado de aviso de la tabla) es un glifo, no texto informativo, y
+  el rombo no se toca.
+
+**Por qué:** la auditoría contó 44 textos a 10 px y 44 a 11 px; por debajo de
+12 px no se lee con comodidad en una pantalla de trabajo.
+
+**Medido antes → después** (offscreen, sin tipografías de marca; textos visibles
+de las 5 pantallas + columnas de cabecera):
+
+| | Antes | Después |
+|---|---|---|
+| textos por debajo de 12 px | **159 de 210** (85 a 10 px, 74 a 11 px) | **0** (178 a 12 px, 18 a 14 px) |
+| mínimo real de ventana | **973 × 727** | **1016 × 742** (+43 × +15) |
+
+(Mi método cuenta widgets y columnas de cabecera; la auditoría contó 88 de 196
+textos con otro método. Antes → después, en el mismo método: 0 informativos.)
+
+**¿Cabe en 1280×800?** El ancho sí, con 264 px de sobra. El alto **justo**: 742 px
+de contenido + barra de menús (≈24) + barra de título (≈28) = ≈794 de 800, sólo
+con el Dock oculto. Con el Dock a la vista no cabe sin recortar. Si 1280×800 es
+un objetivo real, hay que decidir qué ceder (por ejemplo, la tabla de ingeniería
+inversa, que fija el alto, o el cuerpo a 13 en las tablas).
+
+**Choca con `docs/IDENTIDAD.md`**, que fijaba los rótulos en «10-11 px»: se ha
+actualizado esa línea y `test_los_rotulos_van_en_mayusculas…`. Es una decisión de
+la auditoría, no del código: si Mario quiere mantener 10-11 px en los rótulos de
+marca, se revierte `PX_MIN_INFORMATIVO` para los rótulos.
+
+**Tests:** `tests/test_gui_tamanos.py` (AST sobre todo `gui/`: ningún literal
+por debajo del suelo salvo los dos glifos; todos los textos visibles de las 5
+pantallas; cabecera QSS y fuente base). `ANCHURA_MINIMA`/`ALTO_MINIMO` de
+`tests/test_gui_apoyo.py` pasan a 1016/742 con su explicación.
+
+**Qué hacer al actualizar:**
+- Un tamaño nuevo se pide con `idn.PX_MIN_INFORMATIVO`/`idn.PX_CUERPO`, no con un
+  número: `test_gui_tamanos` falla si aparece un literal <12 px.
+- **Este Mac tiene Chakra Petch instalada:** aquí los tests de mínimo se saltan y
+  las medidas salen distintas. Las de esta entrada están hechas simulando que no
+  está instalada, como CI.
+- Las capturas (`capturas/`) y la documentación que cita 973×727 hay que
+  regenerarlas/actualizarlas al fusionar (no se han regenerado en este PR para no
+  mezclar binarios entre los siete bloques).

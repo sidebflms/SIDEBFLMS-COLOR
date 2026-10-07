@@ -76,8 +76,16 @@ pytestmark = pytest.mark.gui
 #: rotulo. Ademas el alto se mide ahora a la anchura minima y no en la ventana
 #: de 1440, porque a 973 px el texto parte en mas lineas: medido como antes
 #: saldria 713, y seria un minimo que la pantalla no cumple.
-ANCHURA_MINIMA = 973
-ALTO_MINIMO = 727
+#:
+#: **[auditoría de diseño 2026-10-06, bloque 3] Sube de 973 × 727 a 1016 × 742.**
+#: No se ha elegido: es lo que contesta el contenido al subir el suelo de todo
+#: texto informativo de 10-11 px a 12 y el cuerpo (tablas y párrafos) de 13 a
+#: 14 (`idn.PX_MIN_INFORMATIVO`, `idn.PX_CUERPO`). El ancho sube 43 px sobre todo
+#: por las columnas de cifras de la tabla de clips (ahora a 14 px) y las
+#: cabeceras a 12; el alto sube 15 px. 1016 cabe en 1280 con holgura; 742 de alto
+#: cabe en 1280 × 800 sólo justo (sin Dock): ver BITACORA.md.
+ANCHURA_MINIMA = 1016
+ALTO_MINIMO = 742
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +182,7 @@ def tipografias_de_marca_instaladas() -> list[str]:
 
     Importa para los tests que fijan un numero de pixeles: si Mario instala
     Inter, Chakra Petch y JetBrains Mono, las metricas cambian y la anchura
-    minima de la ventana deja de ser 973. No es un fallo, es otra tipografia.
+    minima de la ventana deja de ser la de arriba (`ANCHURA_MINIMA`). No es un fallo, es otra tipografia.
     """
     app_qt()  # sin QApplication, QFontDatabase aborta el proceso entero
     familias = set(QFontDatabase.families())
