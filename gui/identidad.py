@@ -117,7 +117,12 @@ def color(hex_color: str, alpha: float = 1.0) -> QColor:
 #: texto apagado ni de borde, y un gris inventado (#71717b y compania) esta
 #: reservado al inventario.
 TEXTO_APAGADO_A = 0.62
-TEXTO_TENUE_A = 0.40
+#: 0,40 -> 0,56 (auditoría de diseño 2026-10-06): a 0,40 el texto tenue daba
+#: 3,55-3,63:1 sobre las cuatro superficies, por debajo del 4,5:1 de WCAG AA
+#: para texto normal. A 0,56 da 5,95-6,06:1. Sigue siendo `brand-50` bajado de
+#: opacidad, no un gris nuevo. OJO: queda cerca de 0,62 (apagado); la jerarquía
+#: entre los dos ya se ve poco y la distingue sobre todo el uso, no el tono.
+TEXTO_TENUE_A = 0.56
 BORDE_A = 0.12
 BORDE_FUERTE_A = 0.22
 
