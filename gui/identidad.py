@@ -129,7 +129,10 @@ TEXTO_APAGADO_A = 0.62  # OBSOLETO en la suite: ver TEXTO_APAGADO (solido)
 #: entre los dos ya se ve poco y la distingue sobre todo el uso, no el tono.
 TEXTO_TENUE_A = 0.56
 BORDE_A = 0.12
-BORDE_FUERTE_A = 0.22
+#: 0,22 -> 0,40 (auditoria de diseno 2026-10-06): el borde de botones, campos y
+#: casillas daba 1,84-1,93:1 sobre las superficies; el minimo de WCAG 1.4.11 para
+#: componentes de interfaz es 3:1. A 0,40 da 3,55-3,63:1.
+BORDE_FUERTE_A = 0.40
 
 #: SUITE: texto secundario SOLIDO (--sb-smoke), nunca por opacidad. Sobre
 #: #262626 da 4,7:1; sobre #1e1e1e 5,1:1. La suite NO tiene un tercer escalon
@@ -137,9 +140,11 @@ BORDE_FUERTE_A = 0.22
 #: tamano y el peso. Se propone `--sb-ink-faint` (ver INFORME).
 TEXTO_APAGADO = SMOKE
 TEXTO_TENUE = SMOKE
-#: Borde de campo/boton: smoke al 55 % sobre #1e1e1e = 3,0:1 (el 1,86:1 de la
-#: auditoria). Es un borde, no un texto: aqui la opacidad si vale.
-BORDE_CONTROL_A = 0.55
+#: Borde de campo/boton: smoke al 72 % = >= 3,0:1 sobre cada superficie (WCAG 1.4.11, auditoria
+#: de diseno bloque 6). OJO: la suite dice «smoke al 55 % = 3,0:1», pero CALCULADO da
+#: 2,2-2,6:1 (y 2,5:1 medido en el pixel de un boton real); para no perder el 3:1 de la
+#: auditoria se sube a 0,72 (3,0-3,7:1). Es un borde, no un texto: aqui la opacidad si vale.
+BORDE_CONTROL_A = 0.72
 #: Radios de la suite (la web): tarjeta 16, control 8, pildora.
 RADIO_TARJETA = 16
 RADIO_CONTROL = 8

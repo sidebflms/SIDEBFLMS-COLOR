@@ -63,6 +63,9 @@ PANTALLAS = (
 #: Ancho del carril de navegacion. Fijo: es un carril, no un panel.
 ANCHO_CARRIL = 186
 
+#: Alto mínimo de un botón pulsable (px). El de «Reanalizar timeline» lo exige.
+ALTO_MINIMO_BOTON = 32
+
 
 #: Titulos de pantalla en Akira: el archivo no tiene tildes, asi que cada
 #: titulo se reformula en ASCII (la navegacion del carril conserva el texto
@@ -207,6 +210,8 @@ class VentanaPrincipal(QMainWindow):
         self.btn_reanalizar = QPushButton("Reanalizar timeline")
         self.btn_reanalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reanalizar.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
+        # Minimo 32 px de alto (auditoria de diseno 2026-10-06): por debajo no es comodo pulsar.
+        self.btn_reanalizar.setMinimumHeight(ALTO_MINIMO_BOTON)
         self.btn_reanalizar.clicked.connect(self._reanalizar_timeline)
         fila_btn = QHBoxLayout()
         fila_btn.setContentsMargins(16, 0, 16, 0)
