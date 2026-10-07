@@ -121,9 +121,9 @@ class ModeloClips(QAbstractTableModel):
                 return idn.fuente_texto(idn.PX_CUERPO)
         if rol == Qt.ItemDataRole.ForegroundRole:
             if col == COL_INDICE:
-                return idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)
+                return idn.color(idn.SMOKE)
             if col == COL_ANTES:
-                return idn.color(idn.BRAND_50, idn.TEXTO_APAGADO_A)
+                return idn.color(idn.SMOKE)
             if col == COL_DESPUES:
                 return idn.color(idn.CYAN_GLOW)  # el dato secundario de la fila
         if rol == Qt.ItemDataRole.TextAlignmentRole and col in (COL_INDICE, COL_ANTES, COL_DESPUES):
@@ -155,7 +155,7 @@ class DelegadoConfianza(QStyledItemDelegate):
         pintar_insignia_confianza(painter, caja, forma, conf.score)
 
     def sizeHint(self, option, index) -> QSize:  # noqa: N802
-        return QSize(INSIGNIA_ANCHO + 16, INSIGNIA_ALTO + 10)
+        return QSize(INSIGNIA_ANCHO + 10, INSIGNIA_ALTO + 10)
 
 
 class DelegadoAviso(QStyledItemDelegate):
@@ -359,7 +359,7 @@ class PantallaClips(QWidget):
 
         self.division = QSplitter(Qt.Orientation.Horizontal)
         self.division.setChildrenCollapsible(False)
-        self.division.setHandleWidth(12)
+        self.division.setHandleWidth(8)  # suite: hueco de 8 px entre paneles de cristal
 
         self.tabla = QTableView()
         self.modelo = ModeloClips(estado.clips)
@@ -402,7 +402,10 @@ class PantallaClips(QWidget):
         cab.setSectionResizeMode(COL_NOMBRE, QHeaderView.ResizeMode.Stretch)
         cab.setHighlightSections(False)
         self.tabla.setMinimumWidth(self.ancho_minimo_util())
-        self.division.addWidget(self.tabla)
+        # Cristal alrededor de la tabla (1 px de margen: no cambia el calculo de anchos).
+        self._marco_tabla = Panel(margenes=(1, 1, 1, 1), espaciado=0)
+        self._marco_tabla.caja.addWidget(self.tabla)
+        self.division.addWidget(self._marco_tabla)
 
         contenedor = QScrollArea()
         contenedor.setWidgetResizable(True)
@@ -430,7 +433,7 @@ class PantallaClips(QWidget):
         # salia con los rotulos recortados. Se fija aqui, con la tabla y la
         # ficha como testigos, y ya no se mueve.
         self.setMinimumWidth(
-            self.tabla.minimumWidth() + contenedor.minimumWidth() + self.division.handleWidth()
+            self.tabla.minimumWidth() + 2 + contenedor.minimumWidth() + self.division.handleWidth()
         )
 
         self.tabla.selectionModel().selectionChanged.connect(self._cambio)
@@ -559,7 +562,7 @@ class PantallaClips(QWidget):
             ) + self.MARGEN_SECCION_PX
         # Estas dos no llevan texto: las pinta un delegado y su `sizeHint` manda.
         for columna, pedido in (
-            (COL_CONFIANZA, INSIGNIA_ANCHO + 16),
+            (COL_CONFIANZA, INSIGNIA_ANCHO + 10),
             (COL_AVISO, DelegadoAviso.ANCHO),
         ):
             anchos[columna] = max(

@@ -182,7 +182,7 @@ class VistaMapa(QWidget):
         p = QPainter(self)
         p.fillRect(self.rect(), QBrush(idn.color(idn.HONDO)))
         if self._img is None or self._img.isNull():
-            p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)))
+            p.setPen(QPen(idn.color(idn.SMOKE)))
             p.setFont(idn.fuente_texto(12))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), self._vacio)
             p.end()
@@ -392,7 +392,7 @@ class PantallaReverse(QWidget):
 
         self.division = QSplitter(Qt.Orientation.Horizontal)
         self.division.setChildrenCollapsible(False)
-        self.division.setHandleWidth(12)
+        self.division.setHandleWidth(8)
         self.division.addWidget(self._columna_capas())
         self.division.addWidget(self._columna_cobertura())
         self.division.setStretchFactor(0, 2)
@@ -476,7 +476,7 @@ class PantallaReverse(QWidget):
         col.setSpacing(12)
 
         # --- par original / coloreado ---
-        panel_par = Panel(margenes=(12, 12, 12, 12))
+        panel_par = Panel(neutro=True, margenes=(12, 12, 12, 12))
         panel_par.caja.addWidget(Rotulo("el par", acento=True))
         fila = QHBoxLayout()
         fila.setSpacing(8)
@@ -660,7 +660,7 @@ class PantallaReverse(QWidget):
         panel_diag.caja.addWidget(self.texto_alcance)
         col.addWidget(panel_diag, 0)
 
-        panel_cob = Panel(margenes=(12, 12, 12, 12))
+        panel_cob = Panel(neutro=True, margenes=(12, 12, 12, 12))
         cab = QHBoxLayout()
         cab.addWidget(Rotulo("mapa de cobertura", acento=True), 1)
         # [dia 4] Aqui queda solo el recuento de celdas, pequeno. El porcentaje

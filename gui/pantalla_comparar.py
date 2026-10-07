@@ -144,7 +144,7 @@ class VisorCortinilla(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         p.fillRect(self.rect(), QBrush(idn.color(idn.HONDO)))
         if self._antes is None or self._despues is None:
-            p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_APAGADO_A)))
+            p.setPen(QPen(idn.color(idn.SMOKE)))
             p.setFont(idn.fuente_texto(13))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), self._mensaje)
             p.end()
@@ -185,20 +185,25 @@ class VisorCortinilla(QWidget):
                     continue
                 caja = QRect(marco.right() - ancho - 10, marco.top() + 10, ancho, alto)
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(QColor(10, 9, 8, 190)))
+            p.setBrush(QBrush(QColor(20, 20, 20, 205)))
             p.drawRoundedRect(caja, 3, 3)
-            p.setPen(QPen(idn.color(idn.BRAND_50 if a_la_izquierda else idn.BRAND_400)))
+            p.setPen(QPen(idn.color(idn.BRAND_50)))  # suite de color: neutro junto a la imagen
             p.drawText(caja, int(Qt.AlignmentFlag.AlignCenter), texto)
 
     def _mango(self, p: QPainter, marco: QRect, corte: int) -> None:
-        """La linea de la cortinilla y su agarradero. En acento de marca."""
-        p.setPen(QPen(idn.color(idn.BRAND_500), 1.5))
+        """La linea de la cortinilla y su agarradero.
+
+        SUITE de color: NEUTRO (crema y antracita), no naranja. Es la costura
+        donde se juzga la diferencia de color; un trazo #e8451d saturado justo
+        ahi compite con la imagen (auditoria 2026-10-06, hallazgo 8).
+        """
+        p.setPen(QPen(idn.color(idn.BRAND_50, 0.9), 1.5))
         p.drawLine(corte, marco.top(), corte, marco.bottom())
         cy = marco.center().y()
-        agarre = QRect(corte - 7, cy - 18, 14, 36)
-        p.setPen(QPen(idn.color(idn.BRAND_500), 1.0))
-        p.setBrush(QBrush(idn.color(idn.BRAND_600)))
-        p.drawRoundedRect(agarre, 4, 4)
+        agarre = QRect(corte - 8, cy - 18, 16, 36)
+        p.setPen(QPen(idn.color(idn.BRAND_50, 0.9), 1.0))
+        p.setBrush(QBrush(idn.color(idn.HONDO)))
+        p.drawRoundedRect(agarre, 8, 8)
         p.setPen(QPen(idn.color(idn.BRAND_50, 0.85), 1.0))
         for dx in (-2, 2):
             p.drawLine(corte + dx, cy - 7, corte + dx, cy + 7)
@@ -266,7 +271,7 @@ class Miniatura(QWidget):
                          disp.top() + (disp.height() - alto) // 2, ancho, alto)
             p.drawImage(caja, self._img)
         else:
-            p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)))
+            p.setPen(QPen(idn.color(idn.SMOKE)))
             p.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), "sin imagen")
         p.setPen(QPen(idn.color(idn.BRAND_50, idn.BORDE_A), 1))
@@ -292,7 +297,7 @@ class PantallaComparar(QWidget):
         cuerpo = QHBoxLayout()
         cuerpo.setSpacing(12)
 
-        marco = Panel(margenes=(10, 10, 10, 10), espaciado=8)
+        marco = Panel(neutro=True, margenes=(10, 10, 10, 10), espaciado=8)
         self.visor = VisorCortinilla()
         marco.caja.addWidget(self.visor, 1)
         pie = QHBoxLayout()
@@ -361,7 +366,7 @@ class PantallaComparar(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(12)
 
-        panel_ref = Panel(margenes=(10, 10, 10, 10))
+        panel_ref = Panel(neutro=True, margenes=(10, 10, 10, 10))
         panel_ref.caja.addWidget(Rotulo("referencia", acento=True))
         self.mini_ref = Miniatura("referencia")
         panel_ref.caja.addWidget(self.mini_ref)

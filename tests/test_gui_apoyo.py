@@ -19,7 +19,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import functools  # noqa: E402
 
 import pytest  # noqa: E402
-from PySide6.QtGui import QFontDatabase, QFontMetrics  # noqa: E402
+from PySide6.QtGui import QFont, QFontInfo, QFontMetrics  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QCheckBox,
@@ -84,8 +84,16 @@ pytestmark = pytest.mark.gui
 #: por las columnas de cifras de la tabla de clips (ahora a 14 px) y las
 #: cabeceras a 12; el alto sube 15 px. 1016 cabe en 1280 con holgura; 742 de alto
 #: cabe en 1280 × 800 sólo justo (sin Dock): ver BITACORA.md.
-ANCHURA_MINIMA = 1016
-ALTO_MINIMO = 742
+#:
+#: **[suite 1/3, 2026-10-07] Pasa de 1016 × 742 a 1017 × 738, medido SIN Akira.**
+#: Es lo que contesta el contenido con Montserrat (la fuente de la suite, +3-6 %
+#: sobre las de antes) y con los márgenes de la suite (18 → 16 px); `anchos_fijos()`
+#: de la tabla de clips pasa de 371 a 387. El alto BAJA 4 px porque el título de
+#: pantalla y el rótulo de marca son ya Montserrat y no Chakra Petch. Con Akira
+#: instalada o copiada a `gui/fuentes/` las métricas son otras y los tests que fijan
+#: estos números se saltan (ver `tipografias_de_marca_instaladas`).
+ANCHURA_MINIMA = 1017
+ALTO_MINIMO = 738
 
 
 # ---------------------------------------------------------------------------
@@ -178,15 +186,17 @@ def desconectado():
 
 
 def tipografias_de_marca_instaladas() -> list[str]:
-    """Cuales de las tres familias de marca existen en esta maquina.
+    """Las familias que cambian las metricas y que NO van en el repo: Akira.
 
-    Importa para los tests que fijan un numero de pixeles: si Mario instala
-    Inter, Chakra Petch y JetBrains Mono, las metricas cambian y la anchura
-    minima de la ventana deja de ser la de arriba (`ANCHURA_MINIMA`). No es un fallo, es otra tipografia.
+    Montserrat va en `gui/fuentes/` (siempre esta); Akira no (licencia, repo
+    publico). Importa para los tests que fijan un numero de pixeles: en un Mac con
+    Akira instalada o copiada a `gui/fuentes/`, los titulos van en Akira (mas ancha
+    que Montserrat 800) y la anchura minima de la ventana deja de ser la medida. No
+    es un fallo, es otra tipografia: esos tests se saltan.
     """
     app_qt()  # sin QApplication, QFontDatabase aborta el proceso entero
-    familias = set(QFontDatabase.families())
-    return [f for f in ("Inter", "Chakra Petch", "JetBrains Mono") if f in familias]
+    akira = idn.familia_akira(volver_a_buscar=True)
+    return [akira] if akira else []
 
 
 def es_monoespaciada(fuente) -> bool:
@@ -198,6 +208,24 @@ def es_monoespaciada(fuente) -> bool:
     """
     m = QFontMetrics(fuente)
     return m.horizontalAdvance("iiii") == m.horizontalAdvance("MMMM")
+
+
+def es_cifra_de_la_suite(fuente) -> bool:
+    """¿Es una cifra de la suite? Montserrat con cifras tabulares (`tnum`).
+
+    La suite NO tiene mono (decision de Mario, 2026-10-06): las cifras van en
+    Montserrat con `tnum`, y alinean a la derecha porque todas las cifras miden
+    lo mismo. Se mide (familia que resuelve Qt + ancho de los diez digitos), no se
+    pregunta por el nombre pedido: si Montserrat no cargara y cayera a otra, esto
+    lo ve.
+    """
+    m = QFontMetrics(fuente)
+    anchos = {m.horizontalAdvance(c) for c in "0123456789"}
+    return (
+        QFontInfo(fuente).family() == "Montserrat"
+        and len(anchos) == 1
+        and QFont.Tag("tnum") in fuente.featureTags()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -401,9 +429,25 @@ def test_el_detector_de_elision_no_marca_lo_que_cabe():
 
 
 def test_es_monoespaciada_distingue_de_verdad():
+    """El detector de mono sigue valiendo (lo usa el control de los rotulos): se
+    prueba con una mono de verdad del sistema, no con las fuentes de la app."""
     app_qt()
-    assert es_monoespaciada(idn.fuente_cifra(13))
+    mono = QFont("Menlo")
+    if QFontInfo(mono).family() != "Menlo":
+        pytest.skip("no hay Menlo en este sistema")
+    mono.setPixelSize(13)
+    assert es_monoespaciada(mono)
     assert not es_monoespaciada(idn.fuente_texto(13))
+
+
+def test_es_cifra_de_la_suite_distingue_de_verdad():
+    app_qt()
+    assert es_cifra_de_la_suite(idn.fuente_cifra(13))
+    assert es_cifra_de_la_suite(idn.fuente_texto(13))  # Montserrat con tnum tambien
+    otra = QFont("Helvetica Neue")
+    otra.setPixelSize(13)
+    otra.setFeature(QFont.Tag("tnum"), 1)
+    assert not es_cifra_de_la_suite(otra), "otra familia no es una cifra de la suite"
 
 
 def test_la_ventana_de_apoyo_se_construye_contra_el_falso():

@@ -41,6 +41,7 @@ from tests.test_gui_apoyo import (  # noqa: E402
     app_qt,
     asentar,
     demo,
+    es_cifra_de_la_suite,
     es_monoespaciada,
     etiquetas_visibles,
     ventana,
@@ -61,6 +62,9 @@ PALETA = {
     idn.HONDO,
     idn.PANEL,
     idn.CRISTAL,
+    # Suite (tokens.css v3): el texto secundario solido y las lineas.
+    idn.SMOKE,
+    idn.LINEA,
 }
 
 #: Los tokens de estado del inventario. Reservados: no se reutilizan aqui con
@@ -225,7 +229,7 @@ def test_la_paleta_de_la_gui_es_exactamente_la_de_la_identidad():
 
     Lo que no esta en la lista no se improvisa: se baja la opacidad de uno que
     si esta (`rgba()`), y por eso los unicos hexadecimales del modulo son los
-    nueve de la identidad.
+    de la identidad y de la suite (`suite/tokens.css` v3).
     """
     fuente = (RAIZ_GUI / "identidad.py").read_text(encoding="utf-8")
     encontrados = {h.lower() for h in _HEX.findall(fuente)}
@@ -286,7 +290,7 @@ def test_los_avisos_de_la_pantalla_de_aplicar_van_en_naranja_de_marca():
 # ---------------------------------------------------------------------------
 
 
-def test_todas_las_cifras_de_la_app_salen_en_monoespaciada():
+def test_todas_las_cifras_de_la_app_salen_en_montserrat_tabular():
     """Se mide la fuente RENDERIZADA, no la que se pidio.
 
     Es la unica forma de cazarlo: la hoja de estilo **pisa a `setFont()`**, asi
@@ -305,7 +309,7 @@ def test_todas_las_cifras_de_la_app_salen_en_monoespaciada():
             asentar(2)
             for lab in v.findChildren(Cifra):
                 vistas += lab.isVisible()
-                if lab.isVisible() and not es_monoespaciada(lab.font()):
+                if lab.isVisible() and not es_cifra_de_la_suite(lab.font()):
                     malas.append(
                         f"pantalla {i} · Cifra#{lab.objectName() or '-'}: {lab.text()[:30]!r}"
                     )
@@ -315,7 +319,7 @@ def test_todas_las_cifras_de_la_app_salen_en_monoespaciada():
         v.close()
 
 
-def test_los_bloques_de_numeros_que_no_son_widget_cifra_tambien_son_monoespaciados():
+def test_los_bloques_de_numeros_que_no_son_widget_cifra_tambien_son_montserrat_tabular():
     """El inventario de los sitios donde hay cifras dentro de un `QLabel` normal.
 
     No hay heuristica que distinga «una cifra» de «una frase con numeros»
@@ -327,20 +331,20 @@ def test_los_bloques_de_numeros_que_no_son_widget_cifra_tambien_son_monoespaciad
     try:
         v.ir_a(1)
         asentar(2)
-        assert es_monoespaciada(v.p_comparar.texto_cdl.font()), (
-            "los diez numeros del CDL de «antes/despues» no van en monoespaciada"
+        assert es_cifra_de_la_suite(v.p_comparar.texto_cdl.font()), (
+            "los diez numeros del CDL de «antes/despues» no van en Montserrat tabular (suite)"
         )
         v.ir_a(3)
         asentar(2)
-        assert es_monoespaciada(v.p_reverse.datos_lut.font()), (
-            "los datos del LUT del panel de ingenieria inversa no van en monoespaciada"
+        assert es_cifra_de_la_suite(v.p_reverse.datos_lut.font()), (
+            "los datos del LUT del panel de ingenieria inversa no van en Montserrat tabular (suite)"
         )
         assert v.p_reverse.editor._campos, (
             "no hay nada que comprobar: el editor de CDL no tiene campos"
         )
         for nombre, campo in v.p_reverse.editor._campos.items():
-            assert es_monoespaciada(campo.font()), (
-                f"el campo {nombre} del editor de CDL no va en monoespaciada"
+            assert es_cifra_de_la_suite(campo.font()), (
+                f"el campo {nombre} del editor de CDL no va en Montserrat tabular (suite)"
             )
     finally:
         v.close()
@@ -437,17 +441,21 @@ def test_las_tres_formas_se_distinguen_en_blanco_y_negro():
 # ---------------------------------------------------------------------------
 
 
-def test_la_pila_de_fuentes_pide_primero_la_familia_de_marca():
-    """El dia que Mario instale las tres, la app las coge sola."""
-    assert idn.FAMILIAS_TEXTO[0] == "Inter"
-    assert idn.FAMILIAS_ROTULO[0] == "Chakra Petch"
-    assert idn.FAMILIAS_CIFRA[0] == "JetBrains Mono"
+def test_la_pila_de_fuentes_es_la_de_la_suite():
+    """Suite (2026-10-06): Montserrat para texto, rotulos y cifras (sin mono ni
+    Inter/Chakra/JetBrains), y Akira SOLO para titulos, con caida a Montserrat 800."""
+    assert idn.FAMILIAS_TEXTO[0] == "Montserrat"
+    assert idn.FAMILIAS_ROTULO[0] == "Montserrat"
+    assert idn.FAMILIAS_CIFRA[0] == "Montserrat"
     for familias in (idn.FAMILIAS_TEXTO, idn.FAMILIAS_ROTULO, idn.FAMILIAS_CIFRA):
-        assert len(familias) > 1, "sin alternativa, en este Mac no se veria nada"
+        assert len(familias) > 1, "sin alternativa, si Montserrat no cargara no se veria nada"
+        for vieja in ("Inter", "Chakra Petch", "JetBrains Mono", "Menlo", "Courier New"):
+            assert vieja not in familias, f"{vieja} ya no es de la suite"
+    assert idn.FAMILIA_DISPLAY_RESPALDO == "Montserrat"
 
 
 def test_los_rotulos_van_en_mayusculas_y_con_el_tracking_de_la_identidad():
-    """12px (suelo informativo; eran 10-11), MAYUSCULAS, tracking 0.15-0.18em. QSS no tiene `text-transform`,
+    """12px (suelo informativo; eran 10-11), MAYUSCULAS, tracking de la suite (`TRACKING_EM`). QSS no tiene `text-transform`,
     asi que las mayusculas son de la fuente y hay que comprobarlo ahi."""
     from PySide6.QtGui import QFont
 
@@ -465,7 +473,7 @@ def test_los_rotulos_van_en_mayusculas_y_con_el_tracking_de_la_identidad():
             assert f.capitalization() == QFont.Capitalization.AllUppercase
             assert f.pixelSize() == idn.PX_MIN_INFORMATIVO, f"rotulo a {f.pixelSize()}px"
             em = f.letterSpacing() / f.pixelSize()
-            assert 0.15 <= em <= 0.18, f"tracking de {em:.3f}em"
+            assert abs(em - idn.TRACKING_EM) < 0.005, f"tracking de {em:.3f}em"
     finally:
         v.close()
 
@@ -594,8 +602,8 @@ def test_cada_widget_se_pinta_con_el_tamano_de_letra_que_pide():
             mirados += 1
             if f.pixelSize() != px:
                 fallos.append(f"{type(w).__name__}: pide {px}px y se pinta a {f.pixelSize()}px")
-            elif rol == "cifra" and not es_monoespaciada(f):
-                fallos.append(f"{type(w).__name__}: pide monoespaciada y no la consigue")
+            elif rol == "cifra" and not es_cifra_de_la_suite(f):
+                fallos.append(f"{type(w).__name__}: pide Montserrat tabular y no la consigue")
             elif abs(f.letterSpacing() - tracking) > 0.01:
                 fallos.append(
                     f"{type(w).__name__}: pide {tracking:.2f} de tracking y tiene "
@@ -610,7 +618,7 @@ def test_cada_widget_se_pinta_con_el_tamano_de_letra_que_pide():
         v.close()
 
 
-def test_la_ruta_del_cube_va_en_monoespaciada():
+def test_la_ruta_del_cube_va_en_montserrat_tabular():
     """Una ruta es codigo, y la identidad pide monoespaciada para toda ruta.
 
     `gui/pantalla_aplicar.py`, `ruta_look`: se le ponia `fuente_cifra(11)` a
@@ -624,7 +632,7 @@ def test_la_ruta_del_cube_va_en_monoespaciada():
         asentar()
         ruta = v.p_aplicar.ruta_look
         assert ruta.texto_completo().endswith(".cube"), "esto ya no es la ruta del look"
-        assert es_monoespaciada(ruta.font()), (
+        assert es_cifra_de_la_suite(ruta.font()), (
             f"la ruta del .cube sale en {ruta.font().families()[:1]} y tiene que ir "
             f"en monoespaciada"
         )

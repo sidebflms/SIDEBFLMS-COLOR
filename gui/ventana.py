@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 from core.batch import ProgresoLote
 from core.contracts import VERSION_NAME, ResolveError
 from gui import identidad as idn
+from gui.cristal import FondoSuite
 from gui.datos_demo import EstadoDemo, estado_demo, par_ingenieria_inversa, parches_carta
 from gui.estado_real import SinClipsReales, reanalizar_en_sitio
 from gui.pantalla_aplicar import PantallaAplicar
@@ -72,7 +73,7 @@ class VentanaPrincipal(QMainWindow):
         self._perfiles_carpeta = perfiles_carpeta
         self.setWindowTitle(TITULO)
 
-        raiz = QWidget()
+        raiz = FondoSuite()
         self.setCentralWidget(raiz)
         fila = QHBoxLayout(raiz)
         fila.setContentsMargins(0, 0, 0, 0)
@@ -82,7 +83,7 @@ class VentanaPrincipal(QMainWindow):
 
         derecha = QWidget()
         col = QVBoxLayout(derecha)
-        col.setContentsMargins(18, 16, 18, 16)
+        col.setContentsMargins(16, 14, 16, 16)
         col.setSpacing(14)
         col.addWidget(self._cabecera())
         self.pila = QStackedWidget()
@@ -389,6 +390,7 @@ def crear_app(argv: list[str] | None = None) -> QApplication:
     if app is None:
         app = QApplication(argv or [])
     app.setApplicationName(TITULO)
+    idn.cargar_fuentes()
     app.setFont(idn.fuente_texto(idn.PX_CUERPO))
     app.setStyleSheet(idn.hoja_de_estilo())
     return app

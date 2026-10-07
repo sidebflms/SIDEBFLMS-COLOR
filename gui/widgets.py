@@ -32,9 +32,17 @@ from PySide6.QtGui import (
     QPen,
     QPolygonF,
 )
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gui import identidad as idn
+from gui.cristal import pintar_cristal
 
 # ---------------------------------------------------------------------------
 # Texto
@@ -225,15 +233,28 @@ class Cifra(QLabel):
 
 
 class Panel(QFrame):
-    """Superficie `panel` con borde y radio. Trae su propio layout vertical."""
+    """Superficie de CRISTAL (suite) con su layout vertical.
 
-    def __init__(self, *, cristal: bool = False, margenes: tuple[int, int, int, int] = (14, 12, 14, 12),
+    `cristal=True` = relleno fuerte (.34, el de los avisos y bandas). `neutro=True`
+    = filo sin naranja, para los marcos que rodean una imagen. Ver `gui/cristal.py`
+    para lo que es real y lo que es aproximacion del cristal en Qt.
+    """
+
+    def __init__(self, *, cristal: bool = False, neutro: bool = False,
+                 margenes: tuple[int, int, int, int] = (14, 12, 14, 12),
                  espaciado: int = 8, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("cristal" if cristal else "panel")
+        self._fuerte = cristal
+        self._neutro = neutro
         self.caja = QVBoxLayout(self)
         self.caja.setContentsMargins(*margenes)
         self.caja.setSpacing(espaciado)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        pintar_cristal(p, self, fuerte=self._fuerte, neutro=self._neutro)
+        p.end()
 
 
 def separador(vertical: bool = False) -> QFrame:
@@ -289,7 +310,7 @@ def fila_dato(rotulo: str, valor: str, *, secundario: bool = False) -> QWidget:
 #: que subirla sube la anchura minima de la ventana, que es justo lo que el
 #: encargo de hoy pide no hacer. Queda dicho aqui y en el informe.
 INSIGNIA_ALTO = 22
-INSIGNIA_ANCHO = 108
+INSIGNIA_ANCHO = 118  # suite: Montserrat es mas ancha (ver INFORME: antes 108)
 
 
 def pintar_insignia_confianza(
@@ -322,7 +343,7 @@ def pintar_insignia_confianza(
     # Medidor de tres escalones.
     alto_util = r.height() - 10.0
     ancho_barra = 3.0
-    x = r.left() + 9.0
+    x = r.left() + 8.0
     for i in range(3):
         encendido = i < forma.escalones
         alto = alto_util * (0.42 + 0.29 * i)
@@ -337,14 +358,14 @@ def pintar_insignia_confianza(
             apagado.setStyle(Qt.PenStyle.DotLine)
             p.setPen(apagado)
             p.drawRect(barra.adjusted(0.5, 0.5, -0.5, -0.5))
-        x += ancho_barra + 3.0
+        x += ancho_barra + 2.5
 
     # Nivel + puntuacion. La puntuacion, en monoespaciada.
     p.setPen(QPen(forma.texto))
-    x_texto = x + 6.0
+    x_texto = x + 4.0
     f_nivel = idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO)
     p.setFont(f_nivel)
-    ancho_nivel = QFontMetrics(f_nivel).horizontalAdvance(forma.value.upper()) + 4
+    ancho_nivel = QFontMetrics(f_nivel).horizontalAdvance(forma.value.upper()) + 2
     p.drawText(
         QRectF(x_texto, r.top(), ancho_nivel, r.height()),
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
@@ -352,7 +373,7 @@ def pintar_insignia_confianza(
     )
     p.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
     p.drawText(
-        QRectF(x_texto + ancho_nivel + 4, r.top(), r.right() - x_texto - ancho_nivel - 8, r.height()),
+        QRectF(x_texto + ancho_nivel + 3, r.top(), r.right() - x_texto - ancho_nivel - 3 - 6, r.height()),
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
         f"{score * 100:.0f}%",
     )

@@ -3455,3 +3455,86 @@ pantallas; cabecera QSS y fuente base). `ANCHURA_MINIMA`/`ALTO_MINIMO` de
 - Las capturas (`capturas/`) y la documentación que cita 973×727 hay que
   regenerarlas/actualizarlas al fusionar (no se han regenerado en este PR para no
   mezclar binarios entre los siete bloques).
+
+---
+
+## SUITE 1/3 — tokens, tipografía, radios y cristal (2026-10-07)
+
+**Contexto.** Mario decidió (2026-10-06) que todas sus apps parezcan una suite, con
+los colores de sidebflms.com y su modo cristal, conservando la personalidad de cada
+una. Prototipo medido en el repo privado `sidebflms-design`
+(`reviews/2026-10-06-suite-color/`: `INFORME.md`, `suite-color.patch`, montajes). **El
+patch es guía, no se aplicó a ciegas**: se repartió en 3 PRs apiladas sobre la rama
+`agente/base-auditoria-789` (= `main` + #7 + #8 + #9). Esta es la 1/3.
+
+**Qué cambia**
+- `gui/identidad.py`: valores de los tokens de `suite/tokens.css` v3 (`FONDO #1e1e1e`,
+  `HONDO #141414`, `PANEL #262626`, `LINEA #333130`, `BRAND_50 #f2ece4`, `SMOKE #938e89`
+  sólido para apagado/tenue); familias → Montserrat (texto, rótulos y cifras) con `tnum`;
+  `fuente_display()`, `familia_akira()`, `cargar_fuentes()`, `regla_display_qss()`;
+  tracking de rótulos 0,16 → 0,10 em; radios 8/16; QSS sin fondo en `QWidget`
+  (se ven las curvas), foco 2 px `#ff6a3d`, bordes de control a 3:1.
+- `gui/cristal.py` (nuevo): `FondoSuite` (fondo + curvas de nivel naranja al 9 % +
+  resplandor al 4 %, pre-desenfocado una vez por tamaño) y `pintar_cristal`.
+- `gui/widgets.py`: `Panel` pinta cristal; insignia de confianza 108 → 118 px de ancho
+  (con Montserrat «MEDIA 70%» salía cortado).
+- Pantallas: paneles de marco de imagen en `Panel(neutro=True)` (filo sin naranja),
+  cortinilla en crema/antracita, hueco entre paneles 12 → 8, márgenes 18 → 16.
+- `gui/fuentes/`: **Montserrat** (5 TTF estáticos, 400-800, generados de la fuente
+  variable latina de sidebflms.com con `fontTools`) + `OFL.txt`.
+
+**Akira: decisión de Mario, y por qué.** El repo de COLOR es **público** y el `.otf` es de
+licencia comercial de SIDEBFLMS (válida solo en repos privados). Por eso **no se versiona**:
+`gui/fuentes/*.otf`, `*.woff*`, `*akira*` y `*TIPOGRAFIA*` están en `.gitignore`. La app
+busca Akira primero en `gui/fuentes/` y luego entre las fuentes instaladas (cualquier
+familia que contenga «akira»), y si no la encuentra cae a **Montserrat 800** sin romper
+nada. En la CI y en clones públicos sale Montserrat; Mario copia el `.otf` a mano.
+Un test comprueba con `git ls-files` que no hay ningún archivo de Akira versionado.
+No se cambia la visibilidad del repo.
+
+**Relleno del cristal: ≥ 54 % bajo texto.** La web usa el 20 %, con el que el texto no llega
+a 4,5:1 (lección de los prototipos). Los paneles usan `--sb-glass-fill-text` (0,54) y los
+«fuertes» `--sb-glass-fill-hud` (0,68). El 20 % queda como `RELLENO_DECORATIVO`, sin usar.
+
+**Límites honestos del cristal en Qt.** Es una **aproximación**: panel translúcido + filo
+degradado + brillo + un **fondo estático pre-desenfocado** sobre el que cada panel pinta su
+trozo. **No** desenfoca otros widgets que haya detrás (una imagen, otro panel), **no** aplica
+`saturate(160 %)` ni la sombra larga de la web. Sobre un fondo casi plano se nota poco: el
+filo y el brillo hacen casi todo. Alrededor de la imagen (visor y mapas) no hay cristal ni
+naranja: va `#141414` liso.
+
+**Sin mono — lo que se pierde** (declarado, decisión de Mario): 0/O y l/1 en ids y rutas;
+en bloques con signos (`+0.0102`/`-0.1216`) el `+` y el `−` miden distinto, así que alinean
+a ~1-2 px, no a rejilla; **«Δ» no existe en Montserrat ni en Akira** y cae a la fuente del
+sistema. Se conserva la alineación a la derecha de las columnas de cifras.
+
+**Medidas antes → después** (Qt offscreen, `FakeResolve`, HOME temporal, sin Akira):
+
+| Medida | Antes (base #7-#9) | Después (SUITE 1/3) |
+|---|---|---|
+| Anchura mínima de ventana | 1016 | **1017** |
+| `ALTO_MINIMO` | 742 | **738** |
+| `anchos_fijos()` de la tabla de clips | 371 | **387** (+16) |
+| Textos < 12 px | 0 | **0** |
+| Contraste por píxel ≥ 4,5:1 (1017×742, 1280×800, 1440×900) | — | **0 textos por debajo** (test) |
+| Controles cortados | 0 | **0** |
+
+**Tests adaptados (declarados, ninguno arbitrado a ojo):** `test_la_paleta_de_la_gui_…`
+(se añaden `SMOKE` y `LINEA`, que son tokens de la suite); `test_la_pila_de_fuentes_…` →
+`…_es_la_de_la_suite`; `test_los_rotulos_van_en_mayusculas…` (el tracking es `TRACKING_EM`);
+los 8 tests de «cifras en monoespaciada» → «en Montserrat tabular»
+(`es_cifra_de_la_suite`, que mide familia + ancho de los diez dígitos + `tnum`);
+`ANCHURA_MINIMA/ALTO_MINIMO` (1017/738); `tipografias_de_marca_instaladas()` ahora detecta
+**Akira** (que sí cambia las métricas) y esos tests se saltan si está. Tests nuevos:
+`tests/test_gui_suite_base.py` (fuentes, Akira no versionada, relleno ≥54 %, contraste por
+píxel a 3 tamaños, `anchos_fijos`).
+
+**Qué hacer al actualizar**
+- Un color o fuente nuevos salen de `suite/tokens.css`, no se inventan; el texto secundario
+  es siempre `idn.SMOKE`, **nunca con opacidad**.
+- Akira solo ≥ 18 px y solo ASCII (104 glifos: sin tildes, ñ, ¿, €, Δ); títulos con tilde
+  → Montserrat 800 al mismo tamaño.
+- Un cristal con texto encima usa `RELLENO` (≥ 54 %), no el 20 % de la web.
+- Esta tanda **no** incluye cabecera de marca, botón en píldora ni pastilla (2/3) ni
+  avería/aviso por forma y barra de progreso (3/3). Choca con #10 y #11 en `identidad.py`
+  y `widgets.py`: al fusionar, conservar lo de auditoría.

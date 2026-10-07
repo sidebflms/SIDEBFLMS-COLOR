@@ -366,7 +366,7 @@ class PantallaAplicar(QWidget):
 
         division = QSplitter(Qt.Orientation.Horizontal)
         division.setChildrenCollapsible(False)
-        division.setHandleWidth(12)
+        division.setHandleWidth(8)
 
         # --- izquierda: que clips ---
         izq = Panel(margenes=(12, 12, 12, 12))
@@ -566,7 +566,7 @@ class PantallaAplicar(QWidget):
             return
         if informe.ok:
             self.texto_look.setText(f"QC: {informe.resumen()}")
-            self.texto_look.setStyleSheet(f"color: {idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)};")
+            self.texto_look.setStyleSheet(f"color: {idn.SMOKE};")
             return
         lineas = [f"QC: {informe.resumen()}"]
         lineas += [f"· {p.mensaje}" for p in informe.problemas[:3]]
@@ -655,7 +655,7 @@ class PantallaAplicar(QWidget):
 
     def _plan_a_html(self, plan: Plan) -> str:
         cifra = ", ".join(f'"{f}"' for f in idn.FAMILIAS_CIFRA)
-        apagado = idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)
+        apagado = idn.SMOKE
         if plan.error_global:
             return (
                 f'<div style="color:{idn.BRAND_400};">{plan.error_global}</div>'
@@ -827,7 +827,7 @@ class PantallaAplicar(QWidget):
 
     def _resultado_a_html(self, resultados: list[ResultadoClip]) -> str:
         cifra = ", ".join(f'"{f}"' for f in idn.FAMILIAS_CIFRA)
-        apagado = idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)
+        apagado = idn.SMOKE
         if not resultados:
             return f'<div style="color:{apagado};">No se ha aplicado nada.</div>'
         bien = [r for r in resultados if r.ok]
