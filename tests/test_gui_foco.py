@@ -121,7 +121,9 @@ def test_insignia_rombo_y_visor_tienen_nombre_accesible():
         visor = _primero_visible(v, VisorCortinilla, 1)
         assert visor.accessibleName() == "Visor antes y después"
         assert visor.accessibleDescription()
-        for ins in v.findChildren(InsigniaConfianza):
+        insignias = v.findChildren(InsigniaConfianza)
+        assert insignias, "no hay nada que comprobar: la ficha de Antes / después trae una insignia de confianza"
+        for ins in insignias:
             assert ins.accessibleName().startswith("Confianza ")
             assert "%" in ins.accessibleName()
         assert MarcaDesajuste().accessibleName().startswith("Aviso: desajuste")
@@ -164,7 +166,9 @@ def test_ningun_boton_sin_texto_se_queda_sin_nombre_accesible():
         for i, nombre in enumerate(PANTALLAS):
             v.ir_a(i)
             asentar()
-            for b in v.findChildren(QPushButton):
+            botones = v.findChildren(QPushButton)
+            assert botones, f"no hay nada que comprobar: {nombre} tiene botones (al menos los de navegación)"
+            for b in botones:
                 if b.isVisible():
                     revisados += 1
                     assert b.text().strip() or b.accessibleName().strip(), (
