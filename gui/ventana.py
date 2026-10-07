@@ -43,7 +43,7 @@ from gui.pantalla_clips import PantallaClips
 from gui.pantalla_comparar import PantallaComparar
 from gui.pantalla_facil import PantallaFacil
 from gui.pantalla_reverse import PantallaReverse
-from gui.widgets import Cifra, EtiquetaElidida, Rotulo, separador
+from gui.widgets import CabeceraMarca, Cifra, EtiquetaElidida, PuntoEstado, Rotulo, separador
 
 #: Clave de `QSettings` donde se recuerda el modo elegido. Por usuario: cada
 #: cuenta del sistema tiene su propio `QSettings`, así que Mario en modo
@@ -61,6 +61,32 @@ PANTALLAS = (
 
 #: Ancho del carril de navegacion. Fijo: es un carril, no un panel.
 ANCHO_CARRIL = 186
+
+
+#: Titulos de pantalla en Akira: el archivo no tiene tildes, asi que cada
+#: titulo se reformula en ASCII (la navegacion del carril conserva el texto
+#: completo en Montserrat). Ver INFORME: decision para Mario.
+TITULOS_AKIRA = {
+    "Clips y confianza": "CLIPS",
+    "Antes / después": "COMPARAR",
+    "Aplicar": "APLICAR",
+    "Ingeniería inversa": "REVERSE",
+    "Modo fácil": "PASO A PASO",
+}
+
+
+class _TituloAkira(QLabel):
+    """Titulo de pantalla en Akira. Acepta el texto largo y pinta su version ASCII."""
+
+    def __init__(self, texto: str = "") -> None:
+        super().__init__()
+        self.setFont(idn.fuente_display(idn.PX_DISPLAY_MIN))
+        self.setObjectName("display")
+        self.setText(texto)
+
+    def setText(self, texto: str) -> None:  # noqa: N802
+        super().setText(TITULOS_AKIRA.get(texto, texto))
+        self.setAccessibleName(texto)
 
 
 class VentanaPrincipal(QMainWindow):
@@ -118,18 +144,17 @@ class VentanaPrincipal(QMainWindow):
         carril.setObjectName("hondo")
         carril.setFixedWidth(ANCHO_CARRIL)
         carril.setAutoFillBackground(True)
-        carril.setStyleSheet(f"QWidget#hondo {{ background: {idn.HONDO}; }}")
+        # (el fondo del carril lo da la hoja de la app: `QWidget#hondo`; una hoja local
+        # le quitaba el radio de pildora a los botones de dentro)
         col = QVBoxLayout(carril)
         col.setContentsMargins(0, 18, 0, 14)
         col.setSpacing(4)
 
         marca = QVBoxLayout()
         marca.setContentsMargins(16, 0, 16, 14)
-        marca.setSpacing(2)
-        titulo = Rotulo("sidebflms", px=idn.PX_MIN_INFORMATIVO, acento=True)
-        marca.addWidget(titulo)
-        sub = Rotulo("color")
-        marca.addWidget(sub)
+        marca.setSpacing(0)
+        # SUITE: casete + wordmark (B naranja) y el nombre de la app en Akira.
+        marca.addWidget(CabeceraMarca("COLOR"))
         col.addLayout(marca)
         col.addWidget(separador())
         col.addSpacing(8)
@@ -172,7 +197,10 @@ class VentanaPrincipal(QMainWindow):
         self.btn_reanalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reanalizar.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         self.btn_reanalizar.clicked.connect(self._reanalizar_timeline)
-        col.addWidget(self.btn_reanalizar)
+        fila_btn = QHBoxLayout()
+        fila_btn.setContentsMargins(16, 0, 16, 0)
+        fila_btn.addWidget(self.btn_reanalizar)
+        col.addLayout(fila_btn)
         col.addStretch(1)
 
         # En dos lineas y NO elidida. Esta es la promesa de la app -- que no
@@ -193,7 +221,8 @@ class VentanaPrincipal(QMainWindow):
         fila = QHBoxLayout(cab)
         fila.setContentsMargins(0, 0, 0, 0)
         fila.setSpacing(14)
-        self.titulo_pantalla = Rotulo(PANTALLAS[0][1], px=idn.PX_MIN_INFORMATIVO, acento=True)
+        # SUITE: titulo en Akira (>= 18 px, SOLO ASCII: sin tildes ni n con tilde).
+        self.titulo_pantalla = _TituloAkira(PANTALLAS[0][1])
         fila.addWidget(self.titulo_pantalla, 0)
         self.sub_pantalla = EtiquetaElidida("", ancho_minimo_px=60)
         self.sub_pantalla.setObjectName("apagado")
@@ -206,6 +235,9 @@ class VentanaPrincipal(QMainWindow):
         fila = QHBoxLayout(pie)
         fila.setContentsMargins(0, 0, 0, 0)
         fila.setSpacing(14)
+        self.punto_resolve = PuntoEstado()
+        fila.addWidget(self.punto_resolve, 0)
+        fila.setSpacing(8)
         self.estado_resolve = Rotulo("resolve")
         fila.addWidget(self.estado_resolve, 0)
         self.detalle_resolve = EtiquetaElidida("", ancho_minimo_px=60)
@@ -283,11 +315,13 @@ class VentanaPrincipal(QMainWindow):
             info = None
         conectado = info is not None
         if info is not None:
+            self.punto_resolve.poner(True)
             self.estado_resolve.setText("resolve conectado")
             self.detalle_resolve.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · LUTs en {info.lut_dir}"
             )
         else:
+            self.punto_resolve.poner(False)
             self.estado_resolve.setText("resolve desconectado")
             self.detalle_resolve.setText(
                 "no hay conexión; se puede mirar todo, pero no se escribe nada"

@@ -474,27 +474,33 @@ def hoja_de_estilo() -> str:
     {regla_display_qss()}
     QLabel#secundario {{ color: {CYAN_GLOW}; font-family: {cifra}; }}
 
-    /* --- botones: radio de control de la suite (8) y foco de 2 px (el borde de
-       1 px pasa a 2 px y el relleno baja 1 px para que el boton no cambie de
-       tamano). La PILDORA y el hover del primario son del PR 2 (boton). --- */
+    /* --- botones: PILDORA, texto en frase (NO mayusculas: los textos largos como
+       «Copiar nodos al resto» volverian a cortarse, PR #7) y foco de 2 px (el borde
+       de 1 px pasa a 2 px y el relleno baja 1 px para que el boton no cambie de
+       tamano) --- */
     QPushButton {{
         background: transparent;
         border: 1px solid {borde_control};
-        border-radius: {RADIO_CONTROL}px;
-        padding: 7px 14px;
-        color: {BRAND_50};
-    }}
-    QPushButton:hover {{ border-color: {BRAND_400}; color: {BRAND_400}; }}
-    QPushButton:pressed {{ background: {rgba(BRAND_500, 0.16)}; }}
-    QPushButton:focus {{ border: 2px solid {BRAND_400}; padding: 6px 13px; }}
-    QPushButton:disabled {{ color: {SMOKE}; border-color: {borde}; }}
-    QPushButton#primario {{
-        background: {BRAND_600};
-        border: 1px solid {BRAND_500};
+        /* QSS: un radio MAYOR que la mitad del alto no se pinta (sale esquina viva);
+           15 px da pildora en los botones de 30-34 px de alto. */
+        border-radius: 15px;
+        padding: 7px 16px;
         color: {BRAND_50};
         font-weight: 600;
     }}
-    QPushButton#primario:hover {{ background: {BRAND_500}; color: {BRAND_50}; }}
+    QPushButton:hover {{ border-color: {BRAND_400}; color: {BRAND_400}; }}
+    QPushButton:pressed {{ background: {rgba(BRAND_500, 0.16)}; }}
+    QPushButton:focus {{ border: 2px solid {BRAND_400}; padding: 6px 15px; }}
+    QPushButton:disabled {{ color: {SMOKE}; border-color: {borde}; }}
+    QPushButton#primario {{
+        background: {BRAND_600};
+        border: 1px solid {BRAND_600};
+        color: {BRAND_50};
+        font-weight: 700;
+    }}
+    /* Hover SUBE a #e8451d (como la web): solo con raton. Con crema encima da ~3,5:1,
+       por debajo de 4,5:1 -- aceptado por Mario (decision por defecto v3 de la suite). */
+    QPushButton#primario:hover {{ background: {BRAND_500}; border-color: {BRAND_500}; color: {BRAND_50}; }}
     QPushButton#primario:focus {{ border: 2px solid {BRAND_400}; }}
     QPushButton#primario:disabled {{
         background: {rgba(BRAND_600, 0.35)};

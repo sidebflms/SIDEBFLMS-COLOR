@@ -60,7 +60,7 @@ from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.dialogo_perfil import DialogoPerfiles
 from gui.perfiles_trabajo import aplicar_perfil_a_estado
-from gui.widgets import Cifra, EtiquetaElidida, Panel, Rotulo, separador
+from gui.widgets import Cifra, EtiquetaElidida, Panel, PuntoEstado, Rotulo, separador
 
 # ---------------------------------------------------------------------------
 # El plan. Logica pura: se puede probar sin abrir una ventana.
@@ -358,6 +358,8 @@ class PantallaAplicar(QWidget):
         self.texto_banda.setFont(idn.fuente_texto(12))
         fila_banda = QHBoxLayout()
         fila_banda.setSpacing(12)
+        self.punto_banda = PuntoEstado()
+        fila_banda.addWidget(self.punto_banda, 0)
         self.rotulo_banda = Rotulo("resolve", acento=True)
         fila_banda.addWidget(self.rotulo_banda, 0)
         fila_banda.addWidget(self.texto_banda, 1)
@@ -621,12 +623,14 @@ class PantallaAplicar(QWidget):
             except ResolveError as exc:
                 error = str(exc)
         if info is not None:
+            self.punto_banda.poner(True)
             self.rotulo_banda.setText("resolve conectado")
             self.texto_banda.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · "
                 f"{info.resolve_version}"
             )
         else:
+            self.punto_banda.poner(False)
             self.rotulo_banda.setText("resolve desconectado")
             self.texto_banda.setText(error or "No hay conexión con DaVinci Resolve.")
 

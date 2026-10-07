@@ -3538,3 +3538,51 @@ píxel a 3 tamaños, `anchos_fijos`).
 - Esta tanda **no** incluye cabecera de marca, botón en píldora ni pastilla (2/3) ni
   avería/aviso por forma y barra de progreso (3/3). Choca con #10 y #11 en `identidad.py`
   y `widgets.py`: al fusionar, conservar lo de auditoría.
+
+---
+
+## SUITE 2/3 — cabecera de marca, botón y pastilla (2026-10-07)
+
+Segunda de tres PRs (apilada sobre `agente/suite-1-tokens-tipografia-cristal`). Mismo
+origen: prototipo `reviews/2026-10-06-suite-color/` de `sidebflms-design`; el patch es guía.
+
+**Qué cambia**
+- `gui/widgets.py`: `CabeceraMarca` (casete + wordmark SVG de `sidebflms-web/public/logo`,
+  copiados a `gui/logo/`; nombre de la app con `fuente_display`; si faltan los SVG cae al
+  rótulo de texto), `PuntoEstado` (conexión por forma), `TablaSuite` (selección = filete
+  naranja de 2 px + velo neutro), insignia de confianza en **píldora**.
+- `gui/ventana.py`: cabecera de marca en el carril (**186 px y filete naranja intactos**),
+  título de pantalla en Akira ASCII (`TITULOS_AKIRA`: `CLIPS`, `COMPARAR`, `APLICAR`,
+  `REVERSE`, `PASO A PASO`), punto de estado en el pie, botón «Reanalizar» con márgenes
+  de 16 px, carril sin hoja de estilo local (le quitaba la píldora a sus botones).
+- `gui/identidad.py`: botones en **píldora** (radio 15: Qt no pinta un radio mayor que
+  medio alto), en **frase y no en mayúsculas** (si fueran mayúsculas, «Copiar nodos al
+  resto» volvería a cortarse, #7), primario `#bb4223` con **hover que sube a `#e8451d`**.
+- `gui/pantalla_clips.py` / `pantalla_aplicar.py`: `TablaSuite` y `PuntoEstado` en la banda.
+
+**Akira solo ASCII y ≥ 18 px** (104 glifos: sin tildes, ñ, ¿, €, Δ). Por eso los títulos se
+reformulan: «Antes / después» → `COMPARAR`, «Modo fácil» → `PASO A PASO`. **Pendiente de
+Mario:** «REVERSE» (el del prototipo, anglicismo ya usado en el código) o «INVERSA».
+
+**Medidas antes → después** (sin Akira; antes = PR 1/3):
+
+| Medida | Antes (SUITE 1/3) | Después (SUITE 2/3) |
+|---|---|---|
+| Anchura mínima | 1017 | **1017** |
+| `ALTO_MINIMO` | 738 | **745** (+7: cabecera de marca y título a 18 px) |
+| `anchos_fijos()` de la tabla de clips | 387 | **387** |
+| Textos < 12 px | 0 | **0** |
+| Controles cortados (1024 y 1017) | 0 | **0** |
+
+**Choques con la suite y cómo se resolvieron:** mayúsculas en el botón (la suite las pide;
+aquí van en frase por #7); hover del primario con crema encima da ≈3,5:1 (< 4,5:1; **lo
+acepta Mario**, igual que la web; solo con ratón); no hay token «pendiente/neutro» de estado.
+
+**Tests nuevos:** `tests/test_gui_suite_marca.py` (14: logos, cabecera con y sin SVG, títulos
+ASCII ≥18 px, píldora y frase, hover, insignia píldora **con su forma**, punto por forma,
+filete de 2 px, navegación en mayúsculas con tracking y texto completo con tildes).
+`ALTO_MINIMO` 738 → 745 declarado y explicado en `tests/test_gui_apoyo.py`.
+
+**Qué hacer al actualizar:** un título nuevo en Akira va en ASCII y a ≥ 18 px (con tilde →
+Montserrat 800); una pantalla nueva añade su entrada a `TITULOS_AKIRA`; un botón nuevo no
+lleva `text-transform`; un indicador de estado nuevo se distingue por forma, no por color.

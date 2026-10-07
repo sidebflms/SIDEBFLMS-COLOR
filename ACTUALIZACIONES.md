@@ -4,6 +4,23 @@ Cambios que afectan a **cómo se ve o se usa la app**, en orden inverso (lo últ
 arriba). Para el detalle técnico, medidas y qué hacer al actualizar, ver
 `BITACORA.md`.
 
+## SUITE 2/3 · 2026-10-07 — cabecera de marca, botones y pastilla de la suite
+
+- **Cabecera de marca** en la esquina superior izquierda: casete + wordmark SIDEBFLMS
+  (la B en naranja) y debajo «COLOR» en Akira (o Montserrat 800 si Akira no está).
+- **Títulos de pantalla** en Akira, **sin tildes** (el archivo no las tiene): `CLIPS`,
+  `COMPARAR`, `APLICAR`, `REVERSE`, `PASO A PASO`. La navegación del carril sigue con el
+  texto completo («Antes / después», «Ingeniería inversa»).
+- **Botones en píldora**, con el texto en frase (no en mayúsculas). El botón primario es
+  `#bb4223` y al pasar el ratón sube a `#e8451d`, como en la web.
+- **Insignia de confianza en píldora**, sin perder su forma (relleno + 3 barras /
+  contorno + 2 / discontinuo + 1).
+- **Conexión con Resolve por forma**: disco lleno (conectado) / contorno discontinuo
+  (desconectado), además de la palabra.
+- **Fila seleccionada de la tabla**: un filete naranja de 2 px a la izquierda y un velo
+  neutro, en vez de un bloque naranja.
+- **Ventana:** el mínimo sube de alto, de 738 a **745** px (el ancho se queda en 1017).
+
 ## SUITE 1/3 · 2026-10-07 — colores, tipografía, radios y cristal de la suite SIDEBFLMS
 
 Las apps de SIDEBFLMS pasan a parecer una suite: los colores de sidebflms.com y su

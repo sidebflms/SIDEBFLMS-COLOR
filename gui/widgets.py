@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
+    QTableView,
     QVBoxLayout,
     QWidget,
 )
@@ -257,6 +258,106 @@ class Panel(QFrame):
         p.end()
 
 
+class PuntoEstado(QWidget):
+    """Conexion con Resolve por FORMA: disco relleno (conectado) o contorno
+    discontinuo (desconectado). Sin verde/rojo y sin pastilla (suite de color)."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ok = True
+        self.setFixedSize(12, 12)
+
+    def poner(self, ok: bool) -> None:
+        self._ok = bool(ok)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        if self._ok:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(idn.color(idn.BRAND_50)))
+        else:
+            pen = QPen(idn.color(idn.BRAND_400), 1.3)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            pen.setDashPattern([2.0, 1.6])
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(r)
+        p.end()
+
+
+class CabeceraMarca(QWidget):
+    """Cabecera de marca de la suite: casete + wordmark SIDEBFLMS (B naranja,
+    el resto blanco) y debajo el nombre de la app en Akira (>= 18 px, ASCII).
+
+    Los SVG salen de `sidebflms-web/public/logo` (copiados a `gui/logo/`, fuera
+    del parche como las fuentes). Si faltan, cae al rotulo de texto de antes.
+    """
+
+    def __init__(self, nombre_app: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        from pathlib import Path
+
+        from PySide6.QtSvg import QSvgRenderer
+
+        carpeta = Path(__file__).resolve().parent / "logo"
+        self._mark = QSvgRenderer(str(carpeta / "mark-blanco.svg"))
+        self._word = QSvgRenderer(str(carpeta / "wordmark.svg"))
+        self._ok = self._mark.isValid() and self._word.isValid()
+        self._nombre = nombre_app
+        self._f = idn.fuente_display(idn.PX_DISPLAY_MIN)
+        self.setFixedHeight(22 + 8 + QFontMetrics(self._f).height())
+        self.setAccessibleName(f"SIDEBFLMS {nombre_app}")
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        x = 0.0
+        if self._ok:
+            alto_mark = 20.0
+            ancho_mark = alto_mark * 714.0 / 478.0
+            self._mark.render(p, QRectF(0, 1, ancho_mark, alto_mark))
+            x = ancho_mark + 8.0
+            ancho_word = self.width() - x
+            alto_word = ancho_word * 100.0 / 1243.37
+            self._word.render(p, QRectF(x, 1 + (alto_mark - alto_word) / 2.0, ancho_word, alto_word))
+        else:
+            p.setFont(idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO, QFont.Weight.Bold))
+            p.setPen(QPen(idn.color(idn.BRAND_400)))
+            p.drawText(QRectF(0, 0, self.width(), 22), int(Qt.AlignmentFlag.AlignVCenter), "SIDEBFLMS")
+        p.setFont(self._f)
+        p.setPen(QPen(idn.color(idn.BRAND_50)))
+        p.drawText(QRectF(0, 30, self.width(), self.height() - 30),
+                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), self._nombre)
+        p.end()
+
+
+class TablaSuite(QTableView):
+    """`QTableView` cuya fila seleccionada lleva un FILETE naranja de 2 px a la
+    izquierda y un velo neutro, en vez del bloque naranja #672514 de antes.
+
+    Motivo (auditoria + suite de color): un bloque naranja saturado en mitad de
+    la tabla compite con el naranja de marca y con la imagen; el filete dice lo
+    mismo con 2 px.
+    """
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+        modelo = self.selectionModel()
+        if modelo is None:
+            return
+        p = QPainter(self.viewport())
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(idn.color(idn.BRAND_500)))
+        for fila in modelo.selectedRows():
+            r = self.visualRect(fila)
+            if r.isValid() and r.intersects(self.viewport().rect()):
+                p.drawRect(0, r.top(), 2, r.height())
+        p.end()
+
+
 def separador(vertical: bool = False) -> QFrame:
     linea = QFrame()
     linea.setObjectName("separador")
@@ -338,7 +439,7 @@ def pintar_insignia_confianza(
         trazo.setDashPattern([3.0, 2.5])
     p.setPen(trazo)
     p.setBrush(QBrush(forma.relleno) if forma.relleno is not None else Qt.BrushStyle.NoBrush)
-    p.drawRoundedRect(r, 4.0, 4.0)
+    p.drawRoundedRect(r, r.height() / 2.0, r.height() / 2.0)  # suite: pildora
 
     # Medidor de tres escalones.
     alto_util = r.height() - 10.0

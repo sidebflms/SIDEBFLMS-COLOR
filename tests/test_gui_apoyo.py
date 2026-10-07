@@ -92,8 +92,14 @@ pytestmark = pytest.mark.gui
 #: pantalla y el rótulo de marca son ya Montserrat y no Chakra Petch. Con Akira
 #: instalada o copiada a `gui/fuentes/` las métricas son otras y los tests que fijan
 #: estos números se saltan (ver `tipografias_de_marca_instaladas`).
+#:
+#: **[suite 2/3, 2026-10-07] El alto sube de 738 a 745 (el ancho se queda en 1017).**
+#: Cabecera de marca (casete + wordmark + nombre de la app en el carril) y título de
+#: pantalla a 18 px (Akira, o Montserrat 800 si no está), en vez del rótulo de 12 px.
+#: Medido sin Akira; con Akira instalada o copiada a `gui/fuentes/` las métricas son
+#: otras y los tests que fijan estos números se saltan.
 ANCHURA_MINIMA = 1017
-ALTO_MINIMO = 738
+ALTO_MINIMO = 745
 
 
 # ---------------------------------------------------------------------------

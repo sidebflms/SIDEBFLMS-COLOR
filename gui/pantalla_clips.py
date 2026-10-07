@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QStyledItemDelegate,
-    QTableView,
     QVBoxLayout,
     QWidget,
 )
@@ -47,6 +46,7 @@ from gui.widgets import (
     MarcaDesajuste,
     Panel,
     Rotulo,
+    TablaSuite,
     pintar_insignia_confianza,
     separador,
 )
@@ -361,7 +361,7 @@ class PantallaClips(QWidget):
         self.division.setChildrenCollapsible(False)
         self.division.setHandleWidth(8)  # suite: hueco de 8 px entre paneles de cristal
 
-        self.tabla = QTableView()
+        self.tabla = TablaSuite()
         self.modelo = ModeloClips(estado.clips)
         self.tabla.setModel(self.modelo)
         self.tabla.setItemDelegateForColumn(COL_CONFIANZA, DelegadoConfianza(self.tabla))
