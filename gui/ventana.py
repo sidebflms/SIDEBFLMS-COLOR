@@ -113,7 +113,7 @@ class VentanaPrincipal(QMainWindow):
 
         derecha = QWidget()
         col = QVBoxLayout(derecha)
-        col.setContentsMargins(16, 14, 16, 16)
+        col.setContentsMargins(16, 12, 16, 14)
         col.setSpacing(14)
         col.addWidget(self._cabecera())
         self.pila = QStackedWidget()

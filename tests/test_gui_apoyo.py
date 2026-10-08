@@ -100,8 +100,12 @@ pytestmark = pytest.mark.gui
 #: pantalla a 18 px (Akira, o Montserrat 800 si no está), en vez del rótulo de 12 px.
 #: Medido sin Akira; con Akira instalada o copiada a `gui/fuentes/` las métricas son
 #: otras y los tests que fijan estos números se saltan.
+#:
+#: **[integración final, 2026-10-08] El alto baja de 745 a 741.** Los márgenes de la columna de
+#: contenido pasan de (16, 14, 16, 16) a (16, 12, 16, 14): el alto mínimo vuelve a ser
+#: ≤ 742, el que tenia la auditoría de diseño (bloque 3). Ancho y `anchos_fijos()` no cambian.
 ANCHURA_MINIMA = 1017
-ALTO_MINIMO = 745
+ALTO_MINIMO = 741
 
 
 # ---------------------------------------------------------------------------

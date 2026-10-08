@@ -3673,8 +3673,9 @@ naranja: va `#141414` liso.
 
 **Sin mono — lo que se pierde** (declarado, decisión de Mario): 0/O y l/1 en ids y rutas;
 en bloques con signos (`+0.0102`/`-0.1216`) el `+` y el `−` miden distinto, así que alinean
-a ~1-2 px, no a rejilla; **«Δ» no existe en Montserrat ni en Akira** y cae a la fuente del
-sistema. Se conserva la alineación a la derecha de las columnas de cifras.
+a ~1-2 px, no a rejilla. (**«Δ»:** esta sección decía que no existía en Montserrat y caía a la
+fuente del sistema; era por el subconjunto de 44 KB que se había empaquetado. Con Montserrat completa
+sí está; en **Akira** sigue sin existir, por eso los títulos son ASCII.) Se conserva la alineación a la derecha de las columnas de cifras.
 
 **Medidas antes → después** (Qt offscreen, `FakeResolve`, HOME temporal, sin Akira):
 
@@ -3766,11 +3767,12 @@ prototipo `reviews/2026-10-06-suite-color/` de `sidebflms-design`; el patch es g
   incrustado como PNG `data:` en naranja `BRAND_400`) + **«AVISO»** / **«AVERÍA»** en negrita
   + « · » en `SMOKE`. El mensaje que sigue va en crema. **Ni un píxel de rojo**: el estado
   se distingue por forma y por palabra, no por color.
-- `gui/pantalla_aplicar.py`: el plan marca avisos, bloqueos («No se puede…») y la falta de
-  conexión como **AVISO**; un clip que no se pudo escribir en Resolve, como **AVERÍA**. La
-  información normal del plan deja de ir en naranja y pasa a crema. El QC del look que
-  falla sale con rombo + «AVISO ·» (texto enriquecido, ya no un bloque entero en naranja).
-- `gui/pantalla_reverse.py`: el mismo aviso para el QC del LUT.
+- `gui/pantalla_aplicar.py`: **vocabulario único (ver «INTEGRACIÓN FINAL»)**: **AVERÍA** = falta de
+  conexión, QC del look fallido, «No se puede…» y escritura fallida en Resolve; **AVISO** = lo leve
+  (los avisos de una línea o de un resultado). La información normal del plan deja de ir en
+  naranja y pasa a crema.
+- `gui/pantalla_reverse.py`: el QC del LUT que falla es AVERÍA; «lo calculó el sustituto de la
+  GUI» es AVISO.
 - `gui/identidad.py`: `QProgressBar` de marca (surco neutro, relleno `BRAND_600`, radio de
   control): el diálogo de «Reanalizar timeline» ya no pinta el azul del sistema.
 
@@ -3800,13 +3802,67 @@ plan con aviso/bloqueo/sin conexión, avería al fallar la escritura, QC con rom
 desconectado por forma y rótulo, barra de progreso sin azul de sistema, vacío con palabras).
 
 **Rojos declarados (1):** `test_gui_estados.py::test_un_look_que_no_pasa_el_qc_se_avisa_antes_de_escribirlo`
-exigía el naranja de marca en la hoja de estilo del bloque de QC; ahora el aviso es rombo + «AVISO ·»
+exigía el naranja de marca en la hoja de estilo del bloque de QC; ahora es rombo relleno + «AVERÍA ·»
 y el texto en crema (se comprueba eso, y que sigue sin haber rojo).
 
-**Pendiente de conciliar:** la auditoría 5 (#11) usa prefijos de texto «AVERÍA ·» / «AVISO ·»
-en las mismas frases. Al fusionar, se conserva lo de #11 (la lógica de qué es aviso y qué
-es avería) y se queda aquí el rótulo con rombo.
+**Conciliado con #11:** hecho en la «INTEGRACIÓN FINAL» (más abajo).
 
 **Qué hacer al actualizar:** un estado nuevo de error/aviso se escribe con
 `marca_html("aviso"|"averia")` y el mensaje en crema; nunca con color rojo ni con un color
 como único distintivo.
+
+## INTEGRACIÓN FINAL — #10, #11, #12 y #13 sobre la suite (2026-10-08)
+
+Decisión de Mario (2026-10-08): cerrar y fusionar la auditoría de diseño y la suite juntas, y solo
+si la CI queda en verde. Esta sección es lo que se hizo para que la punta de #16 contenga todo
+(#7 a #15 se cierran como «integrada en #16»).
+
+**Qué falló en la verificación independiente.** La CI de #14, #15 y #16 estaba en rojo: los 3
+`tests/auditoria/test_dia2_fuentes.py::test_AUDF_*` seguían exigiendo **monoespaciada**
+(`iiii == MMMM`) y mis pasadas locales solo corrían `tests/test_gui_*.py`, no `pytest -q` entero.
+Ahora se corre la suite completa como la CI antes de dar nada por bueno.
+
+**Decisión explícita sobre los 3 AUDF: se ADAPTAN, no se retiran.** El motivo por el que existen
+(«pedí cifra aquí y acabó sin ella») sigue siendo válido con cifras tabulares; solo cambia la vara:
+`es_cifra_de_la_suite` (Montserrat + diez dígitos iguales + `tnum`) en lugar de «mide mono».
+- `la_hoja_de_estilo_SI_pisa_a_setFont` → `…respeta_la_cifra_pedida_con_setFont`: con Montserrat en
+  todo, la hoja ya no pisa la cifra (se comprueba antes y después de aplicar la hoja).
+- `ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella`: misma búsqueda mecánica (espía de
+  `setFont`) con la vara nueva.
+- `las_cifras_de_la_ventana_miden_monoespaciadas_de_verdad` → `…son_cifras_de_la_suite_de_verdad`.
+- El control negativo de la etiqueta plantada fabrica ahora el fallo con una hoja propia
+  (`font-family: 'Courier New'`), porque la hoja global ya no lo pisa.
+
+**Integración (una a una, conflictos resueltos conservando la auditoría).**
+- **#10 (foco):** `BITACORA.md` e `identidad.py` (el botón es píldora de la suite; el foco de 2 px y
+  el relleno que baja 1 px se quedan). **Rojo real encontrado:** la regla genérica `QPushButton:focus`
+  (borde de 2 px) hacía crecer 2 px al botón de navegación al recibir foco (186×35 → 186×37);
+  `QPushButton#navegacion:focus` repite la geometría en reposo y solo cambia el color. El test que
+  leía `QPushButton:focus { border-color… }` se adapta a `border: 2px solid …` (declarado).
+- **#11 (estados):** `identidad.py`, `pantalla_aplicar.py`, `ventana.py`. **Un solo vocabulario:**
+  AVERÍA = falta de conexión, QC fallido y «No se puede…» (y escritura fallida); AVISO = lo leve.
+  Forma (rombo relleno / de contorno, `marca_html`) + palabra, constantes en `identidad.py`
+  (`PALABRA_AVERIA`, `PALABRA_AVISO`). Fuera los «●/○» de #11: la conexión es el `PuntoEstado`.
+  `tests/test_gui_estados_marcados.py` se reescribe a este vocabulario (el reparto es el de #11, salvo
+  que el QC fallido del panel del look pasa de aviso a avería).
+- **#12 (Reanalizar 32 px, borde 3:1):** `ventana.py`. **Hallazgo:** el borde de control de la suite
+  («smoke al 55 % = 3,0:1») **calculado da 2,2-2,6:1** (2,5:1 medido en el píxel de un botón real),
+  así que perdía el 3:1 de #12. `BORDE_CONTROL_A` 0,55 → **0,72** (3,0-3,7:1). Se aparta del token de la
+  web a propósito; hay test calculado y por píxel.
+- **#13 (copy):** `pantalla_facil.py` (se queda `redondear_para_mostrar` + tooltip, con el cuerpo a 14 px).
+
+**Alto mínimo ≤ 742.** Tras integrar seguía en 745. Márgenes de la columna de contenido (16, 14, 16, 16)
+→ (16, 12, 16, 14): **741**. Ancho 1017 y `anchos_fijos()` 387 no cambian.
+
+**Montserrat completa.** Los TTF eran un subconjunto latino de ~44 KB sin flechas ni signos, así que
+`←`, `→`, `≥`, `≤` y `Δ` (≈ 300 usos en la GUI) caían a la fuente del sistema. Ahora son las cinco
+instancias estáticas (400-800) de **Montserrat 9.000 completa (1312 glifos)**, ~375 KB cada una, con
+`tnum`. `OFL.txt` lleva el copyright de la propia fuente («Copyright 2011 The Montserrat Project
+Authors (https://github.com/JulietaUla/Montserrat)»; antes decía 2024 y `Montserrat.Git`). **Σ
+(U+03A3) NO existe en Montserrat**; la interfaz no la usa (solo `core/reverse/NOTAS.md`). Tests:
+`tests/test_gui_fuentes_incluidas.py` (glifos, tamaño, licencia, barrido de los literales de `gui/`).
+`fonttools` pasa a `[dev]`.
+
+**Qué hacer al actualizar:** un estado nuevo usa `marca_html("aviso"|"averia")` con el criterio de
+arriba; un texto nuevo con símbolos se comprueba con el barrido de `test_gui_fuentes_incluidas.py`; no
+subir `.otf` de Akira (repo público).

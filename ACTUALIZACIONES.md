@@ -4,15 +4,27 @@ Cambios que afectan a **cómo se ve o se usa la app**, en orden inverso (lo últ
 arriba). Para el detalle técnico, medidas y qué hacer al actualizar, ver
 `BITACORA.md`.
 
+## INTEGRACIÓN · 2026-10-08 — auditoría de diseño + suite, juntas
+
+Lo que cambia respecto a la versión anterior, todo junto:
+
+- **Se ve el foco del teclado** (botones, listas, tablas y el visor, con trazo naranja de 2 px) y se
+  puede cambiar de pantalla con **Cmd+1 … Cmd+4**. Los controles tienen nombre para lectores de pantalla.
+- **Letra más grande:** nada por debajo de 12 px y el cuerpo a 14 px.
+- **Bordes de botones y campos más visibles** (contraste 3:1).
+- **«Reanalizar timeline»** mide al menos 32 px de alto.
+- **Textos corregidos:** tildes en la pregunta de cámara y cifras del tutor a 4 decimales.
+- **Flechas y símbolos** (← → ≥ ≤ Δ) ya salen en Montserrat, no en la fuente del sistema.
+- **Ventana:** mínimo 1017×741.
+
 ## SUITE 3/3 · 2026-10-07 — avisos, averías y barra de progreso de la suite
 
 - **Avisos y averías por forma y palabra, sin rojo:** un aviso lleva un rombo de contorno
   y «AVISO ·»; una avería, un rombo relleno y «AVERÍA ·». El mensaje va en crema. Es el
   mismo rombo del desajuste de color.
-- **Aplicar:** los avisos del plan, los clips bloqueados y la falta de conexión salen como
-  AVISO; un clip que no se pudo escribir en Resolve, como AVERÍA. La información normal ya
-  no va en naranja.
-- **Aviso del look (QC):** también con rombo y «AVISO ·», en Aplicar y en Reverse.
+- **Un solo criterio:** AVERÍA = no hay conexión con Resolve, el QC del look falla, «No se puede…»
+  o una escritura falló. AVISO = lo leve. La información normal ya no va en naranja.
+- **Aplicar y Reverse:** el aviso del QC del look/LUT sale con su rombo y su palabra.
 - **Barra de progreso de «Reanalizar timeline»** con los colores de la marca (no el azul
   del sistema).
 - **No hay pantallas de carga con esqueleto:** la app no carga datos en segundo plano.
