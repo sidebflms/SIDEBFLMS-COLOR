@@ -3933,3 +3933,10 @@ id** (`screencapture -l`, nunca pantalla completa) y se desmontó **solo el nodo
 **No verificado:** con una `.app` real de COLOR (no existe), firma/notarización, modo claro, Mac no Retina,
 otros macOS, ni la ventana en la CI (no hay Finder). El fondo exige Akira en la máquina que construye.
 
+**Tests de este bloque:** `tests/test_empaquetado_dmg.py` (12; no montan ningún `.dmg` ni usan Chrome ni
+Finder): archivos presentes, los diez tamaños del iconset con su tamaño real, `.icns` válido, SVG del icono
+sin `<text>` ni fuente, **ningún `.otf`/`.woff` ni nombre `*akira*` en `packaging/`**, ninguna ruta de usuario
+en las herramientas, la clave `COLOR` de los distintivos, el marco de Finder según el macOS (28 / 68 / 32),
+la búsqueda de Akira (variable o `gui/fuentes/`) y el lanzador (sintaxis, se niega sin `.app`, sin icono, y
+llama a `suite_dmg.py` con los datos de COLOR).
+
