@@ -4,6 +4,12 @@ Cambios que afectan a **cómo se ve o se usa la app**, en orden inverso (lo últ
 arriba). Para el detalle técnico, medidas y qué hacer al actualizar, ver
 `BITACORA.md`.
 
+## ICONO · 2026-10-08 — icono de SIDEBFLMS COLOR
+
+Hay icono de la app: el casete oficial blanco sobre fondo antracita, con «COLOR» debajo y un
+semicírculo ámbar que la distingue del resto de la suite (`packaging/AppIcon.icns`). Todavía no se
+nota en ninguna parte porque COLOR aún no se empaqueta como `.app`.
+
 ## INTEGRACIÓN · 2026-10-08 — auditoría de diseño + suite, juntas
 
 Lo que cambia respecto a la versión anterior, todo junto:

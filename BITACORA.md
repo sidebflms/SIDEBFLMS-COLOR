@@ -3875,3 +3875,27 @@ base de auditoría (p. ej. `test_gui_pantallas.py`: 34 s el peor test frente a 4
 vivos: ~0,5 s por llamada, creciendo con los widgets que dejan los tests anteriores. Ahora `crear_app()`
 solo toca la hoja y la fuente si **cambian** (`tests/test_gui_suite_base.py::test_crear_app_no_vuelve_…`).
 `test_gui_pantallas.py` vuelve a 4,3 s en el peor test.
+
+## ICONO DE COLOR — AppIcon.iconset y AppIcon.icns (2026-10-08)
+
+Material: `sidebflms/sidebflms-design` (privado), rama `main`, `reviews/2026-10-08-iconos/` (versión 2:
+casete **oficial blanco** sobre squircle antracita, nombre completo en Akira debajo, distintivo de color
+por app; el de COLOR es un semicírculo ámbar). Se leyó desde GitHub, no de disco local.
+
+**Qué se añade** (todo en `packaging/`, no se toca nada de `gui/` ni de `core/`):
+- `icono/COLOR-maestro.svg` y `icono/COLOR-solo-casete.svg`: los SVG de la carpeta `svg-12-apps/casete-blanco`.
+  El nombre va **en contornos**: ni `<text>` ni `@font-face` ni fuente incrustada (hay test), así que
+  **no hace falta Akira** para regenerar el icono y el repo público no lleva ningún `.otf`.
+- `genera_icono.sh` + `genera_icono.mjs`: regeneran `AppIcon.iconset` (10 tamaños, 16 a 1024) y
+  `AppIcon.icns` (`iconutil`). Regla del diseño: **desde 128 px** el maestro (con nombre); **a 64 px o
+  menos** el `solo-casete` (sin nombre) con el contorno del casete engrosado, **9 unidades a 64 px, 16 a
+  32 px y 26 a 16 px**. Necesita Node + Chrome + `puppeteer-core` (`SUITE_PUPPETEER_FROM`, `SUITE_CHROME`).
+- `AppIcon.iconset/` y `AppIcon.icns` ya generados (≈ 0,8 MB).
+
+**Comprobado:** los tamaños de los PNG salen casi idénticos a los del paquete piloto DIT (p. ej. 128 px:
+11,4 KB frente a 11,2 KB; 512@2x: 272 KB frente a 271 KB) y la vista a 512/64/32/16 px es la esperada.
+
+**Límites:** COLOR **no tiene empaquetado de `.app`** todavía: este icono es lo que usará (`icon=` y
+`CFBundleIconFile` cuando exista). A 16-32 px solo se reconoce el casete y el punto de color. El
+squircle es una superelipse (n = 5), parecida a la de Apple pero no idéntica.
+
