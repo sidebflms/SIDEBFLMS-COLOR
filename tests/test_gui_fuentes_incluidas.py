@@ -57,7 +57,9 @@ def test_sigma_griega_no_esta_en_montserrat_ni_la_usa_la_interfaz():
     """Hecho documentado: si esto cambia (Montserrat la añade), se puede quitar la nota."""
     assert ord("Σ") not in TTFont(_fuentes()["Regular"]).getBestCmap()
     usada = []
-    for ruta in glob.glob(str(CARPETA.parent / "*.py")):
+    modulos = glob.glob(str(CARPETA.parent / "*.py"))
+    assert modulos, "no hay nada que comprobar: gui/ siempre trae modulos .py"
+    for ruta in modulos:
         with open(ruta, "rb") as f:
             for tok in tokenize.tokenize(f.readline):
                 if tok.type == tokenize.STRING and "Σ" in tok.string:
@@ -69,7 +71,9 @@ def test_todo_glifo_no_ascii_de_los_textos_de_la_gui_esta_en_montserrat():
     """Barrido mecanico de los literales de `gui/*.py`: ningun texto cae a otra fuente."""
     cmap = TTFont(_fuentes()["Regular"]).getBestCmap()
     sin_glifo: dict[str, set[str]] = {}
-    for ruta in glob.glob(str(CARPETA.parent / "*.py")):
+    modulos = glob.glob(str(CARPETA.parent / "*.py"))
+    assert modulos, "no hay nada que comprobar: gui/ siempre trae modulos .py"
+    for ruta in modulos:
         with open(ruta, "rb") as f:
             for tok in tokenize.tokenize(f.readline):
                 if tok.type in (tokenize.STRING, getattr(tokenize, "FSTRING_MIDDLE", -1)):
