@@ -60,7 +60,7 @@ from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.dialogo_perfil import DialogoPerfiles
 from gui.perfiles_trabajo import aplicar_perfil_a_estado
-from gui.widgets import Cifra, EtiquetaElidida, Panel, Rotulo, separador
+from gui.widgets import Cifra, EtiquetaElidida, Panel, PuntoEstado, Rotulo, marca_html, separador
 
 # ---------------------------------------------------------------------------
 # El plan. Logica pura: se puede probar sin abrir una ventana.
@@ -358,6 +358,8 @@ class PantallaAplicar(QWidget):
         self.texto_banda.setFont(idn.fuente_texto(12))
         fila_banda = QHBoxLayout()
         fila_banda.setSpacing(12)
+        self.punto_banda = PuntoEstado()
+        fila_banda.addWidget(self.punto_banda, 0)
         self.rotulo_banda = Rotulo("resolve", acento=True)
         fila_banda.addWidget(self.rotulo_banda, 0)
         fila_banda.addWidget(self.texto_banda, 1)
@@ -366,7 +368,7 @@ class PantallaAplicar(QWidget):
 
         division = QSplitter(Qt.Orientation.Horizontal)
         division.setChildrenCollapsible(False)
-        division.setHandleWidth(12)
+        division.setHandleWidth(8)
 
         # --- izquierda: que clips ---
         izq = Panel(margenes=(12, 12, 12, 12))
@@ -406,9 +408,12 @@ class PantallaAplicar(QWidget):
         )
         self.texto_preparar_nodos.setWordWrap(True)
         self.texto_preparar_nodos.setMinimumWidth(0)
-        self.texto_preparar_nodos.setFont(idn.fuente_texto(11))
+        self.texto_preparar_nodos.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         izq.caja.addWidget(self.texto_preparar_nodos)
-        self.btn_preparar_nodos = QPushButton("Copiar la estructura de nodos al resto marcado")
+        # El texto largo no cabía en la columna (210 px de 304): texto corto en
+        # el botón y el largo en el tooltip.
+        self.btn_preparar_nodos = QPushButton("Copiar nodos al resto")
+        self.btn_preparar_nodos.setToolTip("Copiar la estructura de nodos al resto marcado")
         izq.caja.addWidget(self.btn_preparar_nodos)
 
         izq.caja.addWidget(separador())
@@ -421,7 +426,7 @@ class PantallaAplicar(QWidget):
         # aqui pedia JetBrains Mono y la regla `QWidget` le devolvia Inter, que
         # es justo donde mas se nota (ruta con espacios, elidida por el medio).
         self.ruta_look.setProperty("class", "cifra")
-        self.ruta_look.setFont(idn.fuente_cifra(11))
+        self.ruta_look.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         izq.caja.addWidget(self.ruta_look)
         self.texto_look = QLabel("")
         self.texto_look.setWordWrap(True)
@@ -429,7 +434,7 @@ class PantallaAplicar(QWidget):
         # de una columna acotada con scroll horizontal apagado, así que no se
         # nota — se romperá igual si algún día se mete en algo así.
         self.texto_look.setMinimumWidth(0)
-        self.texto_look.setFont(idn.fuente_texto(11))
+        self.texto_look.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         izq.caja.addWidget(self.texto_look)
 
         # --- perfil de trabajo (día 9, continuación 10) ---
@@ -442,18 +447,29 @@ class PantallaAplicar(QWidget):
         izq.caja.addWidget(Rotulo("perfil de trabajo", acento=True))
         self.selector_perfil = QComboBox()
         self.selector_perfil.setFont(idn.fuente_texto(12))
+        # El mensaje de «sin perfiles» ensanchaba el combo más que la columna
+        # (210 px de 298): ahora el combo no crece con el texto y los mensajes
+        # son cortos; el largo va en el tooltip.
+        self.selector_perfil.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.selector_perfil.setMinimumContentsLength(12)
         izq.caja.addWidget(self.selector_perfil)
-        fila_perfil = QHBoxLayout()
-        fila_perfil.setSpacing(8)
-        self.btn_aplicar_perfil = QPushButton("Aplicar perfil a todo el lote")
-        fila_perfil.addWidget(self.btn_aplicar_perfil, 1)
+        # Los dos botones van APILADOS, no en fila: la columna mide 206 px a la
+        # anchura mínima y «Aplicar perfil» + «Gestionar…» piden 103 + 100 (más de
+        # 205 con el cuerpo a 14 px, que es lo que pinta un botón), así que en
+        # fila uno de los dos se cortaba. Apilados, cada uno tiene la columna
+        # entera y no depende del tamaño de la letra.
+        # 102 px de 182: texto corto; el alcance («a todo el lote») va al tooltip.
+        self.btn_aplicar_perfil = QPushButton("Aplicar perfil")
+        self.btn_aplicar_perfil.setToolTip("Aplicar perfil a todo el lote")
+        izq.caja.addWidget(self.btn_aplicar_perfil)
         # Día 9 (continuación 14): hasta hoy `guardar_perfil` existía en
         # código pero nadie en la GUI lo llamaba — un perfil sólo se podía
         # montar a mano en Python. Ver `gui/dialogo_perfil.py`.
         self.btn_gestionar_perfiles = QPushButton("Gestionar…")
         self.btn_gestionar_perfiles.clicked.connect(self._gestionar_perfiles)
-        fila_perfil.addWidget(self.btn_gestionar_perfiles, 0)
-        izq.caja.addLayout(fila_perfil)
+        izq.caja.addWidget(self.btn_gestionar_perfiles)
         self._refrescar_perfiles_disponibles()
         division.addWidget(izq)
 
@@ -546,21 +562,24 @@ class PantallaAplicar(QWidget):
         enterarse despues de haberlo puesto en 200 clips no es enterarse.
         """
         informe = self._estado.informe_lut
+        self.texto_look.setTextFormat(Qt.TextFormat.PlainText)
         if informe is None:
             self.texto_look.setText("Sin LUT de look: sólo se escribe el CDL del nodo 2.")
             self.texto_look.setStyleSheet("")
             return
         if informe.ok:
             self.texto_look.setText(f"QC: {informe.resumen()}")
-            self.texto_look.setStyleSheet(f"color: {idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)};")
+            self.texto_look.setStyleSheet(f"color: {idn.SMOKE};")
             return
-        lineas = [f"QC: {informe.resumen()}"]
-        lineas += [f"· {p.mensaje}" for p in informe.problemas[:3]]
+        lineas = [f"QC: {_escapar(informe.resumen())}"]
+        lineas += [f"· {_escapar(p.mensaje)}" for p in informe.problemas[:3]]
         if len(informe.problemas) > 3:
             lineas.append(f"· … y {len(informe.problemas) - 3} más")
-        lineas.append("Se puede escribir igualmente; el aviso queda aquí.")
-        self.texto_look.setText("\n".join(lineas))
-        self.texto_look.setStyleSheet(f"color: {idn.BRAND_400};")
+        lineas.append("Se puede escribir igualmente; el QC queda aquí.")
+        # SUITE: QC fallido = averia (rombo relleno + rotulo); el texto en crema, no en naranja.
+        self.texto_look.setTextFormat(Qt.TextFormat.RichText)
+        self.texto_look.setText(marca_html("averia") + "<br>".join(lineas))
+        self.texto_look.setStyleSheet("")
 
     def _marcar_todos(self, marcado: bool) -> None:
         self.lista.blockSignals(True)
@@ -607,12 +626,14 @@ class PantallaAplicar(QWidget):
             except ResolveError as exc:
                 error = str(exc)
         if info is not None:
+            self.punto_banda.poner(True)
             self.rotulo_banda.setText("resolve conectado")
             self.texto_banda.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · "
                 f"{info.resolve_version}"
             )
         else:
+            self.punto_banda.poner(False)
             self.rotulo_banda.setText("resolve desconectado")
             self.texto_banda.setText(error or "No hay conexión con DaVinci Resolve.")
 
@@ -641,10 +662,10 @@ class PantallaAplicar(QWidget):
 
     def _plan_a_html(self, plan: Plan) -> str:
         cifra = ", ".join(f'"{f}"' for f in idn.FAMILIAS_CIFRA)
-        apagado = idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)
+        apagado = idn.SMOKE
         if plan.error_global:
             return (
-                f'<div style="color:{idn.BRAND_400};">{plan.error_global}</div>'
+                f'<div>{marca_html("averia")}{_escapar(plan.error_global)}</div>'
                 f'<div style="color:{apagado}; margin-top:8px;">'
                 f"No se puede aplicar nada mientras no haya conexión. "
                 f"El plan y los números siguen aquí; no se pierde nada.</div>"
@@ -656,7 +677,7 @@ class PantallaAplicar(QWidget):
         nuevas = sum(1 for linea in plan.lineas if linea.puede and not linea.version_ya_existe)
         reusadas = sum(1 for linea in plan.lineas if linea.puede and linea.version_ya_existe)
         partes.append(
-            f'<div style="color:{idn.BRAND_400};">'
+            f'<div>'
             f"Se crea la versión <span style='font-family:{cifra};'>{VERSION_NAME}</span> "
             f"en {nuevas} clip(s) y se reutiliza en {reusadas}. "
             f"El grado original de cada clip se queda en su versión, intacto.</div><br>"
@@ -664,7 +685,7 @@ class PantallaAplicar(QWidget):
         informe = self._estado.informe_lut
         if informe is not None and not informe.ok:
             partes.append(
-                f'<div style="color:{idn.BRAND_400}; margin-bottom:10px;">'
+                f'<div style="margin-bottom:10px;">{marca_html("averia")}'
                 f"El look que va al nodo {NODE_LOOK} no pasa el QC: "
                 f"{_escapar(informe.resumen())}</div>"
             )
@@ -685,7 +706,7 @@ class PantallaAplicar(QWidget):
                     f"<span style='font-family:{cifra};'>{_escapar(linea.look_rel)}</span>"
                     f"<br>· nodo 1 (normalización): no se toca</span>"
                     + "".join(
-                        f'<br><span style="color:{idn.BRAND_400};">· aviso: {_escapar(a)}</span>'
+                        f'<br>{marca_html("aviso")}{_escapar(a)}'
                         for a in linea.avisos
                     )
                     + "</div>"
@@ -695,8 +716,8 @@ class PantallaAplicar(QWidget):
                     f'<div style="margin-bottom:10px;">'
                     f'<span style="font-family:{cifra}; color:{apagado};">{linea.clip_id}</span> '
                     f"<b>{_escapar(linea.nombre)}</b><br>"
-                    f'<span style="color:{idn.BRAND_400};">· NO SE PUEDE: '
-                    f"{_escapar(linea.motivo)}</span></div>"
+                    f'{marca_html("averia")}No se puede: '
+                    f"{_escapar(linea.motivo)}</div>"
                 )
         return "".join(partes)
 
@@ -715,14 +736,17 @@ class PantallaAplicar(QWidget):
     def _refrescar_perfiles_disponibles(self) -> None:
         self.selector_perfil.clear()
         self.btn_gestionar_perfiles.setEnabled(self._perfiles_carpeta is not None)
+        self.selector_perfil.setToolTip("")
         if self._perfiles_carpeta is None:
-            self.selector_perfil.addItem("(sin carpeta de perfiles configurada)")
+            self.selector_perfil.addItem("(sin carpeta)")
+            self.selector_perfil.setToolTip("Sin carpeta de perfiles configurada")
             self.selector_perfil.setEnabled(False)
             self.btn_aplicar_perfil.setEnabled(False)
             return
         nombres = listar_perfiles(self._perfiles_carpeta)
         if not nombres:
-            self.selector_perfil.addItem("(no hay ningún perfil guardado todavía)")
+            self.selector_perfil.addItem("(sin perfiles)")
+            self.selector_perfil.setToolTip("No hay ningún perfil guardado todavía")
             self.selector_perfil.setEnabled(False)
             self.btn_aplicar_perfil.setEnabled(False)
             return
@@ -810,7 +834,7 @@ class PantallaAplicar(QWidget):
 
     def _resultado_a_html(self, resultados: list[ResultadoClip]) -> str:
         cifra = ", ".join(f'"{f}"' for f in idn.FAMILIAS_CIFRA)
-        apagado = idn.rgba(idn.BRAND_50, idn.TEXTO_APAGADO_A)
+        apagado = idn.SMOKE
         if not resultados:
             return f'<div style="color:{apagado};">No se ha aplicado nada.</div>'
         bien = [r for r in resultados if r.ok]
@@ -821,7 +845,7 @@ class PantallaAplicar(QWidget):
         ]
         for r in mal:
             partes.append(
-                f'<div style="margin-bottom:8px; color:{idn.BRAND_400};">'
+                f'<div style="margin-bottom:8px;">{marca_html("averia")}'
                 f'<span style="font-family:{cifra};">{r.clip_id or "—"}</span> '
                 f"{_escapar(r.nombre)}<br>· {_escapar(r.mensaje)}</div>"
             )
@@ -832,7 +856,10 @@ class PantallaAplicar(QWidget):
                 f"{_escapar(r.nombre)} → versión "
                 f'<span style="font-family:{cifra};">{_escapar(r.version)}</span><br>'
                 f"· {_escapar(r.mensaje)}"
-                + "".join(f"<br>· aviso: {_escapar(a)}" for a in r.avisos)
+                + "".join(
+                    f'<br>{marca_html("aviso")}{_escapar(a)}'
+                    for a in r.avisos
+                )
                 + "</div>"
             )
         return "".join(partes)

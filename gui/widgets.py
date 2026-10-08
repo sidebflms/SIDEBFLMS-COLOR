@@ -32,9 +32,18 @@ from PySide6.QtGui import (
     QPen,
     QPolygonF,
 )
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gui import identidad as idn
+from gui.cristal import pintar_cristal
 
 # ---------------------------------------------------------------------------
 # Texto
@@ -137,14 +146,15 @@ class Rotulo(EtiquetaElidida):
     ultimo recurso no se usa en ninguna pantalla.
     """
 
-    #: Tamanos de la identidad: 10px el rotulo normal, 11px el de acento. Son
+    #: Tamanos: 12px (suelo informativo, antes 10 y 11 -- auditoria de diseno
+    #: 2026-10-06); el de acento se distingue por el peso. Son
     #: los mismos que declara la hoja de estilo para `#rotulo` y `#titulo`, y
     #: tienen que coincidir: **el QSS pisa a `setFont()` en familia y tamano,
     #: pero NO en el tracking**, que no se puede escribir en QSS. Si aqui se
     #: construye la fuente a 10px y el QSS la pinta a 11, el tracking absoluto
     #: se queda en el de 10 y sale un 0.145em donde la identidad pide 0.15-0.18.
-    PX_NORMAL = 10
-    PX_ACENTO = 11
+    PX_NORMAL = idn.PX_MIN_INFORMATIVO
+    PX_ACENTO = idn.PX_MIN_INFORMATIVO
 
     def __init__(self, texto: str = "", *, px: int | None = None, acento: bool = False,
                  ancho_minimo_px: int = 30, parent: QWidget | None = None) -> None:
@@ -213,7 +223,7 @@ class TextoAjustado(QLabel):
 class Cifra(QLabel):
     """Toda cifra de la app. Monoespaciada, sin excepcion (identidad)."""
 
-    def __init__(self, texto: str = "", *, px: int = 13, peso: QFont.Weight = QFont.Weight.Normal,
+    def __init__(self, texto: str = "", *, px: int = idn.PX_CUERPO, peso: QFont.Weight = QFont.Weight.Normal,
                  secundario: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(texto, parent)
         self.setFont(idn.fuente_cifra(px, peso))
@@ -224,15 +234,181 @@ class Cifra(QLabel):
 
 
 class Panel(QFrame):
-    """Superficie `panel` con borde y radio. Trae su propio layout vertical."""
+    """Superficie de CRISTAL (suite) con su layout vertical.
 
-    def __init__(self, *, cristal: bool = False, margenes: tuple[int, int, int, int] = (14, 12, 14, 12),
+    `cristal=True` = relleno fuerte (.34, el de los avisos y bandas). `neutro=True`
+    = filo sin naranja, para los marcos que rodean una imagen. Ver `gui/cristal.py`
+    para lo que es real y lo que es aproximacion del cristal en Qt.
+    """
+
+    def __init__(self, *, cristal: bool = False, neutro: bool = False,
+                 margenes: tuple[int, int, int, int] = (14, 12, 14, 12),
                  espaciado: int = 8, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("cristal" if cristal else "panel")
+        self._fuerte = cristal
+        self._neutro = neutro
         self.caja = QVBoxLayout(self)
         self.caja.setContentsMargins(*margenes)
         self.caja.setSpacing(espaciado)
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        pintar_cristal(p, self, fuerte=self._fuerte, neutro=self._neutro)
+        p.end()
+
+
+# ---------------------------------------------------------------------------
+# Averia y aviso: FORMA + ROTULO, sin pastillas de color de estado (suite)
+# ---------------------------------------------------------------------------
+
+_CACHE_ROMBOS: dict[str, str] = {}
+
+
+def _rombo_data_uri(relleno: bool) -> str:
+    """PNG (data URI) de un rombo de 12 px para meter en HTML de Qt."""
+    clave = "r" if relleno else "c"
+    if clave in _CACHE_ROMBOS:
+        return _CACHE_ROMBOS[clave]
+    import base64
+
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtGui import QPixmap
+
+    dpr, lado = 2, 12
+    pm = QPixmap(lado * dpr, lado * dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    c = lado * dpr / 2.0
+    poli = QPolygonF([QPointF(c, 1.5), QPointF(lado * dpr - 1.5, c), QPointF(c, lado * dpr - 1.5), QPointF(1.5, c)])
+    p.setPen(QPen(idn.color(idn.BRAND_400), 2.0))
+    p.setBrush(QBrush(idn.color(idn.BRAND_400)) if relleno else Qt.BrushStyle.NoBrush)
+    p.drawPolygon(poli)
+    p.end()
+    ba = QByteArray()
+    buf = QBuffer(ba)
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    pm.save(buf, "PNG")
+    uri = "data:image/png;base64," + base64.b64encode(bytes(ba)).decode()
+    _CACHE_ROMBOS[clave] = uri
+    return uri
+
+
+def marca_html(tipo: str) -> str:
+    """`AVISO` = rombo de contorno + rotulo; `AVERIA` = rombo relleno + rotulo.
+
+    El mensaje que sigue va en crema: el estado lo dicen la forma y la palabra,
+    no un color (la suite de color no lleva pastillas de estado, y aqui no hay
+    rojo). Rombo del mismo dibujo que `MarcaDesajuste`.
+    """
+    relleno = tipo == "averia"
+    palabra = idn.PALABRA_AVERIA if relleno else idn.PALABRA_AVISO
+    return (
+        f'<img src="{_rombo_data_uri(relleno)}" width="12" height="12"> '
+        f'<span style="font-weight:700; letter-spacing:1px; color:{idn.BRAND_400};">{palabra}</span>'
+        f'<span style="color:{idn.SMOKE};"> · </span>'
+    )
+
+
+class PuntoEstado(QWidget):
+    """Conexion con Resolve por FORMA: disco relleno (conectado) o contorno
+    discontinuo (desconectado). Sin verde/rojo y sin pastilla (suite de color)."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._ok = True
+        self.setFixedSize(12, 12)
+
+    def poner(self, ok: bool) -> None:
+        self._ok = bool(ok)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        r = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        if self._ok:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(idn.color(idn.BRAND_50)))
+        else:
+            pen = QPen(idn.color(idn.BRAND_400), 1.3)
+            pen.setStyle(Qt.PenStyle.DashLine)
+            pen.setDashPattern([2.0, 1.6])
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(r)
+        p.end()
+
+
+class CabeceraMarca(QWidget):
+    """Cabecera de marca de la suite: casete + wordmark SIDEBFLMS (B naranja,
+    el resto blanco) y debajo el nombre de la app en Akira (>= 18 px, ASCII).
+
+    Los SVG salen de `sidebflms-web/public/logo` (copiados a `gui/logo/`, fuera
+    del parche como las fuentes). Si faltan, cae al rotulo de texto de antes.
+    """
+
+    def __init__(self, nombre_app: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        from pathlib import Path
+
+        from PySide6.QtSvg import QSvgRenderer
+
+        carpeta = Path(__file__).resolve().parent / "logo"
+        self._mark = QSvgRenderer(str(carpeta / "mark-blanco.svg"))
+        self._word = QSvgRenderer(str(carpeta / "wordmark.svg"))
+        self._ok = self._mark.isValid() and self._word.isValid()
+        self._nombre = nombre_app
+        self._f = idn.fuente_display(idn.PX_DISPLAY_MIN)
+        self.setFixedHeight(22 + 8 + QFontMetrics(self._f).height())
+        self.setAccessibleName(f"SIDEBFLMS {nombre_app}")
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        x = 0.0
+        if self._ok:
+            alto_mark = 20.0
+            ancho_mark = alto_mark * 714.0 / 478.0
+            self._mark.render(p, QRectF(0, 1, ancho_mark, alto_mark))
+            x = ancho_mark + 8.0
+            ancho_word = self.width() - x
+            alto_word = ancho_word * 100.0 / 1243.37
+            self._word.render(p, QRectF(x, 1 + (alto_mark - alto_word) / 2.0, ancho_word, alto_word))
+        else:
+            p.setFont(idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO, QFont.Weight.Bold))
+            p.setPen(QPen(idn.color(idn.BRAND_400)))
+            p.drawText(QRectF(0, 0, self.width(), 22), int(Qt.AlignmentFlag.AlignVCenter), "SIDEBFLMS")
+        p.setFont(self._f)
+        p.setPen(QPen(idn.color(idn.BRAND_50)))
+        p.drawText(QRectF(0, 30, self.width(), self.height() - 30),
+                   int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), self._nombre)
+        p.end()
+
+
+class TablaSuite(QTableView):
+    """`QTableView` cuya fila seleccionada lleva un FILETE naranja de 2 px a la
+    izquierda y un velo neutro, en vez del bloque naranja #672514 de antes.
+
+    Motivo (auditoria + suite de color): un bloque naranja saturado en mitad de
+    la tabla compite con el naranja de marca y con la imagen; el filete dice lo
+    mismo con 2 px.
+    """
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+        modelo = self.selectionModel()
+        if modelo is None:
+            return
+        p = QPainter(self.viewport())
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(idn.color(idn.BRAND_500)))
+        for fila in modelo.selectedRows():
+            r = self.visualRect(fila)
+            if r.isValid() and r.intersects(self.viewport().rect()):
+                p.drawRect(0, r.top(), 2, r.height())
+        p.end()
 
 
 def separador(vertical: bool = False) -> QFrame:
@@ -288,7 +464,7 @@ def fila_dato(rotulo: str, valor: str, *, secundario: bool = False) -> QWidget:
 #: que subirla sube la anchura minima de la ventana, que es justo lo que el
 #: encargo de hoy pide no hacer. Queda dicho aqui y en el informe.
 INSIGNIA_ALTO = 22
-INSIGNIA_ANCHO = 108
+INSIGNIA_ANCHO = 118  # suite: Montserrat es mas ancha (ver INFORME: antes 108)
 
 
 def pintar_insignia_confianza(
@@ -316,12 +492,12 @@ def pintar_insignia_confianza(
         trazo.setDashPattern([3.0, 2.5])
     p.setPen(trazo)
     p.setBrush(QBrush(forma.relleno) if forma.relleno is not None else Qt.BrushStyle.NoBrush)
-    p.drawRoundedRect(r, 4.0, 4.0)
+    p.drawRoundedRect(r, r.height() / 2.0, r.height() / 2.0)  # suite: pildora
 
     # Medidor de tres escalones.
     alto_util = r.height() - 10.0
     ancho_barra = 3.0
-    x = r.left() + 9.0
+    x = r.left() + 8.0
     for i in range(3):
         encendido = i < forma.escalones
         alto = alto_util * (0.42 + 0.29 * i)
@@ -336,22 +512,22 @@ def pintar_insignia_confianza(
             apagado.setStyle(Qt.PenStyle.DotLine)
             p.setPen(apagado)
             p.drawRect(barra.adjusted(0.5, 0.5, -0.5, -0.5))
-        x += ancho_barra + 3.0
+        x += ancho_barra + 2.5
 
     # Nivel + puntuacion. La puntuacion, en monoespaciada.
     p.setPen(QPen(forma.texto))
-    x_texto = x + 6.0
-    f_nivel = idn.fuente_rotulo(10)
+    x_texto = x + 4.0
+    f_nivel = idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO)
     p.setFont(f_nivel)
-    ancho_nivel = QFontMetrics(f_nivel).horizontalAdvance(forma.value.upper()) + 4
+    ancho_nivel = QFontMetrics(f_nivel).horizontalAdvance(forma.value.upper()) + 2
     p.drawText(
         QRectF(x_texto, r.top(), ancho_nivel, r.height()),
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
         forma.value.upper(),
     )
-    p.setFont(idn.fuente_cifra(11))
+    p.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
     p.drawText(
-        QRectF(x_texto + ancho_nivel + 4, r.top(), r.right() - x_texto - ancho_nivel - 8, r.height()),
+        QRectF(x_texto + ancho_nivel + 3, r.top(), r.right() - x_texto - ancho_nivel - 3 - 6, r.height()),
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
         f"{score * 100:.0f}%",
     )
@@ -366,11 +542,17 @@ class InsigniaConfianza(QWidget):
         self._forma = forma
         self._score = float(score)
         self.setFixedSize(INSIGNIA_ANCHO, INSIGNIA_ALTO)
-        self.setToolTip(f"confianza {forma.value}: {self._score * 100:.0f}%")
+        self._describir()
+
+    def _describir(self) -> None:
+        """Tooltip y nombre accesible: la confianza se distingue por FORMA, que un
+        lector de pantalla no ve; el nombre accesible la dice con palabras."""
+        self.setToolTip(f"confianza {self._forma.value}: {self._score * 100:.0f}%")
+        self.setAccessibleName(f"Confianza {self._forma.value}, {self._score * 100:.0f}%")
 
     def actualizar(self, forma: idn.FormaConfianza, score: float) -> None:
         self._forma, self._score = forma, float(score)
-        self.setToolTip(f"confianza {forma.value}: {self._score * 100:.0f}%")
+        self._describir()
         self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -391,6 +573,7 @@ class MarcaDesajuste(QWidget):
         super().__init__(parent)
         self.setFixedSize(lado, lado)
         self.setToolTip("desajuste de contenido: las dos escenas no son comparables")
+        self.setAccessibleName("Aviso: desajuste de contenido, las dos escenas no son comparables")
 
     def paintEvent(self, event) -> None:  # noqa: N802
         p = QPainter(self)
@@ -410,6 +593,8 @@ class MarcaDesajuste(QWidget):
         p.setPen(QPen(idn.color(idn.BRAND_400), 1.2))
         p.setBrush(QBrush(idn.color(idn.BRAND_400, 0.16)))
         p.drawPath(ruta)
+        # El «!» del rombo es un GLIFO, no un texto informativo, y el rombo no se toca
+        # (auditoría de diseño 2026-10-06): se queda a 10 px, bajo el suelo de 12.
         p.setFont(idn.fuente_cifra(10, QFont.Weight.Bold))
         p.setPen(QPen(idn.color(idn.BRAND_400)))
         p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), "!")
@@ -469,6 +654,10 @@ class MarcaLimite(QWidget):
             f"{self._limite:.1f}. Ese límite es el objetivo que fijó el encargo, "
             f"no una medida de dónde empieza a notarse la diferencia."
         )
+        self.setAccessibleName(
+            f"{que + ': ' if que else ''}{'cumple' if self.cumple() else 'no cumple'} "
+            f"el límite de {self._limite:.1f} (valor {self._valor:.2f})"
+        )
         self.updateGeometry()
         self.update()
 
@@ -499,9 +688,9 @@ class MarcaLimite(QWidget):
     @staticmethod
     def _fuentes() -> tuple[QFont, QFont, QFont]:
         return (
-            idn.fuente_rotulo(10, QFont.Weight.Bold),
-            idn.fuente_rotulo(10),
-            idn.fuente_cifra(11, QFont.Weight.DemiBold),
+            idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO, QFont.Weight.Bold),
+            idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO),
+            idn.fuente_cifra(idn.PX_MIN_INFORMATIVO, QFont.Weight.DemiBold),
         )
 
     def _anchos(self) -> tuple[int, int, int]:

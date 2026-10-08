@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 from gui import identidad as idn
 from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.imagen import a_qimage
-from gui.tutor_datos import frases_de_clip, lecciones_de_clip
+from gui.tutor_datos import frases_de_clip, lecciones_de_clip, redondear_para_mostrar
 from gui.widgets import Cifra, EtiquetaElidida, InsigniaConfianza, MarcaDesajuste, Panel, Rotulo
 
 #: Cuanto se mueve la cortinilla con una flecha, y con Shift+flecha.
@@ -102,6 +102,10 @@ class VisorCortinilla(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.SizeHorCursor)
+        self.setAccessibleName("Visor antes y después")
+        self.setAccessibleDescription(
+            "Flechas izquierda y derecha mueven la cortinilla; con Mayúsculas, paso fino."
+        )
 
     # -- datos -------------------------------------------------------------
 
@@ -144,9 +148,10 @@ class VisorCortinilla(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         p.fillRect(self.rect(), QBrush(idn.color(idn.HONDO)))
         if self._antes is None or self._despues is None:
-            p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_APAGADO_A)))
+            p.setPen(QPen(idn.color(idn.SMOKE)))
             p.setFont(idn.fuente_texto(13))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), self._mensaje)
+            self._trazo_de_foco(p)
             p.end()
             return
 
@@ -167,10 +172,21 @@ class VisorCortinilla(QWidget):
         p.setPen(QPen(idn.color(idn.BRAND_50, idn.BORDE_A), 1))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRect(marco.adjusted(0, 0, -1, -1))
+        self._trazo_de_foco(p)
         p.end()
 
+    def _trazo_de_foco(self, p: QPainter) -> None:
+        """Trazo de 2 px en `brand-400` alrededor del visor cuando tiene el foco
+        (auditoría de diseño 2026-10-06: sin él, Tab llegaba al visor sin que se
+        viera). Dentro del widget, para que no lo recorte el borde."""
+        if not self.hasFocus():
+            return
+        p.setPen(QPen(idn.color(idn.BRAND_400), 2))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(self.rect().adjusted(1, 1, -1, -1))
+
     def _rotulos(self, p: QPainter, marco: QRect, corte: int) -> None:
-        f = idn.fuente_rotulo(10)
+        f = idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO)
         p.setFont(f)
         metricas = QFontMetrics(f)
         for texto, a_la_izquierda in (("antes", True), ("después", False)):
@@ -185,20 +201,25 @@ class VisorCortinilla(QWidget):
                     continue
                 caja = QRect(marco.right() - ancho - 10, marco.top() + 10, ancho, alto)
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(QColor(10, 9, 8, 190)))
+            p.setBrush(QBrush(QColor(20, 20, 20, 205)))
             p.drawRoundedRect(caja, 3, 3)
-            p.setPen(QPen(idn.color(idn.BRAND_50 if a_la_izquierda else idn.BRAND_400)))
+            p.setPen(QPen(idn.color(idn.BRAND_50)))  # suite de color: neutro junto a la imagen
             p.drawText(caja, int(Qt.AlignmentFlag.AlignCenter), texto)
 
     def _mango(self, p: QPainter, marco: QRect, corte: int) -> None:
-        """La linea de la cortinilla y su agarradero. En acento de marca."""
-        p.setPen(QPen(idn.color(idn.BRAND_500), 1.5))
+        """La linea de la cortinilla y su agarradero.
+
+        SUITE de color: NEUTRO (crema y antracita), no naranja. Es la costura
+        donde se juzga la diferencia de color; un trazo #e8451d saturado justo
+        ahi compite con la imagen (auditoria 2026-10-06, hallazgo 8).
+        """
+        p.setPen(QPen(idn.color(idn.BRAND_50, 0.9), 1.5))
         p.drawLine(corte, marco.top(), corte, marco.bottom())
         cy = marco.center().y()
-        agarre = QRect(corte - 7, cy - 18, 14, 36)
-        p.setPen(QPen(idn.color(idn.BRAND_500), 1.0))
-        p.setBrush(QBrush(idn.color(idn.BRAND_600)))
-        p.drawRoundedRect(agarre, 4, 4)
+        agarre = QRect(corte - 8, cy - 18, 16, 36)
+        p.setPen(QPen(idn.color(idn.BRAND_50, 0.9), 1.0))
+        p.setBrush(QBrush(idn.color(idn.HONDO)))
+        p.drawRoundedRect(agarre, 8, 8)
         p.setPen(QPen(idn.color(idn.BRAND_50, 0.85), 1.0))
         for dx in (-2, 2):
             p.drawLine(corte + dx, cy - 7, corte + dx, cy + 7)
@@ -266,8 +287,8 @@ class Miniatura(QWidget):
                          disp.top() + (disp.height() - alto) // 2, ancho, alto)
             p.drawImage(caja, self._img)
         else:
-            p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)))
-            p.setFont(idn.fuente_texto(11))
+            p.setPen(QPen(idn.color(idn.SMOKE)))
+            p.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), "sin imagen")
         p.setPen(QPen(idn.color(idn.BRAND_50, idn.BORDE_A), 1))
         p.setBrush(Qt.BrushStyle.NoBrush)
@@ -292,7 +313,7 @@ class PantallaComparar(QWidget):
         cuerpo = QHBoxLayout()
         cuerpo.setSpacing(12)
 
-        marco = Panel(margenes=(10, 10, 10, 10), espaciado=8)
+        marco = Panel(neutro=True, margenes=(10, 10, 10, 10), espaciado=8)
         self.visor = VisorCortinilla()
         marco.caja.addWidget(self.visor, 1)
         pie = QHBoxLayout()
@@ -305,7 +326,7 @@ class PantallaComparar(QWidget):
             ancho_minimo_px=60,
         )
         ayuda.setObjectName("tenue")
-        ayuda.setFont(idn.fuente_texto(11))
+        ayuda.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         pie.addWidget(ayuda, 1)
         marco.caja.addLayout(pie)
         cuerpo.addWidget(marco, 1)
@@ -361,7 +382,7 @@ class PantallaComparar(QWidget):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(12)
 
-        panel_ref = Panel(margenes=(10, 10, 10, 10))
+        panel_ref = Panel(neutro=True, margenes=(10, 10, 10, 10))
         panel_ref.caja.addWidget(Rotulo("referencia", acento=True))
         self.mini_ref = Miniatura("referencia")
         panel_ref.caja.addWidget(self.mini_ref)
@@ -387,7 +408,7 @@ class PantallaComparar(QWidget):
         panel_tutor.caja.addWidget(Rotulo("el tutor", acento=True))
         self.texto_tutor = QLabel("—")
         self.texto_tutor.setObjectName("apagado")
-        self.texto_tutor.setFont(idn.fuente_texto(11))
+        self.texto_tutor.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         self.texto_tutor.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_tutor.setWordWrap(True)
         panel_tutor.caja.addWidget(self.texto_tutor)
@@ -417,7 +438,7 @@ class PantallaComparar(QWidget):
         # el `setFont()` trae el TAMANO, que ya no lo pisa nadie.
         self.texto_cdl = QLabel("—")
         self.texto_cdl.setObjectName("cifraApagada")
-        self.texto_cdl.setFont(idn.fuente_cifra(11))
+        self.texto_cdl.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         self.texto_cdl.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_cdl.setWordWrap(True)
         panel_cdl.caja.addWidget(self.texto_cdl)
@@ -435,7 +456,7 @@ class PantallaComparar(QWidget):
         panel_ensenar.caja.addWidget(Rotulo("por qué", acento=True))
         self.texto_ensenar = QLabel("—")
         self.texto_ensenar.setObjectName("apagado")
-        self.texto_ensenar.setFont(idn.fuente_texto(11))
+        self.texto_ensenar.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         self.texto_ensenar.setMinimumWidth(_ANCHO_MINIMO_ETIQUETA_LATERAL)
         self.texto_ensenar.setWordWrap(True)
         panel_ensenar.caja.addWidget(self.texto_ensenar)
@@ -477,6 +498,7 @@ class PantallaComparar(QWidget):
         self.visor.poner(None, None, mensaje="No hay clips que comparar.")
         self.nombre_ref.setText("—")
         self.texto_tutor.setText("—")
+        self.texto_tutor.setToolTip("")
         self.texto_ensenar.setText("—")
 
     def _cambio(self) -> None:
@@ -515,6 +537,7 @@ class PantallaComparar(QWidget):
         frases = frases_de_clip(self._estado, clip)
         if not frases:
             self.texto_tutor.setText("Nada que decir sobre este clip por ahora.")
+            self.texto_tutor.setToolTip("")
         else:
             bloques = []
             for frase in frases:
@@ -527,7 +550,11 @@ class PantallaComparar(QWidget):
                     partes.append(f"umbral: {_permitir_partir(frase.umbral)}")
                 partes.append(f"validación: {frase.validacion} ({frase.cifras_ref})")
                 bloques.append("\n".join(partes))
-            self.texto_tutor.setText("\n\n".join(bloques))
+            completo = "\n\n".join(bloques)
+            # Sólo al mostrar: 4 decimales; el valor completo, en el tooltip.
+            mostrado = redondear_para_mostrar(completo)
+            self.texto_tutor.setText(mostrado)
+            self.texto_tutor.setToolTip(completo if mostrado != completo else "")
 
         # `lecciones_de_clip` siempre da algo (las dos mínimas del encargo,
         # aunque no haya frases de diagnóstico) — por eso va SIEMPRE, no

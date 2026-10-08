@@ -65,7 +65,7 @@ from gui.datos_demo import ClipDemo, EstadoDemo
 from gui.despliegue_presets import desplegar_preset_elegido
 from gui.imagen import a_qimage
 from gui.pantalla_comparar import VisorCortinilla
-from gui.tutor_datos import frases_de_clip
+from gui.tutor_datos import frases_de_clip, redondear_para_mostrar
 from gui.widgets import Panel, Rotulo, TextoAjustado, separador
 
 
@@ -79,7 +79,7 @@ class _IndicadorPasos(QWidget):
         self._fila.setSpacing(6)
         self._rotulos: list[Rotulo] = []
         for i, pid in enumerate(ID_PASOS):
-            r = Rotulo(f"{i + 1} · {TITULOS_PASO[pid]}", px=10)
+            r = Rotulo(f"{i + 1} · {TITULOS_PASO[pid]}", px=idn.PX_MIN_INFORMATIVO)
             self._fila.addWidget(r)
             self._rotulos.append(r)
             if i < len(ID_PASOS) - 1:
@@ -304,8 +304,11 @@ class _PanelTutor(QWidget):
             etiqueta.setParent(None)
         self._etiquetas.clear()
         for frase in frases:
-            etiqueta = TextoAjustado(f"·  {frase.texto}")
-            etiqueta.setFont(idn.fuente_texto(13))
+            texto = f"·  {frase.texto}"
+            etiqueta = TextoAjustado(redondear_para_mostrar(texto))
+            if etiqueta.text() != texto:
+                etiqueta.setToolTip(texto)
+            etiqueta.setFont(idn.fuente_texto(idn.PX_CUERPO))
             self._columna.addWidget(etiqueta)
             self._etiquetas.append(etiqueta)
         self.setVisible(bool(frases))

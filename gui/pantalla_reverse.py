@@ -38,6 +38,8 @@ delante de un cliente. Si hay que equivocarse, se hace hacia «no lo se» o haci
 
 from __future__ import annotations
 
+import html
+
 import numpy as np
 from PySide6.QtCore import QLocale, QRect, Qt
 from PySide6.QtGui import QBrush, QFont, QImage, QPainter, QPen
@@ -71,6 +73,7 @@ from gui.widgets import (
     Panel,
     Rotulo,
     TextoAjustado,
+    marca_html,
     separador,
 )
 
@@ -182,7 +185,7 @@ class VistaMapa(QWidget):
         p = QPainter(self)
         p.fillRect(self.rect(), QBrush(idn.color(idn.HONDO)))
         if self._img is None or self._img.isNull():
-            p.setPen(QPen(idn.color(idn.BRAND_50, idn.TEXTO_TENUE_A)))
+            p.setPen(QPen(idn.color(idn.SMOKE)))
             p.setFont(idn.fuente_texto(12))
             p.drawText(self.rect(), int(Qt.AlignmentFlag.AlignCenter), self._vacio)
             p.end()
@@ -250,7 +253,7 @@ class EditorCDL(QWidget):
 
         rejilla.addWidget(QLabel(""), 0, 0)
         for c, canal in enumerate("RGB"):
-            e = Cifra(canal, px=11)
+            e = Cifra(canal, px=idn.PX_MIN_INFORMATIVO)
             e.setAlignment(Qt.AlignmentFlag.AlignCenter)
             e.setObjectName("apagado")
             rejilla.addWidget(e, 0, c + 1)
@@ -392,7 +395,7 @@ class PantallaReverse(QWidget):
 
         self.division = QSplitter(Qt.Orientation.Horizontal)
         self.division.setChildrenCollapsible(False)
-        self.division.setHandleWidth(12)
+        self.division.setHandleWidth(8)
         self.division.addWidget(self._columna_capas())
         self.division.addWidget(self._columna_cobertura())
         self.division.setStretchFactor(0, 2)
@@ -418,7 +421,7 @@ class PantallaReverse(QWidget):
         # positivo, así que sólo funciona mientras esta etiqueta no viva
         # dentro de un contenedor con scroll horizontal apagado.
         self.texto_sustituto.setMinimumWidth(0)
-        self.texto_sustituto.setStyleSheet(f"color: {idn.BRAND_400};")
+        self.texto_sustituto.setTextFormat(Qt.TextFormat.RichText)
         self.aviso_sustituto.caja.addWidget(self.texto_sustituto)
         caja.addWidget(self.aviso_sustituto)
         self.aviso_sustituto.setVisible(False)
@@ -476,7 +479,7 @@ class PantallaReverse(QWidget):
         col.setSpacing(12)
 
         # --- par original / coloreado ---
-        panel_par = Panel(margenes=(12, 12, 12, 12))
+        panel_par = Panel(neutro=True, margenes=(12, 12, 12, 12))
         panel_par.caja.addWidget(Rotulo("el par", acento=True))
         fila = QHBoxLayout()
         fila.setSpacing(8)
@@ -519,7 +522,7 @@ class PantallaReverse(QWidget):
         # y el `setFont()` trae el tamano.
         self.datos_lut = QLabel("—")
         self.datos_lut.setObjectName("cifraApagada")
-        self.datos_lut.setFont(idn.fuente_cifra(11))
+        self.datos_lut.setFont(idn.fuente_cifra(idn.PX_MIN_INFORMATIVO))
         # Riesgo conocido y no arreglado (`gui/NOTAS.md`) si esto entra algún
         # día en una columna con scroll horizontal apagado.
         self.datos_lut.setMinimumWidth(0)
@@ -600,7 +603,7 @@ class PantallaReverse(QWidget):
         fila_cifra.setSpacing(6)
         self._de_max = Cifra("—", px=PX_TITULAR, peso=QFont.Weight.DemiBold)
         fila_cifra.addWidget(self._de_max, 0, Qt.AlignmentFlag.AlignBaseline)
-        self.limite_max = Cifra(f"/ {LIMITE_T1_DELTA_E_MAXIMO:.1f}", px=13)
+        self.limite_max = Cifra(f"/ {LIMITE_T1_DELTA_E_MAXIMO:.1f}", px=idn.PX_CUERPO)
         self.limite_max.setObjectName("apagado")
         self.limite_max.setToolTip(
             "Límite del ΔE2000 máximo que fijó el encargo (criterio T1). Es un objetivo, "
@@ -641,7 +644,7 @@ class PantallaReverse(QWidget):
         inventado.addWidget(self.cifra_inventado, 0)
         etq_inventado = QLabel("inventado")
         etq_inventado.setObjectName("apagado")
-        etq_inventado.setFont(idn.fuente_texto(11))
+        etq_inventado.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         inventado.addWidget(etq_inventado, 0)
         inventado.addStretch(1)
         # Antes del estirador que pone `_bloque_titular`, no despues.
@@ -660,13 +663,13 @@ class PantallaReverse(QWidget):
         panel_diag.caja.addWidget(self.texto_alcance)
         col.addWidget(panel_diag, 0)
 
-        panel_cob = Panel(margenes=(12, 12, 12, 12))
+        panel_cob = Panel(neutro=True, margenes=(12, 12, 12, 12))
         cab = QHBoxLayout()
         cab.addWidget(Rotulo("mapa de cobertura", acento=True), 1)
         # [dia 4] Aqui queda solo el recuento de celdas, pequeno. El porcentaje
         # sube al diagnostico, al tamano de la reproducibilidad: antes estaba
         # aqui a 13 px y era la cifra que menos se veia de la pantalla.
-        self.celdas_cobertura = Cifra("—", px=13)
+        self.celdas_cobertura = Cifra("—", px=idn.PX_CUERPO)
         self.celdas_cobertura.setObjectName("apagado")
         cab.addWidget(self.celdas_cobertura, 0)
         panel_cob.caja.addLayout(cab)
@@ -677,7 +680,7 @@ class PantallaReverse(QWidget):
             "Cortes por el azul: horizontal = rojo, vertical = verde."
         )
         self.leyenda.setObjectName("tenue")
-        self.leyenda.setFont(idn.fuente_texto(11))
+        self.leyenda.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         panel_cob.caja.addWidget(self.leyenda)
         self.vista_cobertura = VistaMapa(alto_minimo=ALTO_MINIMO_MAPA)
         panel_cob.caja.addWidget(self.vista_cobertura, 1)
@@ -824,7 +827,8 @@ class PantallaReverse(QWidget):
         if not fiable:
             fallo = self._inversion.fallo if self._inversion is not None else ""
             self.texto_sustituto.setText(
-                f"Lo que se ve aquí lo ha calculado el sustituto de la GUI. {fallo}\n"
+                marca_html("aviso")
+                + f"Lo que se ve aquí lo ha calculado el sustituto de la GUI. {html.escape(fallo)}<br>"
                 f"Los números son medidos y sirven para trabajar, pero el veredicto de "
                 f"«es un LUT puro» NO se ha emitido: ese lo da sólo core.reverse, y hasta "
                 f"que conteste la pantalla dice que no lo sabe."
@@ -851,15 +855,17 @@ class PantallaReverse(QWidget):
         )
         informe = qc_lut(lut)
         if informe.ok:
+            self.texto_qc.setTextFormat(Qt.TextFormat.PlainText)
             self.texto_qc.setText(informe.resumen())
             self.texto_qc.setStyleSheet("")
         else:
-            lineas = [informe.resumen()]
-            lineas += [f"· {p.mensaje}" for p in informe.problemas[:6]]
+            lineas = [html.escape(informe.resumen())]
+            lineas += [f"· {html.escape(p.mensaje)}" for p in informe.problemas[:6]]
             if len(informe.problemas) > 6:
                 lineas.append(f"· … y {len(informe.problemas) - 6} más")
-            self.texto_qc.setText("\n".join(lineas))
-            self.texto_qc.setStyleSheet(f"color: {idn.BRAND_400};")
+            self.texto_qc.setTextFormat(Qt.TextFormat.RichText)
+            self.texto_qc.setText(marca_html("averia") + "<br>".join(lineas))
+            self.texto_qc.setStyleSheet("")
 
         cob = res.coverage
         fraccion = cob.coverage_fraction()

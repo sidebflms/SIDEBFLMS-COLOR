@@ -294,10 +294,10 @@ def test_un_look_que_no_pasa_el_qc_se_avisa_antes_de_escribirlo():
         assert est.informe_lut.problemas
         assert est.informe_lut.problemas[0].mensaje in texto_look
         assert "Se puede escribir igualmente" in texto_look
-        # Y el aviso va en naranja de MARCA, no en rojo.
-        from gui import identidad as idn
-
-        assert idn.BRAND_400 in v.p_aplicar.texto_look.styleSheet()
+        # SUITE 3/3 (rojo declarado): antes el aviso era el bloque entero en naranja de MARCA;
+        # ahora es rombo relleno + «AVERÍA ·» y el mensaje en crema. Sigue sin haber rojo.
+        assert "AVERÍA" in texto_look and "data:image/png" in texto_look
+        assert v.p_aplicar.texto_look.styleSheet() == ""
         assert est.informe_lut.resumen() in v.p_aplicar.texto_plan.toPlainText()
     finally:
         v.close()

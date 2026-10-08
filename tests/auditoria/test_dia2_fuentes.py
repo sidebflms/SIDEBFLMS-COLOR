@@ -5,10 +5,18 @@ que hago es comprobarlo yo, porque si es verdad cambia la forma de leer los 37
 `setFont()` que hay en `gui/`: dejan de ser «aqui se fija la fuente» y pasan a
 ser «aqui se PIDE una fuente, y la hoja decide si se respeta».
 
+SUITE SIDEBFLMS (2026-10-07), decision de Mario: **ya no hay monoespaciada**. La cifra es
+Montserrat con cifras tabulares (`tnum`). Estos tests NO se retiran: se adaptan. Donde
+antes se medía «¿mide igual una `i` que una `M`?» (mono), ahora se mide
+`es_cifra_de_la_suite` (la familia que resuelve Qt es Montserrat, los diez digitos miden lo
+mismo y la fuente lleva `tnum`): el mismo «yo queria cifra aqui y acabo sin ella», con la
+vara nueva. Los controles negativos siguen fabricando el fallo (ahora con una etiqueta
+plantada en una fuente que NO es de cifra) para que el espia no se quede ciego.
+
 Y despues, la pregunta del encargo: ¿quedan sitios donde alguien creyo fijarla y
 no la fijo? Se busca de forma mecanica, no a ojo: se intercepta cada
 `setFont()` que reciba una fuente de cifra, se construye la ventana de verdad, y
-se mide al final si esa etiqueta pinta monoespaciada.
+se mide al final si esa etiqueta acaba como cifra de la suite.
 
 Nada de esto toca `gui/`. Solo lo observa.
 """
@@ -20,26 +28,31 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest  # noqa: E402
-from PySide6.QtGui import QFontMetrics  # noqa: E402
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget  # noqa: E402
 
 from gui import identidad as idn  # noqa: E402
-from tests.test_gui_apoyo import app_qt, asentar, ventana  # noqa: E402
+from tests.test_gui_apoyo import app_qt, asentar, es_cifra_de_la_suite, ventana  # noqa: E402
 
 pytestmark = pytest.mark.gui
 
 
-def _mide_mono(fuente) -> bool:
-    m = QFontMetrics(fuente)
-    return m.horizontalAdvance("iiii") == m.horizontalAdvance("MMMM")
+def _mide_cifra(fuente) -> bool:
+    """Vara de la suite (antes: «mide monoespaciada»): Montserrat + digitos tabulares."""
+    return es_cifra_de_la_suite(fuente)
 
 
-def test_AUDF_la_hoja_de_estilo_SI_pisa_a_setFont():
+def test_AUDF_la_hoja_de_estilo_respeta_la_cifra_pedida_con_setFont():
     """El hecho de fondo, comprobado en aislamiento y no de oidas.
 
-    Una etiqueta a la que se le pone la fuente de cifra a mano, en cuanto la
-    hoja de estilo entra en juego, pasa a la de texto y deja de ser
-    monoespaciada. Sin trucos: es un `QLabel` sin clase ni objectName.
+    Antes (con mono): la hoja de estilo pisaba a `setFont()` y una etiqueta con la
+    fuente de cifra a mano dejaba de ser monoespaciada en cuanto la hoja entraba en
+    juego. Con la suite (Montserrat para todo) la familia de la hoja y la de la cifra
+    son la misma, y la hoja **no quita `tnum`**: la etiqueta sigue siendo una cifra
+    tabular con la hoja puesta. Sin trucos: es un `QLabel` sin clase ni objectName.
+
+    Si esto se pone rojo, la hoja (o una version de Qt) vuelve a pisar la fuente de
+    cifra y los `setFont()` de `gui/` vuelven a ser «aqui se PIDE una cifra y la hoja
+    decide»: habria que rehacer el test para medir cual de las dos gana.
     """
     app = app_qt()
     raiz = QWidget()
@@ -47,35 +60,32 @@ def test_AUDF_la_hoja_de_estilo_SI_pisa_a_setFont():
     lab.setFont(idn.fuente_cifra(13))
 
     antes_familias = list(lab.font().families())
-    antes_mono = _mide_mono(lab.font())
+    antes_cifra = _mide_cifra(lab.font())
 
     app.setStyleSheet(idn.hoja_de_estilo())
     raiz.show()
     asentar()
 
     despues_familias = list(lab.font().families())
-    despues_mono = _mide_mono(lab.font())
+    despues_cifra = _mide_cifra(lab.font())
     raiz.close()
 
-    print(f"\n[AUDF] antes de la hoja  : {antes_familias[:2]} mono={antes_mono}")
-    print(f"[AUDF] despues de la hoja: {despues_familias[:2]} mono={despues_mono}")
+    print(f"\n[AUDF] antes de la hoja  : {antes_familias[:2]} cifra={antes_cifra}")
+    print(f"[AUDF] despues de la hoja: {despues_familias[:2]} cifra={despues_cifra}")
 
-    assert antes_mono is True, "la fuente de cifra ya no mide monoespaciada ni antes de la hoja"
-    assert despues_mono is False, (
-        "la hoja de estilo ya NO pisa a setFont(). Si esto ha cambiado (version de Qt, o la "
-        "hoja ha dejado de declarar font-family en un selector tan ancho), entonces los 37 "
-        "setFont() de gui/ vuelven a significar lo que parecia que significaban y este test "
-        "hay que rehacerlo."
+    assert antes_cifra is True, "la fuente de cifra ya no es cifra de la suite ni antes de la hoja"
+    assert despues_cifra is True, (
+        "la hoja de estilo ha vuelto a pisar la fuente de cifra de setFont(): la etiqueta ya "
+        "no es Montserrat con cifras tabulares tras aplicar la hoja"
     )
 
 
 def test_AUDF_las_tipografias_de_marca_no_estan_instaladas_en_esta_maquina():
     """Contexto imprescindible para leer lo de arriba y para leer las capturas.
 
-    Ninguna de las tres tipografias de la identidad esta instalada aqui. O sea
-    que TODO lo que se ve en las capturas y en los tests sale con los
-    sustitutos del sistema. Que la cifra salga monoespaciada se lo debemos al
-    `StyleHint.Monospace` y a la lista de reservas, no a JetBrains Mono.
+    Akira no esta instalada aqui (y no va en el repo: es publica). Los titulos salen en
+    Montserrat 800 y la cifra en Montserrat `tnum`, que SI va en el repo
+    (`gui/fuentes/`): ya no dependemos de ningun sustituto del sistema para la cifra.
     """
     from tests.test_gui_apoyo import tipografias_de_marca_instaladas
 
@@ -89,7 +99,7 @@ def _vigilar_peticiones_de_cifra(construir):
     """Construye con `construir()` espiando `QWidget.setFont`.
 
     Devuelve `(raiz, vivos, fallidos)`: los widgets que pidieron la fuente de
-    cifra y siguen vivos, y de esos los que al final NO miden monoespaciada.
+    cifra y siguen vivos, y de esos los que al final NO acaban como cifra de la suite.
     `raiz` es lo que devolvio `construir()`; cierralo tu.
     """
     app_qt()
@@ -113,11 +123,11 @@ def _vigilar_peticiones_de_cifra(construir):
         QWidget.setFont = original
 
     vivos = [(w, n) for w, n in pedidas if _sigue_vivo(w)]
-    fallidos = [(w, n) for w, n in vivos if not _mide_mono(w.font())]
+    fallidos = [(w, n) for w, n in vivos if not _mide_cifra(w.font())]
     print(f"\n[AUDF] widgets que PIDIERON fuente de cifra: {len(pedidas)} "
           f"(vivos al final: {len(vivos)})")
     for w, n in vivos:
-        marca = "mono" if _mide_mono(w.font()) else "NO MONO"
+        marca = "cifra" if _mide_cifra(w.font()) else "NO CIFRA"
         etiqueta = w.text()[:30] if isinstance(w, QLabel) else ""
         print(f"[AUDF]   {n:<18} objectName={w.objectName()!r:<14} "
               f"clase={w.property('class')!r:<10} {marca:<8} {etiqueta!r}")
@@ -144,11 +154,11 @@ def test_AUDF_ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella():
 
     Se intercepta `QWidget.setFont` durante la construccion de la ventana
     entera. Cada vez que alguien pasa una fuente cuya lista de familias es la
-    de cifra, se apunta el widget: eso es un «yo queria monoespaciada aqui».
+    de cifra, se apunta el widget: eso es un «yo queria cifra aqui».
     Al final, con la ventana montada y la hoja aplicada, se mide cada uno.
 
-    Si alguno no mide monoespaciada, es un sitio donde alguien creyo fijar la
-    fuente y no la fijo.
+    Si alguno no acaba como cifra de la suite (Montserrat con digitos tabulares), es un
+    sitio donde alguien creyo fijar la fuente y no la fijo.
     """
     v, vivos, fallidos = _vigilar_peticiones_de_cifra(ventana)
     try:
@@ -160,10 +170,10 @@ def test_AUDF_ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella():
 def test_AUDF_control_negativo_una_etiqueta_plantada_sin_cifra_pone_rojo():
     """Control negativo del test de arriba: que de verdad se puede poner rojo.
 
-    Se planta en la ventana real un `QLabel` sin clase ni objectName que pide
-    `fuente_cifra` con `setFont()`. La hoja de estilo lo pisa (es el hecho que
-    comprueba `test_AUDF_la_hoja_de_estilo_SI_pisa_a_setFont`), asi que acaba
-    sin monoespaciada. El espia tiene que verlo y la afirmacion tiene que fallar.
+    Se planta en la ventana real un `QLabel` sin clase que pide `fuente_cifra` con
+    `setFont()` y al que luego se le impone, con su propia hoja, otra familia
+    (`Courier New`): acaba sin ser cifra de la suite. El espia tiene que verlo y la
+    afirmacion tiene que fallar.
     """
     plantada: list[QLabel] = []
 
@@ -172,6 +182,7 @@ def test_AUDF_control_negativo_una_etiqueta_plantada_sin_cifra_pone_rojo():
         lab = QLabel("123.456", v.centralWidget() or v)
         lab.setObjectName("plantadaPorElControlNegativo")
         lab.setFont(idn.fuente_cifra(13))
+        lab.setStyleSheet("QLabel { font-family: 'Courier New'; }")
         lab.show()
         plantada.append(lab)
         return v
@@ -224,11 +235,11 @@ def _sigue_vivo(w) -> bool:
     return True
 
 
-def test_AUDF_las_cifras_de_la_ventana_miden_monoespaciadas_de_verdad():
+def test_AUDF_las_cifras_de_la_ventana_son_cifras_de_la_suite_de_verdad():
     """El contrapeso por el otro lado: se mira el RESULTADO, no la intencion.
 
     Cualquier etiqueta marcada como cifra (por `objectName` o por la propiedad
-    `class`) tiene que medir monoespaciada con la ventana ya montada. Esto
+    `class`) tiene que ser cifra de la suite (Montserrat tabular) con la ventana ya montada. Esto
     caza el caso contrario al de arriba: una etiqueta bien marcada a la que la
     hoja no llega.
     """
@@ -244,13 +255,13 @@ def test_AUDF_las_cifras_de_la_ventana_miden_monoespaciadas_de_verdad():
             or (lab.objectName() or "") in ("secundario",)
         ]
         print(f"\n[AUDF] etiquetas marcadas como cifra: {len(marcadas)}")
-        malas = [lab for lab in marcadas if not _mide_mono(lab.font())]
+        malas = [lab for lab in marcadas if not _mide_cifra(lab.font())]
         for lab in malas:
             print(f"[AUDF]   MAL: objectName={lab.objectName()!r} "
                   f"class={lab.property('class')!r} texto={lab.text()[:30]!r}")
         assert marcadas, "no hay ni una etiqueta marcada como cifra: revisa este test"
         assert not malas, (
-            f"{len(malas)} etiquetas marcadas como cifra no miden monoespaciadas: "
+            f"{len(malas)} etiquetas marcadas como cifra no son cifras de la suite: "
             f"{[(lab.objectName(), lab.property('class')) for lab in malas]}"
         )
     finally:

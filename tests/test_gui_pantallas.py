@@ -52,7 +52,7 @@ from tests.test_gui_apoyo import (  # noqa: E402
     app_qt,
     asentar,
     demo,
-    es_monoespaciada,
+    es_cifra_de_la_suite,
     ventana,
 )
 
@@ -95,7 +95,7 @@ def test_los_dos_delta_e_de_cada_fila_son_los_del_matchresult():
                 f"{clip.match.delta_e_after:6.2f}".strip()
             )
             fuente = modelo.data(modelo.index(fila, COL_ANTES), Qt.ItemDataRole.FontRole)
-            assert es_monoespaciada(fuente), "un ΔE de la tabla no va en monoespaciada"
+            assert es_cifra_de_la_suite(fuente), "un ΔE de la tabla no va en Montserrat tabular (suite)"
     finally:
         v.close()
 
@@ -271,8 +271,8 @@ def test_comparar_pinta_los_numeros_del_match_y_el_cdl_entero():
         for v_ in cdl.power:
             assert f"{v_:.4f}" in texto
         assert f"{cdl.saturation:.4f}" in texto
-        assert es_monoespaciada(comparar.texto_cdl.font()), (
-            "los diez numeros del CDL no van en monoespaciada"
+        assert es_cifra_de_la_suite(comparar.texto_cdl.font()), (
+            "los diez numeros del CDL no van en Montserrat tabular (suite)"
         )
     finally:
         v.close()
@@ -519,7 +519,7 @@ def test_el_despues_es_el_cdl_del_contrato_aplicado_al_antes():
     np.testing.assert_allclose(clip.despues(), esperado, rtol=0, atol=1e-6)
 
 
-def test_la_cortinilla_se_mueve_con_el_teclado_y_se_lee_en_monoespaciada():
+def test_la_cortinilla_se_mueve_con_el_teclado_y_se_lee_en_montserrat_tabular():
     est = demo()
     v = ventana(est)
     try:
@@ -529,7 +529,7 @@ def test_la_cortinilla_se_mueve_con_el_teclado_y_se_lee_en_monoespaciada():
         visor.set_posicion(0.5)
         asentar(1)
         assert v.p_comparar.pos_texto.text().strip() == "50.0 %"
-        assert es_monoespaciada(v.p_comparar.pos_texto.font())
+        assert es_cifra_de_la_suite(v.p_comparar.pos_texto.font())
         visor.set_posicion(0.5 + PASO_FLECHA)
         asentar(1)
         assert abs(visor.posicion() - 0.52) < 1e-9
@@ -879,7 +879,7 @@ def test_el_pie_ensena_el_proyecto_del_puente_y_cuenta_los_clips():
         assert info.timeline_name in detalle
         assert info.color_science in detalle
         assert v.cifra_clips.text() == f"{len(est.clips):d} clips"  # 7, plural
-        assert es_monoespaciada(v.cifra_clips.font())
+        assert es_cifra_de_la_suite(v.cifra_clips.font())
     finally:
         v.close()
 

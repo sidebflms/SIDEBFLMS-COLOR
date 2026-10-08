@@ -3314,3 +3314,564 @@ Tests: `tests/test_resolve_grupos.py` (11, incluido que mirar no escribe en
 el grupo). Con esto, de la lista de Mario sólo quedan el punto 4 (la API no
 deja cambiar ajustes de Resolve) y el 6 (plugin embebido: otra tecnología),
 ambos sin arreglo posible hoy.
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 1: recortes en «Aplicar»
+
+La auditoría de diseño del 2026-10-06 (skill `sidebflms-design`, veredicto
+**Mejorable**) midió tres controles de la pantalla Aplicar con menos ancho del
+que necesitan, **a 1024 y a 973 px** (tres a cada anchura). Este bloque es el
+primero de siete PRs independientes, uno por bloque, sin fusionar.
+
+**Qué cambia** (`gui/pantalla_aplicar.py`):
+
+| Control | Tenía / necesitaba | Ahora |
+|---|---|---|
+| «Copiar la estructura de nodos al resto marcado» | 210 / 304 px | «Copiar nodos al resto»; el texto largo, en el tooltip |
+| «Aplicar perfil a todo el lote» | 102 / 182 px | «Aplicar perfil»; el alcance («a todo el lote»), en el tooltip |
+| combo «(sin carpeta de perfiles configurada)» | 210 / 298 px | `AdjustToMinimumContentsLengthWithIcon`, mensajes «(sin carpeta)» y «(sin perfiles)»; el largo, en el tooltip |
+
+Además «Aplicar perfil» y «Gestionar…» van ahora **apilados** y no en fila: a
+973 px la fila tiene 206 px y los botones piden 103 + 100 (con 8 px de hueco,
+«Aplicar perfil» se quedaba en 99; el test nuevo lo cazó al primer intento), y
+con el cuerpo a 14 px (bloque 3) piden 108 + 105: apilados, cada uno tiene la
+columna entera y no depende del tamaño de la letra.
+
+**Por qué:** un `QPushButton` o un `QComboBox` al que la columna no le da lo que
+pide se pinta cortado en silencio, igual que un `QLabel`. El detector de
+etiquetas de `tests/test_gui_apoyo.py` (`linea_que_no_cabe`) no veía controles.
+
+**Medido antes → después** (offscreen, HOME temporal, sin tipografías de marca,
+5 pantallas × 4 estados): controles cortados a 1024 px **3 → 0**; a 973 px
+**3 → 0**.
+
+**Tests nuevos:** `controles_cortados()` en `tests/test_gui_apoyo.py` (con sus
+propios tests: un detector que no detecta pasa siempre) y
+`tests/test_gui_controles_cortados.py` (cinco pantallas × cuatro estados × dos
+anchuras, y el combo con un perfil guardado).
+
+**Qué hacer al actualizar:**
+- Si se añade un botón o un combo a cualquier pantalla, `test_gui_controles_cortados`
+  lo vigila solo: si falla, acorta el texto (y pon el largo en el tooltip) antes
+  que ensanchar la columna, que está fijada por el carril de 186 px y el mínimo
+  de 973.
+- Un combo con `AdjustToMinimumContentsLengthWithIcon` ya no crece con su
+  texto: el mensaje tiene que caber en ~170 px (≈23 caracteres monoespaciados a
+  12 px).
+- **Este Mac (usuario `sidebflms`) tiene Chakra Petch instalada**, así que
+  `test_la_anchura_minima_real_es_la_medida` se SALTA aquí y las medidas de
+  mínimo salen distintas (960×730) de las de CI y de la auditoría (973×727).
+  Para medir en igualdad de condiciones hay que simular que no está instalada
+  (quitarla de `idn.FAMILIAS_ROTULO` y de `tipografias_de_marca_instaladas`).
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 2: contraste del texto tenue
+
+**Qué cambia:** `TEXTO_TENUE_A` pasa de **0,40 a 0,56** (`gui/identidad.py`; la
+tabla de `gui/NOTAS.md` §4 también). Sigue siendo `brand-50` bajado de opacidad:
+**no se ha inventado ningún gris** (`#71717b` sigue reservado al inventario).
+
+**Por qué:** la auditoría midió el texto tenue a 3,55-3,63:1 sobre las cuatro
+superficies, por debajo del 4,5:1 de WCAG AA para texto normal.
+
+**Medido antes → después** (calculado sobre FONDO/HONDO/PANEL/CRISTAL, y por
+píxel en los `QLabel#tenue` de la ventana real, 5 pantallas):
+
+| | Antes | Después |
+|---|---|---|
+| calculado | 3,55 / 3,57 / 3,63 / 3,62 | **6,06 / 6,00 / 5,98 / 5,95** |
+| por píxel (mejor píxel de texto) | 3,55-3,62 | **5,96-6,00** |
+
+(La auditoría estimaba ≈5,6:1; sale algo más: ≈6,0:1.) La anchura/altura mínima
+no cambia (973×727).
+
+**Tests nuevos:** `tests/test_gui_contraste.py` — AA calculado para tenue y
+apagado sobre cada superficie, y AA medido por píxel en la ventana real (con
+guarda de que no se queda ciego: ≥5 textos medidos). Fallan sin el cambio (5
+rojos) y pasan con él.
+
+**Qué hacer al actualizar:**
+- **Cuidado con la jerarquía:** tenue (0,56) queda cerca de apagado (0,62); se
+  distinguen por el uso, ya no tanto por el tono. Si esa jerarquía importa, la
+  decisión es de diseño (subir apagado), no de este bloque.
+- Un texto tenue nuevo hereda el contraste solo si usa `QLabel#tenue` o
+  `TEXTO_TENUE_A`; si pinta con otro alfa a mano, `test_gui_contraste` no lo ve.
+- Los controles deshabilitados (`QPushButton:disabled`) también usan el tono
+  tenue: ahora se ven más; WCAG no exige contraste a los deshabilitados.
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 3: tamaños de letra (suelo de 12 px, cuerpo a 14)
+
+**Qué cambia:**
+- **Suelo de 12 px para todo texto informativo.** Rótulos 10→12 (el de acento
+  11→12, se distingue por el peso), cabecera de las tablas 10→12, insignia de
+  confianza 10→12, pie y notas 10-11→12, cifras pequeñas 11→12. El tracking sigue
+  siendo 0,16 em **absoluto** y se recalcula solo (`fuente_rotulo(px)`).
+- **Cuerpo 13→14 en tablas y párrafos:** fuente base de la app, celdas de la
+  tabla de clips (nombre y cifras), párrafos del modo fácil y `Cifra()` por
+  defecto. Las dos cifras sueltas de ingeniería inversa que iban a 13 también.
+- **Un solo sitio decide el número:** `idn.PX_MIN_INFORMATIVO = 12` e
+  `idn.PX_CUERPO = 14` (`gui/identidad.py`); todos los `fuente_*(10|11)`,
+  `Rotulo(px=…)` y `Cifra(px=…)` de `gui/` las usan. `anchos_fijos()` de
+  `pantalla_clips.py` mide ahora con esas mismas constantes (cifra a 14,
+  cabecera a 12), así que se recalcula solo.
+- **Excepción documentada:** el «!» de los dos rombos (10 px en `MarcaDesajuste`,
+  9 px en el delegado de aviso de la tabla) es un glifo, no texto informativo, y
+  el rombo no se toca.
+
+**Por qué:** la auditoría contó 44 textos a 10 px y 44 a 11 px; por debajo de
+12 px no se lee con comodidad en una pantalla de trabajo.
+
+**Medido antes → después** (offscreen, sin tipografías de marca; textos visibles
+de las 5 pantallas + columnas de cabecera):
+
+| | Antes | Después |
+|---|---|---|
+| textos por debajo de 12 px | **159 de 210** (85 a 10 px, 74 a 11 px) | **0** (178 a 12 px, 18 a 14 px) |
+| mínimo real de ventana | **973 × 727** | **1016 × 742** (+43 × +15) |
+
+(Mi método cuenta widgets y columnas de cabecera; la auditoría contó 88 de 196
+textos con otro método. Antes → después, en el mismo método: 0 informativos.)
+
+**¿Cabe en 1280×800?** El ancho sí, con 264 px de sobra. El alto **justo**: 742 px
+de contenido + barra de menús (≈24) + barra de título (≈28) = ≈794 de 800, sólo
+con el Dock oculto. Con el Dock a la vista no cabe sin recortar. Si 1280×800 es
+un objetivo real, hay que decidir qué ceder (por ejemplo, la tabla de ingeniería
+inversa, que fija el alto, o el cuerpo a 13 en las tablas).
+
+**Choca con `docs/IDENTIDAD.md`**, que fijaba los rótulos en «10-11 px»: se ha
+actualizado esa línea y `test_los_rotulos_van_en_mayusculas…`. Es una decisión de
+la auditoría, no del código: si Mario quiere mantener 10-11 px en los rótulos de
+marca, se revierte `PX_MIN_INFORMATIVO` para los rótulos.
+
+**Tests:** `tests/test_gui_tamanos.py` (AST sobre todo `gui/`: ningún literal
+por debajo del suelo salvo los dos glifos; todos los textos visibles de las 5
+pantallas; cabecera QSS y fuente base). `ANCHURA_MINIMA`/`ALTO_MINIMO` de
+`tests/test_gui_apoyo.py` pasan a 1016/742 con su explicación.
+
+**Qué hacer al actualizar:**
+- Un tamaño nuevo se pide con `idn.PX_MIN_INFORMATIVO`/`idn.PX_CUERPO`, no con un
+  número: `test_gui_tamanos` falla si aparece un literal <12 px.
+- **Este Mac tiene Chakra Petch instalada:** aquí los tests de mínimo se saltan y
+  las medidas salen distintas. Las de esta entrada están hechas simulando que no
+  está instalada, como CI.
+- Las capturas (`capturas/`) y la documentación que cita 973×727 hay que
+  regenerarlas/actualizarlas al fusionar (no se han regenerado en este PR para no
+  mezclar binarios entre los siete bloques).
+
+---
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 4: foco visible, nombres accesibles y Cmd+1..4
+
+**Qué cambia:**
+- **Foco visible** (`gui/identidad.py`): `QPushButton:focus`, `QListWidget:focus` y
+  `QTableView:focus` con borde `#ff6a3d` (`BRAND_400`); el botón de navegación
+  del carril (que no tenía borde) lo recibe de un borde transparente que el foco
+  colorea. `VisorCortinilla.paintEvent` pinta un trazo de 2 px `#ff6a3d`
+  alrededor del visor cuando `hasFocus()`. Es **trazo**, nunca pastilla ni
+  relleno (la regla de `BRAND_400`).
+- **Nombres accesibles** (`setAccessibleName`): insignia de confianza («Confianza
+  alta, 90%», se actualiza con `actualizar()`), rombo de desajuste, marca de
+  límite, visor (con descripción de las flechas) y, en la tabla de clips, las
+  celdas de insignia y aviso (`Qt.AccessibleTextRole` del modelo, porque se
+  pintan a mano en un delegado y un lector de pantalla no recibía nada). Botones
+  sin texto: **hoy no hay ninguno**; un test lo vigila.
+- **Cmd+1..4** a las cuatro pantallas del modo avanzado (`QShortcut`; «Ctrl» en
+  Qt es Cmd en macOS). El atajo se anuncia en el tooltip del botón de cada
+  pantalla.
+
+**Por qué:** recorrer la app con Tab no cambiaba ni un píxel en lista, tabla ni
+visor: no se veía dónde estaba el foco.
+
+**Medido antes → después** (captura del widget sin foco y con foco; se comprueba
+`hasFocus()` para que el test no mida un 0 vacío):
+
+| | Antes | Después |
+|---|---|---|
+| tabla de clips | 0 px | **3109 px** |
+| lista de Aplicar | 0 px | **1472 px** |
+| visor | 0 px | **6722 px** |
+| botón (navegación) | 0 px | **468 px** |
+
+Mínimo de ventana sin cambios: 973 × 727. **Defecto cazado en la medición:** el
+primer intento de foco para el botón de navegación le añadía un borde donde
+había `border: none`, y el botón crecía 2 px (32→34) al recibir el foco; ahora
+tiene un borde transparente de base y el foco sólo cambia su color. El test
+exige tamaño idéntico con y sin foco.
+
+**Efecto cruzado cazado al integrar los siete bloques:** con el cuerpo a 12 px (bloque 3), el borde transparente del botón de navegación lo dejaba 2 px más ancho que el carril (186 px fijos, «Ingeniería inversa» 188). Se descuenta del relleno (`padding: 9px 12px 9px 14px`): el botón no crece por el borde, y se quita 1 px más a la derecha porque, **sólo con el bloque 3** (letra de 12 px), «Ingeniería inversa» ya pedía 187 px frente a los 186 del carril (1 px que el relleno absorbía sin recortar nada visible, pero que el test estricto ve). Test: `test_los_botones_de_navegacion_caben_en_el_carril`.
+
+**Tests nuevos:** `tests/test_gui_foco.py` (16: píxeles que cambian en tabla,
+lista, visor y botones; trazo de 2 px exacto en `#ff6a3d`; nombres accesibles;
+celdas de la tabla; ningún botón sin nombre; Ctrl+1..4 con `QTest.keyClick`;
+tooltips con el atajo).
+
+**Discrepancia anotada:** el encargo dice «como ya hace `QLineEdit:focus`»
+con `#ff6a3d`, pero `QLineEdit:focus` usa `BRAND_500` (`#e8451d`). Se ha seguido
+el hexadecimal pedido (`#ff6a3d`) y **no se ha tocado `QLineEdit:focus`** («naranjas
+actuales» están en la lista de no tocar): hoy hay dos naranjas de foco. Decisión
+de diseño pendiente de Mario.
+
+**Qué hacer al actualizar:**
+- Un widget nuevo que reciba foco (`StrongFocus`/`TabFocus`) y se pinte a mano
+  tiene que dibujar su propio trazo (como el visor); los controles estándar lo
+  heredan de la hoja de estilo. Un indicador de foco **no puede cambiar el
+  tamaño del widget**: usa borde transparente de base.
+- Un widget pintado a mano con información (insignias, marcas) necesita
+  `setAccessibleName`; en una celda de tabla, `AccessibleTextRole` en el modelo.
+- `Cmd+1..4` sólo cubre las cuatro pantallas del modo avanzado; el modo fácil
+  se activa con su botón.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 5: estados que no dependen del color
+
+**Qué cambia** (`gui/pantalla_aplicar.py`, `gui/ventana.py`, constantes en
+`gui/identidad.py`):
+- **Avería → «AVERÍA ·» delante; aviso → «AVISO ·» delante**, en negrita y
+  `brand-400` (cero rojo). Averías: error global («No hay conexión…»), «el look
+  no pasa el QC» del plan, «NO SE PUEDE» de un clip y los clips sin escribir del
+  resultado. Avisos: las líneas «aviso» del plan y del resultado, y el QC del
+  panel del look (que se puede escribir igualmente).
+- **La información normal, en crema** (`brand-50`): «Se crea la versión
+  SIDEB COLOR en N clip(s)…» iba en naranja, igual que las averías.
+- **«resolve conectado» / «resolve desconectado»** llevan un círculo lleno /
+  vacío delante (`idn.MARCA_CONECTADO` ●, `idn.MARCA_DESCONECTADO` ○), en el pie
+  de la ventana y en la banda de Aplicar: se distinguen por la forma, no por la
+  palabra ni por un color de semáforo.
+
+**Por qué:** averías, avisos e información normal compartían color, y conectado /
+desconectado sólo se distinguían leyendo la palabra.
+
+**Medido antes → después:** el plan de Aplicar tenía **0** marcas textuales en
+sus líneas de avería/aviso (todo era el mismo naranja, incluido lo normal); ahora
+cada una lleva su prefijo y lo normal ya no es naranja. Mínimo de ventana sin
+cambios (973 × 727).
+
+**No cambiado, a propósito:** el nombre de un clip de confianza baja en la lista
+de Aplicar sigue en naranja (la confianza se distingue por forma en la tabla y
+en la insignia; prefijar 200 filas de la lista no aporta). El rombo
+(`MarcaDesajuste`) no se ha reutilizado: se usó el rótulo, que es lo que el
+encargo permitía y no introduce una forma nueva.
+
+**Tests nuevos:** `tests/test_gui_estados_marcados.py` (6). Los dos tests de
+`test_gui_sin_proyecto_abierto.py` comparan ahora con `endswith(...)`.
+
+**Qué hacer al actualizar:** una línea de error o de aviso nueva en Aplicar
+tiene que llevar `_marca(idn.PREFIJO_AVERIA | idn.PREFIJO_AVISO)`; la
+información normal, `idn.BRAND_50`. Si Mario prefiere el rombo como marca, es un
+cambio de `_marca()` y de las constantes.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 6: «Reanalizar timeline» a 32 px y borde fuerte a 3:1
+
+**Qué cambia:**
+- `btn_reanalizar` («Reanalizar timeline», `gui/ventana.py`) tiene un alto mínimo
+  de **32 px** (`ALTO_MINIMO_BOTON`). Medía 29: mandaba el `sizeHint` de la letra
+  de 11 px.
+- `BORDE_FUERTE_A` **0,22 → 0,40** (`gui/identidad.py`). Es el borde de botones,
+  campos de texto, combos y casillas. Sigue siendo `brand-50` bajado de opacidad.
+
+**Por qué:** el botón era más pequeño que lo cómodo de pulsar, y el borde de los
+controles daba 1,84-1,93:1 sobre las superficies, por debajo del 3:1 de WCAG
+1.4.11 (componentes de interfaz).
+
+**Medido antes → después:**
+
+| | Antes | Después |
+|---|---|---|
+| alto de «Reanalizar timeline» | 29 px | **32 px** |
+| contraste del borde (calculado, 4 superficies) | 1,84-1,93:1 | **3,55-3,63:1** |
+| píxel del borde de «Todos» | (71, 67, 64) | **(112, 108, 105)** sobre (19, 17, 16) |
+
+**¿Rompe el aspecto?** Se han comparado las capturas de Aplicar a 1024 px antes
+y después: ningún cambio de layout (el borde sigue siendo de 1 px; sólo es más
+visible) y el botón del carril gana 3 px de alto. Mínimo de ventana sin cambios
+(973 × 727: el carril tiene altura de sobra, como ya decía el comentario del
+botón). El juicio de «aspecto» es subjetivo: si Mario lo ve demasiado marcado,
+se baja `BORDE_FUERTE_A` (a 0,32 ya da ≈2,8:1, por debajo de 3:1).
+
+**Tests nuevos:** `tests/test_gui_borde_y_boton.py` (calculado ≥3:1 en las 4
+superficies, medido por píxel en un botón real, y alto ≥32).
+
+**Qué hacer al actualizar:** un control nuevo que dibuje su propio borde tiene
+que usar `idn.BORDE_FUERTE_A`, no un alfa suelto; y un botón de acción
+frecuente, `ALTO_MINIMO_BOTON`.
+
+## AUDITORÍA DE DISEÑO 2026-10-06 — bloque 7: copy (tildes y cifras del tutor)
+
+**Qué cambia:**
+- **Tildes** en `core/colormgmt/deteccion.py` (`_pregunta_grupo`): «No he podido
+  reconocer la **cámara** de estos N clips. ¿De **qué cámara** son…?» (decía
+  «camara» y «¿De que camara…»).
+- **Cifras de «El tutor»:** salían con 17 cifras (`0.13566423773765565`, el
+  `repr` de un `float`). Ahora se **muestran a 4 decimales**
+  (`gui/tutor_datos.py::redondear_para_mostrar`, `DECIMALES_MOSTRADOS = 4`) y el
+  texto completo va en el **tooltip** del panel (en «Antes / después»; en modo
+  fácil, el tooltip de cada frase). **Sólo se redondea al mostrar:** `Frase` y lo
+  que mide `core.tutor` no se tocan (un test lo vigila).
+
+**Por qué:** una cifra de 17 decimales no se lee, y el copy sin tildes
+se ve descuidado.
+
+**Medido antes → después:** cifras con ≥5 decimales visibles en el panel del
+tutor de los clips de la demo: **7 clips con cifras de 17 cifras → 0** (4
+decimales visibles; completas en el tooltip).
+
+**No tocado, a propósito:** el encargo cita sólo `deteccion.py:208`. En el mismo
+fichero hay más texto sin tildes (`razon=` de las detecciones: «camara», «mas»,
+«que no cuadra con esa curva»…). Si se muestra al usuario, conviene un barrido
+de ortografía aparte; no se ha hecho aquí para no ampliar el alcance.
+
+**Tests nuevos:** `tests/test_gui_copy_y_cifras_del_tutor.py` (tildes; el
+redondeo: floats largos, negativos, decimales justos, versiones tipo `21.1.0.17`
+sin tocar; el panel real sin cifras largas y con el valor completo en el tooltip;
+el núcleo sin redondear).
+
+**Qué hacer al actualizar:** un texto nuevo del tutor que lleve números se
+redondea solo si pasa por `redondear_para_mostrar`; un panel nuevo que pinte
+`Frase.valor_medido` debe hacer lo mismo y poner el original en el tooltip.
+
+## SUITE 1/3 — tokens, tipografía, radios y cristal (2026-10-07)
+
+**Contexto.** Mario decidió (2026-10-06) que todas sus apps parezcan una suite, con
+los colores de sidebflms.com y su modo cristal, conservando la personalidad de cada
+una. Prototipo medido en el repo privado `sidebflms-design`
+(`reviews/2026-10-06-suite-color/`: `INFORME.md`, `suite-color.patch`, montajes). **El
+patch es guía, no se aplicó a ciegas**: se repartió en 3 PRs apiladas sobre la rama
+`agente/base-auditoria-789` (= `main` + #7 + #8 + #9). Esta es la 1/3.
+
+**Qué cambia**
+- `gui/identidad.py`: valores de los tokens de `suite/tokens.css` v3 (`FONDO #1e1e1e`,
+  `HONDO #141414`, `PANEL #262626`, `LINEA #333130`, `BRAND_50 #f2ece4`, `SMOKE #938e89`
+  sólido para apagado/tenue); familias → Montserrat (texto, rótulos y cifras) con `tnum`;
+  `fuente_display()`, `familia_akira()`, `cargar_fuentes()`, `regla_display_qss()`;
+  tracking de rótulos 0,16 → 0,10 em; radios 8/16; QSS sin fondo en `QWidget`
+  (se ven las curvas), foco 2 px `#ff6a3d`, bordes de control a 3:1.
+- `gui/cristal.py` (nuevo): `FondoSuite` (fondo + curvas de nivel naranja al 9 % +
+  resplandor al 4 %, pre-desenfocado una vez por tamaño) y `pintar_cristal`.
+- `gui/widgets.py`: `Panel` pinta cristal; insignia de confianza 108 → 118 px de ancho
+  (con Montserrat «MEDIA 70%» salía cortado).
+- Pantallas: paneles de marco de imagen en `Panel(neutro=True)` (filo sin naranja),
+  cortinilla en crema/antracita, hueco entre paneles 12 → 8, márgenes 18 → 16.
+- `gui/fuentes/`: **Montserrat** (5 TTF estáticos, 400-800, generados de la fuente
+  variable latina de sidebflms.com con `fontTools`) + `OFL.txt`.
+
+**Akira: decisión de Mario, y por qué.** El repo de COLOR es **público** y el `.otf` es de
+licencia comercial de SIDEBFLMS (válida solo en repos privados). Por eso **no se versiona**:
+`gui/fuentes/*.otf`, `*.woff*`, `*akira*` y `*TIPOGRAFIA*` están en `.gitignore`. La app
+busca Akira primero en `gui/fuentes/` y luego entre las fuentes instaladas (cualquier
+familia que contenga «akira»), y si no la encuentra cae a **Montserrat 800** sin romper
+nada. En la CI y en clones públicos sale Montserrat; Mario copia el `.otf` a mano.
+Un test comprueba con `git ls-files` que no hay ningún archivo de Akira versionado.
+No se cambia la visibilidad del repo.
+
+**Relleno del cristal: ≥ 54 % bajo texto.** La web usa el 20 %, con el que el texto no llega
+a 4,5:1 (lección de los prototipos). Los paneles usan `--sb-glass-fill-text` (0,54) y los
+«fuertes» `--sb-glass-fill-hud` (0,68). El 20 % queda como `RELLENO_DECORATIVO`, sin usar.
+
+**Límites honestos del cristal en Qt.** Es una **aproximación**: panel translúcido + filo
+degradado + brillo + un **fondo estático pre-desenfocado** sobre el que cada panel pinta su
+trozo. **No** desenfoca otros widgets que haya detrás (una imagen, otro panel), **no** aplica
+`saturate(160 %)` ni la sombra larga de la web. Sobre un fondo casi plano se nota poco: el
+filo y el brillo hacen casi todo. Alrededor de la imagen (visor y mapas) no hay cristal ni
+naranja: va `#141414` liso.
+
+**Sin mono — lo que se pierde** (declarado, decisión de Mario): 0/O y l/1 en ids y rutas;
+en bloques con signos (`+0.0102`/`-0.1216`) el `+` y el `−` miden distinto, así que alinean
+a ~1-2 px, no a rejilla. (**«Δ»:** esta sección decía que no existía en Montserrat y caía a la
+fuente del sistema; era por el subconjunto de 44 KB que se había empaquetado. Con Montserrat completa
+sí está; en **Akira** sigue sin existir, por eso los títulos son ASCII.) Se conserva la alineación a la derecha de las columnas de cifras.
+
+**Medidas antes → después** (Qt offscreen, `FakeResolve`, HOME temporal, sin Akira):
+
+| Medida | Antes (base #7-#9) | Después (SUITE 1/3) |
+|---|---|---|
+| Anchura mínima de ventana | 1016 | **1017** |
+| `ALTO_MINIMO` | 742 | **738** |
+| `anchos_fijos()` de la tabla de clips | 371 | **387** (+16) |
+| Textos < 12 px | 0 | **0** |
+| Contraste por píxel ≥ 4,5:1 (1017×742, 1280×800, 1440×900) | — | **0 textos por debajo** (test) |
+| Controles cortados | 0 | **0** |
+
+**Tests adaptados (declarados, ninguno arbitrado a ojo):** `test_la_paleta_de_la_gui_…`
+(se añaden `SMOKE` y `LINEA`, que son tokens de la suite); `test_la_pila_de_fuentes_…` →
+`…_es_la_de_la_suite`; `test_los_rotulos_van_en_mayusculas…` (el tracking es `TRACKING_EM`);
+los 8 tests de «cifras en monoespaciada» → «en Montserrat tabular»
+(`es_cifra_de_la_suite`, que mide familia + ancho de los diez dígitos + `tnum`);
+`ANCHURA_MINIMA/ALTO_MINIMO` (1017/738); `tipografias_de_marca_instaladas()` ahora detecta
+**Akira** (que sí cambia las métricas) y esos tests se saltan si está. Tests nuevos:
+`tests/test_gui_suite_base.py` (fuentes, Akira no versionada, relleno ≥54 %, contraste por
+píxel a 3 tamaños, `anchos_fijos`).
+
+**Qué hacer al actualizar**
+- Un color o fuente nuevos salen de `suite/tokens.css`, no se inventan; el texto secundario
+  es siempre `idn.SMOKE`, **nunca con opacidad**.
+- Akira solo ≥ 18 px y solo ASCII (104 glifos: sin tildes, ñ, ¿, €, Δ); títulos con tilde
+  → Montserrat 800 al mismo tamaño.
+- Un cristal con texto encima usa `RELLENO` (≥ 54 %), no el 20 % de la web.
+- Esta tanda **no** incluye cabecera de marca, botón en píldora ni pastilla (2/3) ni
+  avería/aviso por forma y barra de progreso (3/3). Choca con #10 y #11 en `identidad.py`
+  y `widgets.py`: al fusionar, conservar lo de auditoría.
+
+---
+
+## SUITE 2/3 — cabecera de marca, botón y pastilla (2026-10-07)
+
+Segunda de tres PRs (apilada sobre `agente/suite-1-tokens-tipografia-cristal`). Mismo
+origen: prototipo `reviews/2026-10-06-suite-color/` de `sidebflms-design`; el patch es guía.
+
+**Qué cambia**
+- `gui/widgets.py`: `CabeceraMarca` (casete + wordmark SVG de `sidebflms-web/public/logo`,
+  copiados a `gui/logo/`; nombre de la app con `fuente_display`; si faltan los SVG cae al
+  rótulo de texto), `PuntoEstado` (conexión por forma), `TablaSuite` (selección = filete
+  naranja de 2 px + velo neutro), insignia de confianza en **píldora**.
+- `gui/ventana.py`: cabecera de marca en el carril (**186 px y filete naranja intactos**),
+  título de pantalla en Akira ASCII (`TITULOS_AKIRA`: `CLIPS`, `COMPARAR`, `APLICAR`,
+  `REVERSE`, `PASO A PASO`), punto de estado en el pie, botón «Reanalizar» con márgenes
+  de 16 px, carril sin hoja de estilo local (le quitaba la píldora a sus botones).
+- `gui/identidad.py`: botones en **píldora** (radio 15: Qt no pinta un radio mayor que
+  medio alto), en **frase y no en mayúsculas** (si fueran mayúsculas, «Copiar nodos al
+  resto» volvería a cortarse, #7), primario `#bb4223` con **hover que sube a `#e8451d`**.
+- `gui/pantalla_clips.py` / `pantalla_aplicar.py`: `TablaSuite` y `PuntoEstado` en la banda.
+
+**Akira solo ASCII y ≥ 18 px** (104 glifos: sin tildes, ñ, ¿, €, Δ). Por eso los títulos se
+reformulan: «Antes / después» → `COMPARAR`, «Modo fácil» → `PASO A PASO`. **Pendiente de
+Mario:** «REVERSE» (el del prototipo, anglicismo ya usado en el código) o «INVERSA».
+
+**Medidas antes → después** (sin Akira; antes = PR 1/3):
+
+| Medida | Antes (SUITE 1/3) | Después (SUITE 2/3) |
+|---|---|---|
+| Anchura mínima | 1017 | **1017** |
+| `ALTO_MINIMO` | 738 | **745** (+7: cabecera de marca y título a 18 px) |
+| `anchos_fijos()` de la tabla de clips | 387 | **387** |
+| Textos < 12 px | 0 | **0** |
+| Controles cortados (1024 y 1017) | 0 | **0** |
+
+**Choques con la suite y cómo se resolvieron:** mayúsculas en el botón (la suite las pide;
+aquí van en frase por #7); hover del primario con crema encima da ≈3,5:1 (< 4,5:1; **lo
+acepta Mario**, igual que la web; solo con ratón); no hay token «pendiente/neutro» de estado.
+
+**Tests nuevos:** `tests/test_gui_suite_marca.py` (14: logos, cabecera con y sin SVG, títulos
+ASCII ≥18 px, píldora y frase, hover, insignia píldora **con su forma**, punto por forma,
+filete de 2 px, navegación en mayúsculas con tracking y texto completo con tildes).
+`ALTO_MINIMO` 738 → 745 declarado y explicado en `tests/test_gui_apoyo.py`.
+
+**Qué hacer al actualizar:** un título nuevo en Akira va en ASCII y a ≥ 18 px (con tilde →
+Montserrat 800); una pantalla nueva añade su entrada a `TITULOS_AKIRA`; un botón nuevo no
+lleva `text-transform`; un indicador de estado nuevo se distingue por forma, no por color.
+
+## SUITE 3/3 — vacío, carga y error (2026-10-07)
+
+Tercera de tres PRs (apilada sobre `agente/suite-2-cabecera-boton-pastilla`). Mismo origen:
+prototipo `reviews/2026-10-06-suite-color/` de `sidebflms-design`; el patch es guía.
+
+**Qué cambia**
+- `gui/widgets.py`: `marca_html("aviso" | "averia")` devuelve el rótulo de la suite: un
+  **rombo** (de contorno = aviso, relleno = avería; mismo dibujo que `MarcaDesajuste`,
+  incrustado como PNG `data:` en naranja `BRAND_400`) + **«AVISO»** / **«AVERÍA»** en negrita
+  + « · » en `SMOKE`. El mensaje que sigue va en crema. **Ni un píxel de rojo**: el estado
+  se distingue por forma y por palabra, no por color.
+- `gui/pantalla_aplicar.py`: **vocabulario único (ver «INTEGRACIÓN FINAL»)**: **AVERÍA** = falta de
+  conexión, QC del look fallido, «No se puede…» y escritura fallida en Resolve; **AVISO** = lo leve
+  (los avisos de una línea o de un resultado). La información normal del plan deja de ir en
+  naranja y pasa a crema.
+- `gui/pantalla_reverse.py`: el QC del LUT que falla es AVERÍA; «lo calculó el sustituto de la
+  GUI» es AVISO.
+- `gui/identidad.py`: `QProgressBar` de marca (surco neutro, relleno `BRAND_600`, radio de
+  control): el diálogo de «Reanalizar timeline» ya no pinta el azul del sistema.
+
+**Vacío / carga / error — lo que NO hay:** no hay esqueletos de carga. Ninguna pantalla de
+esta app carga datos en segundo plano (lo único con espera es el diálogo de «Reanalizar»,
+que ya tiene su barra); el prototipo tampoco los incluyó. Los estados vacíos ya eran frases
+llanas («No hay clips que comparar.»); queda cubierto por test.
+
+**Detector de recortes:** `linea_que_no_cabe` medía el HTML crudo, y el `data:` del rombo
+(miles de caracteres) disparaba falsos «no cabe». Ahora mide el texto que se ve
+(`_texto_que_se_ve`: `QTextDocument.toPlainText()` si la etiqueta es texto enriquecido).
+Con dos tests nuevos, incluido el del rombo.
+
+**Medidas antes → después** (sin Akira; antes = SUITE 2/3):
+
+| Medida | Antes (SUITE 2/3) | Después (SUITE 3/3) |
+|---|---|---|
+| Anchura mínima | 1017 | **1017** |
+| `ALTO_MINIMO` | 745 | **745** |
+| `anchos_fijos()` de la tabla de clips | 387 | **387** |
+| Textos < 12 px | 0 | **0** |
+| Controles cortados (1024 y 973) | 0 | **0** |
+
+**Tests nuevos:** `tests/test_gui_suite_estados.py` (10: rombo de contorno vs relleno, rótulo
+con palabra y punto medio, **cero rojo** en el rombo, mismos vértices que `MarcaDesajuste`,
+plan con aviso/bloqueo/sin conexión, avería al fallar la escritura, QC con rombo, estado
+desconectado por forma y rótulo, barra de progreso sin azul de sistema, vacío con palabras).
+
+**Rojos declarados (1):** `test_gui_estados.py::test_un_look_que_no_pasa_el_qc_se_avisa_antes_de_escribirlo`
+exigía el naranja de marca en la hoja de estilo del bloque de QC; ahora es rombo relleno + «AVERÍA ·»
+y el texto en crema (se comprueba eso, y que sigue sin haber rojo).
+
+**Conciliado con #11:** hecho en la «INTEGRACIÓN FINAL» (más abajo).
+
+**Qué hacer al actualizar:** un estado nuevo de error/aviso se escribe con
+`marca_html("aviso"|"averia")` y el mensaje en crema; nunca con color rojo ni con un color
+como único distintivo.
+
+## INTEGRACIÓN FINAL — #10, #11, #12 y #13 sobre la suite (2026-10-08)
+
+Decisión de Mario (2026-10-08): cerrar y fusionar la auditoría de diseño y la suite juntas, y solo
+si la CI queda en verde. Esta sección es lo que se hizo para que la punta de #16 contenga todo
+(#7 a #15 se cierran como «integrada en #16»).
+
+**Qué falló en la verificación independiente.** La CI de #14, #15 y #16 estaba en rojo: los 3
+`tests/auditoria/test_dia2_fuentes.py::test_AUDF_*` seguían exigiendo **monoespaciada**
+(`iiii == MMMM`) y mis pasadas locales solo corrían `tests/test_gui_*.py`, no `pytest -q` entero.
+Ahora se corre la suite completa como la CI antes de dar nada por bueno.
+
+**Decisión explícita sobre los 3 AUDF: se ADAPTAN, no se retiran.** El motivo por el que existen
+(«pedí cifra aquí y acabó sin ella») sigue siendo válido con cifras tabulares; solo cambia la vara:
+`es_cifra_de_la_suite` (Montserrat + diez dígitos iguales + `tnum`) en lugar de «mide mono».
+- `la_hoja_de_estilo_SI_pisa_a_setFont` → `…respeta_la_cifra_pedida_con_setFont`: con Montserrat en
+  todo, la hoja ya no pisa la cifra (se comprueba antes y después de aplicar la hoja).
+- `ninguna_etiqueta_pide_fuente_de_cifra_y_acaba_sin_ella`: misma búsqueda mecánica (espía de
+  `setFont`) con la vara nueva.
+- `las_cifras_de_la_ventana_miden_monoespaciadas_de_verdad` → `…son_cifras_de_la_suite_de_verdad`.
+- El control negativo de la etiqueta plantada fabrica ahora el fallo con una hoja propia
+  (`font-family: 'Courier New'`), porque la hoja global ya no lo pisa.
+
+**Integración (una a una, conflictos resueltos conservando la auditoría).**
+- **#10 (foco):** `BITACORA.md` e `identidad.py` (el botón es píldora de la suite; el foco de 2 px y
+  el relleno que baja 1 px se quedan). **Rojo real encontrado:** la regla genérica `QPushButton:focus`
+  (borde de 2 px) hacía crecer 2 px al botón de navegación al recibir foco (186×35 → 186×37);
+  `QPushButton#navegacion:focus` repite la geometría en reposo y solo cambia el color. El test que
+  leía `QPushButton:focus { border-color… }` se adapta a `border: 2px solid …` (declarado).
+- **#11 (estados):** `identidad.py`, `pantalla_aplicar.py`, `ventana.py`. **Un solo vocabulario:**
+  AVERÍA = falta de conexión, QC fallido y «No se puede…» (y escritura fallida); AVISO = lo leve.
+  Forma (rombo relleno / de contorno, `marca_html`) + palabra, constantes en `identidad.py`
+  (`PALABRA_AVERIA`, `PALABRA_AVISO`). Fuera los «●/○» de #11: la conexión es el `PuntoEstado`.
+  `tests/test_gui_estados_marcados.py` se reescribe a este vocabulario (el reparto es el de #11, salvo
+  que el QC fallido del panel del look pasa de aviso a avería).
+- **#12 (Reanalizar 32 px, borde 3:1):** `ventana.py`. **Hallazgo:** el borde de control de la suite
+  («smoke al 55 % = 3,0:1») **calculado da 2,2-2,6:1** (2,5:1 medido en el píxel de un botón real),
+  así que perdía el 3:1 de #12. `BORDE_CONTROL_A` 0,55 → **0,72** (3,0-3,7:1). Se aparta del token de la
+  web a propósito; hay test calculado y por píxel.
+- **#13 (copy):** `pantalla_facil.py` (se queda `redondear_para_mostrar` + tooltip, con el cuerpo a 14 px).
+
+**Alto mínimo ≤ 742.** Tras integrar seguía en 745. Márgenes de la columna de contenido (16, 14, 16, 16)
+→ (16, 12, 16, 14): **741**. Ancho 1017 y `anchos_fijos()` 387 no cambian.
+
+**Montserrat completa.** Los TTF eran un subconjunto latino de ~44 KB sin flechas ni signos, así que
+`←`, `→`, `≥`, `≤` y `Δ` (≈ 300 usos en la GUI) caían a la fuente del sistema. Ahora son las cinco
+instancias estáticas (400-800) de **Montserrat 9.000 completa (1312 glifos)**, ~375 KB cada una, con
+`tnum`. `OFL.txt` lleva el copyright de la propia fuente («Copyright 2011 The Montserrat Project
+Authors (https://github.com/JulietaUla/Montserrat)»; antes decía 2024 y `Montserrat.Git`). **Σ
+(U+03A3) NO existe en Montserrat**; la interfaz no la usa (solo `core/reverse/NOTAS.md`). Tests:
+`tests/test_gui_fuentes_incluidas.py` (glifos, tamaño, licencia, barrido de los literales de `gui/`).
+`fonttools` pasa a `[dev]`.
+
+**Qué hacer al actualizar:** un estado nuevo usa `marca_html("aviso"|"averia")` con el criterio de
+arriba; un texto nuevo con símbolos se comprueba con el barrido de `test_gui_fuentes_incluidas.py`; no
+subir `.otf` de Akira (repo público).
+
+**La CI que no terminaba (causa y arreglo).** La CI de la punta se cancelaba a las 6 h (el límite del
+runner) en vez de tardar ~40 min. Medido en local: los tests de GUI eran 5-7 veces más lentos que en la
+base de auditoría (p. ej. `test_gui_pantallas.py`: 34 s el peor test frente a 4,8 s). Causa:
+`crear_app()` —que llama cada test y cada `asentar()`— volvía a hacer `app.setStyleSheet(...)` con la
+**misma** hoja, y con la hoja de la suite (selector `QWidget` universal) Qt re-estila todos los widgets
+vivos: ~0,5 s por llamada, creciendo con los widgets que dejan los tests anteriores. Ahora `crear_app()`
+solo toca la hoja y la fuente si **cambian** (`tests/test_gui_suite_base.py::test_crear_app_no_vuelve_…`).
+`test_gui_pantallas.py` vuelve a 4,3 s en el peor test.

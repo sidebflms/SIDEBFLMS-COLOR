@@ -18,6 +18,7 @@ es mas pequeno de lo real y la captura sale enganosa.
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -35,6 +36,7 @@ from PySide6.QtWidgets import (
 from core.batch import ProgresoLote
 from core.contracts import VERSION_NAME, ResolveError
 from gui import identidad as idn
+from gui.cristal import FondoSuite
 from gui.datos_demo import EstadoDemo, estado_demo, par_ingenieria_inversa, parches_carta
 from gui.estado_real import SinClipsReales, reanalizar_en_sitio
 from gui.pantalla_aplicar import PantallaAplicar
@@ -42,7 +44,7 @@ from gui.pantalla_clips import PantallaClips
 from gui.pantalla_comparar import PantallaComparar
 from gui.pantalla_facil import PantallaFacil
 from gui.pantalla_reverse import PantallaReverse
-from gui.widgets import Cifra, EtiquetaElidida, Rotulo, separador
+from gui.widgets import CabeceraMarca, Cifra, EtiquetaElidida, PuntoEstado, Rotulo, separador
 
 #: Clave de `QSettings` donde se recuerda el modo elegido. Por usuario: cada
 #: cuenta del sistema tiene su propio `QSettings`, así que Mario en modo
@@ -61,6 +63,35 @@ PANTALLAS = (
 #: Ancho del carril de navegacion. Fijo: es un carril, no un panel.
 ANCHO_CARRIL = 186
 
+#: Alto mínimo de un botón pulsable (px). El de «Reanalizar timeline» lo exige.
+ALTO_MINIMO_BOTON = 32
+
+
+#: Titulos de pantalla en Akira: el archivo no tiene tildes, asi que cada
+#: titulo se reformula en ASCII (la navegacion del carril conserva el texto
+#: completo en Montserrat). Ver INFORME: decision para Mario.
+TITULOS_AKIRA = {
+    "Clips y confianza": "CLIPS",
+    "Antes / después": "COMPARAR",
+    "Aplicar": "APLICAR",
+    "Ingeniería inversa": "REVERSE",
+    "Modo fácil": "PASO A PASO",
+}
+
+
+class _TituloAkira(QLabel):
+    """Titulo de pantalla en Akira. Acepta el texto largo y pinta su version ASCII."""
+
+    def __init__(self, texto: str = "") -> None:
+        super().__init__()
+        self.setFont(idn.fuente_display(idn.PX_DISPLAY_MIN))
+        self.setObjectName("display")
+        self.setText(texto)
+
+    def setText(self, texto: str) -> None:  # noqa: N802
+        super().setText(TITULOS_AKIRA.get(texto, texto))
+        self.setAccessibleName(texto)
+
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self, estado: EstadoDemo | None = None, *,
@@ -72,7 +103,7 @@ class VentanaPrincipal(QMainWindow):
         self._perfiles_carpeta = perfiles_carpeta
         self.setWindowTitle(TITULO)
 
-        raiz = QWidget()
+        raiz = FondoSuite()
         self.setCentralWidget(raiz)
         fila = QHBoxLayout(raiz)
         fila.setContentsMargins(0, 0, 0, 0)
@@ -82,7 +113,7 @@ class VentanaPrincipal(QMainWindow):
 
         derecha = QWidget()
         col = QVBoxLayout(derecha)
-        col.setContentsMargins(18, 16, 18, 16)
+        col.setContentsMargins(16, 12, 16, 14)
         col.setSpacing(14)
         col.addWidget(self._cabecera())
         self.pila = QStackedWidget()
@@ -117,18 +148,17 @@ class VentanaPrincipal(QMainWindow):
         carril.setObjectName("hondo")
         carril.setFixedWidth(ANCHO_CARRIL)
         carril.setAutoFillBackground(True)
-        carril.setStyleSheet(f"QWidget#hondo {{ background: {idn.HONDO}; }}")
+        # (el fondo del carril lo da la hoja de la app: `QWidget#hondo`; una hoja local
+        # le quitaba el radio de pildora a los botones de dentro)
         col = QVBoxLayout(carril)
         col.setContentsMargins(0, 18, 0, 14)
         col.setSpacing(4)
 
         marca = QVBoxLayout()
         marca.setContentsMargins(16, 0, 16, 14)
-        marca.setSpacing(2)
-        titulo = Rotulo("sidebflms", px=11, acento=True)
-        marca.addWidget(titulo)
-        sub = Rotulo("color")
-        marca.addWidget(sub)
+        marca.setSpacing(0)
+        # SUITE: casete + wordmark (B naranja) y el nombre de la app en Akira.
+        marca.addWidget(CabeceraMarca("COLOR"))
         col.addLayout(marca)
         col.addWidget(separador())
         col.addSpacing(8)
@@ -138,7 +168,7 @@ class VentanaPrincipal(QMainWindow):
         # fácil, la navegación de abajo se oculta entera (ver `_aplicar_modo`).
         self.boton_modo_facil = QPushButton("Modo fácil")
         self.boton_modo_facil.setObjectName("navegacion")
-        self.boton_modo_facil.setFont(idn.fuente_rotulo(10))
+        self.boton_modo_facil.setFont(idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO))
         self.boton_modo_facil.setCheckable(True)
         self.boton_modo_facil.setCursor(Qt.CursorShape.PointingHandCursor)
         self.boton_modo_facil.toggled.connect(self._cambiar_modo)
@@ -152,12 +182,22 @@ class VentanaPrincipal(QMainWindow):
             b.setObjectName("navegacion")
             # En MAYUSCULAS con el tracking de marca. QSS no tiene
             # `text-transform`, asi que la unica forma es la fuente.
-            b.setFont(idn.fuente_rotulo(10))
+            b.setFont(idn.fuente_rotulo(idn.PX_MIN_INFORMATIVO))
             b.setCheckable(True)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             self.grupo.addButton(b, i)
             col.addWidget(b)
         self.grupo.idClicked.connect(self.ir_a)
+        # Cmd+1..4 (Ctrl+1..4 fuera de macOS: Qt mapea «Ctrl» a Cmd en Mac) van a
+        # las cuatro pantallas del modo avanzado; el atajo también va en el
+        # tooltip del botón para que se descubra.
+        self._atajos: list[QShortcut] = []
+        for i, boton in enumerate(self.grupo.buttons()):
+            secuencia = QKeySequence(f"Ctrl+{i + 1}")
+            boton.setToolTip(f"{PANTALLAS[i][1]} ({secuencia.toString(QKeySequence.SequenceFormat.NativeText)})")
+            atajo = QShortcut(secuencia, self)
+            atajo.activated.connect(lambda i=i: self.ir_a(i))
+            self._atajos.append(atajo)
         # Día 9 (continuación 13), punto 3 de la lista de Mario: hasta hoy,
         # analizar el timeline sólo pasaba una vez, al arrancar `lanzar.py`.
         # Vive en el carril —visible en las cinco pantallas— porque "qué
@@ -169,9 +209,14 @@ class VentanaPrincipal(QMainWindow):
         col.addSpacing(12)
         self.btn_reanalizar = QPushButton("Reanalizar timeline")
         self.btn_reanalizar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_reanalizar.setFont(idn.fuente_texto(11))
+        self.btn_reanalizar.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
+        # Minimo 32 px de alto (auditoria de diseno 2026-10-06): por debajo no es comodo pulsar.
+        self.btn_reanalizar.setMinimumHeight(ALTO_MINIMO_BOTON)
         self.btn_reanalizar.clicked.connect(self._reanalizar_timeline)
-        col.addWidget(self.btn_reanalizar)
+        fila_btn = QHBoxLayout()
+        fila_btn.setContentsMargins(16, 0, 16, 0)
+        fila_btn.addWidget(self.btn_reanalizar)
+        col.addLayout(fila_btn)
         col.addStretch(1)
 
         # En dos lineas y NO elidida. Esta es la promesa de la app -- que no
@@ -181,7 +226,7 @@ class VentanaPrincipal(QMainWindow):
         # que tiene que decir.
         nota = QLabel(f"escribe en\n«{VERSION_NAME}»")
         nota.setObjectName("tenue")
-        nota.setFont(idn.fuente_texto(10))
+        nota.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         nota.setWordWrap(True)
         nota.setContentsMargins(16, 0, 16, 0)
         col.addWidget(nota)
@@ -192,7 +237,8 @@ class VentanaPrincipal(QMainWindow):
         fila = QHBoxLayout(cab)
         fila.setContentsMargins(0, 0, 0, 0)
         fila.setSpacing(14)
-        self.titulo_pantalla = Rotulo(PANTALLAS[0][1], px=11, acento=True)
+        # SUITE: titulo en Akira (>= 18 px, SOLO ASCII: sin tildes ni n con tilde).
+        self.titulo_pantalla = _TituloAkira(PANTALLAS[0][1])
         fila.addWidget(self.titulo_pantalla, 0)
         self.sub_pantalla = EtiquetaElidida("", ancho_minimo_px=60)
         self.sub_pantalla.setObjectName("apagado")
@@ -205,13 +251,16 @@ class VentanaPrincipal(QMainWindow):
         fila = QHBoxLayout(pie)
         fila.setContentsMargins(0, 0, 0, 0)
         fila.setSpacing(14)
+        self.punto_resolve = PuntoEstado()
+        fila.addWidget(self.punto_resolve, 0)
+        fila.setSpacing(8)
         self.estado_resolve = Rotulo("resolve")
         fila.addWidget(self.estado_resolve, 0)
         self.detalle_resolve = EtiquetaElidida("", ancho_minimo_px=60)
         self.detalle_resolve.setObjectName("tenue")
-        self.detalle_resolve.setFont(idn.fuente_texto(11))
+        self.detalle_resolve.setFont(idn.fuente_texto(idn.PX_MIN_INFORMATIVO))
         fila.addWidget(self.detalle_resolve, 1)
-        self.cifra_clips = Cifra("", px=11)
+        self.cifra_clips = Cifra("", px=idn.PX_MIN_INFORMATIVO)
         self.cifra_clips.setObjectName("apagado")
         fila.addWidget(self.cifra_clips, 0)
         return pie
@@ -282,11 +331,13 @@ class VentanaPrincipal(QMainWindow):
             info = None
         conectado = info is not None
         if info is not None:
+            self.punto_resolve.poner(True)
             self.estado_resolve.setText("resolve conectado")
             self.detalle_resolve.setText(
                 f"{info.name} · {info.timeline_name} · {info.color_science} · LUTs en {info.lut_dir}"
             )
         else:
+            self.punto_resolve.poner(False)
             self.estado_resolve.setText("resolve desconectado")
             self.detalle_resolve.setText(
                 "no hay conexión; se puede mirar todo, pero no se escribe nada"
@@ -389,8 +440,17 @@ def crear_app(argv: list[str] | None = None) -> QApplication:
     if app is None:
         app = QApplication(argv or [])
     app.setApplicationName(TITULO)
-    app.setFont(idn.fuente_texto(13))
-    app.setStyleSheet(idn.hoja_de_estilo())
+    idn.cargar_fuentes()
+    # Idempotente: `crear_app()` se llama muchas veces (cada test, `asentar()`), y volver a
+    # poner la MISMA hoja o la MISMA fuente obliga a Qt a re-estilar todos los widgets vivos
+    # (con la hoja de la suite, ~0,5 s por llamada y creciendo con los widgets que quedan de
+    # tests anteriores: la CI pasaba de 40 min a mas de 6 h). Solo se toca si cambia.
+    fuente = idn.fuente_texto(idn.PX_CUERPO)
+    if app.font() != fuente:
+        app.setFont(fuente)
+    hoja = idn.hoja_de_estilo()
+    if app.styleSheet() != hoja:
+        app.setStyleSheet(hoja)
     return app
 
 

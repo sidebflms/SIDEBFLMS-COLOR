@@ -17,11 +17,21 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import functools  # noqa: E402
+import re  # noqa: E402
 
 import pytest  # noqa: E402
-from PySide6.QtGui import QFontDatabase, QFontMetrics  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QFont, QFontInfo, QFontMetrics, QTextDocument  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
-from PySide6.QtWidgets import QLabel, QWidget  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
+    QCheckBox,
+    QComboBox,
+    QLabel,
+    QPushButton,
+    QStyle,
+    QStyleOptionComboBox,
+    QWidget,
+)
 
 from gui import datos_demo as dd  # noqa: E402
 from gui import identidad as idn  # noqa: E402
@@ -68,8 +78,34 @@ pytestmark = pytest.mark.gui
 #: rotulo. Ademas el alto se mide ahora a la anchura minima y no en la ventana
 #: de 1440, porque a 973 px el texto parte en mas lineas: medido como antes
 #: saldria 713, y seria un minimo que la pantalla no cumple.
-ANCHURA_MINIMA = 973
-ALTO_MINIMO = 727
+#:
+#: **[auditoría de diseño 2026-10-06, bloque 3] Sube de 973 × 727 a 1016 × 742.**
+#: No se ha elegido: es lo que contesta el contenido al subir el suelo de todo
+#: texto informativo de 10-11 px a 12 y el cuerpo (tablas y párrafos) de 13 a
+#: 14 (`idn.PX_MIN_INFORMATIVO`, `idn.PX_CUERPO`). El ancho sube 43 px sobre todo
+#: por las columnas de cifras de la tabla de clips (ahora a 14 px) y las
+#: cabeceras a 12; el alto sube 15 px. 1016 cabe en 1280 con holgura; 742 de alto
+#: cabe en 1280 × 800 sólo justo (sin Dock): ver BITACORA.md.
+#:
+#: **[suite 1/3, 2026-10-07] Pasa de 1016 × 742 a 1017 × 738, medido SIN Akira.**
+#: Es lo que contesta el contenido con Montserrat (la fuente de la suite, +3-6 %
+#: sobre las de antes) y con los márgenes de la suite (18 → 16 px); `anchos_fijos()`
+#: de la tabla de clips pasa de 371 a 387. El alto BAJA 4 px porque el título de
+#: pantalla y el rótulo de marca son ya Montserrat y no Chakra Petch. Con Akira
+#: instalada o copiada a `gui/fuentes/` las métricas son otras y los tests que fijan
+#: estos números se saltan (ver `tipografias_de_marca_instaladas`).
+#:
+#: **[suite 2/3, 2026-10-07] El alto sube de 738 a 745 (el ancho se queda en 1017).**
+#: Cabecera de marca (casete + wordmark + nombre de la app en el carril) y título de
+#: pantalla a 18 px (Akira, o Montserrat 800 si no está), en vez del rótulo de 12 px.
+#: Medido sin Akira; con Akira instalada o copiada a `gui/fuentes/` las métricas son
+#: otras y los tests que fijan estos números se saltan.
+#:
+#: **[integración final, 2026-10-08] El alto baja de 745 a 741.** Los márgenes de la columna de
+#: contenido pasan de (16, 14, 16, 16) a (16, 12, 16, 14): el alto mínimo vuelve a ser
+#: ≤ 742, el que tenia la auditoría de diseño (bloque 3). Ancho y `anchos_fijos()` no cambian.
+ANCHURA_MINIMA = 1017
+ALTO_MINIMO = 741
 
 
 # ---------------------------------------------------------------------------
@@ -162,15 +198,17 @@ def desconectado():
 
 
 def tipografias_de_marca_instaladas() -> list[str]:
-    """Cuales de las tres familias de marca existen en esta maquina.
+    """Las familias que cambian las metricas y que NO van en el repo: Akira.
 
-    Importa para los tests que fijan un numero de pixeles: si Mario instala
-    Inter, Chakra Petch y JetBrains Mono, las metricas cambian y la anchura
-    minima de la ventana deja de ser 973. No es un fallo, es otra tipografia.
+    Montserrat va en `gui/fuentes/` (siempre esta); Akira no (licencia, repo
+    publico). Importa para los tests que fijan un numero de pixeles: en un Mac con
+    Akira instalada o copiada a `gui/fuentes/`, los titulos van en Akira (mas ancha
+    que Montserrat 800) y la anchura minima de la ventana deja de ser la medida. No
+    es un fallo, es otra tipografia: esos tests se saltan.
     """
     app_qt()  # sin QApplication, QFontDatabase aborta el proceso entero
-    familias = set(QFontDatabase.families())
-    return [f for f in ("Inter", "Chakra Petch", "JetBrains Mono") if f in familias]
+    akira = idn.familia_akira(volver_a_buscar=True)
+    return [akira] if akira else []
 
 
 def es_monoespaciada(fuente) -> bool:
@@ -182,6 +220,24 @@ def es_monoespaciada(fuente) -> bool:
     """
     m = QFontMetrics(fuente)
     return m.horizontalAdvance("iiii") == m.horizontalAdvance("MMMM")
+
+
+def es_cifra_de_la_suite(fuente) -> bool:
+    """¿Es una cifra de la suite? Montserrat con cifras tabulares (`tnum`).
+
+    La suite NO tiene mono (decision de Mario, 2026-10-06): las cifras van en
+    Montserrat con `tnum`, y alinean a la derecha porque todas las cifras miden
+    lo mismo. Se mide (familia que resuelve Qt + ancho de los diez digitos), no se
+    pregunta por el nombre pedido: si Montserrat no cargara y cayera a otra, esto
+    lo ve.
+    """
+    m = QFontMetrics(fuente)
+    anchos = {m.horizontalAdvance(c) for c in "0123456789"}
+    return (
+        QFontInfo(fuente).family() == "Montserrat"
+        and len(anchos) == 1
+        and QFont.Tag("tnum") in fuente.featureTags()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +264,27 @@ def esta_elidida(lab: QLabel) -> bool:
     return isinstance(lab, EtiquetaElidida) and lab.text() != lab.texto_completo()
 
 
+def _texto_que_se_ve(lab: QLabel) -> str:
+    """El texto de un `QLabel` tal y como se PINTA: sin etiquetas HTML.
+
+    Un `QLabel` en texto enriquecido (los avisos con rombo: `<img src="data:image/png;
+    base64,...">`) devuelve en `.text()` el HTML crudo, y el detector medía los miles de
+    caracteres del `data:` como una linea que «no cabe». Se pasa por `QTextDocument`
+    (el mismo motor que pinta) y se mide solo lo visible.
+    """
+    texto = lab.text()
+    formato = lab.textFormat()
+    # `Qt.mightBeRichText` no esta expuesto en PySide6: misma idea, una etiqueta HTML.
+    es_rico = formato == Qt.TextFormat.RichText or (
+        formato == Qt.TextFormat.AutoText and re.search(r"<[a-zA-Z/!][^>]*>", texto) is not None
+    )
+    if not es_rico:
+        return texto
+    doc = QTextDocument()
+    doc.setHtml(texto)
+    return doc.toPlainText()
+
+
 def linea_que_no_cabe(lab: QLabel) -> str | None:
     """La primera linea de un `QLabel` normal que NO cabe en su ancho.
 
@@ -225,7 +302,7 @@ def linea_que_no_cabe(lab: QLabel) -> str | None:
     Se mide contra `contentsRect()` y no contra `width()`: con margenes
     puestos, `width()` se pasa por lo que midan los margenes.
     """
-    texto = lab.text()
+    texto = _texto_que_se_ve(lab)
     if not texto.strip():
         return None
     disponible = lab.contentsRect().width()
@@ -241,6 +318,39 @@ def linea_que_no_cabe(lab: QLabel) -> str | None:
     return None
 
 
+def controles_cortados(raiz: QWidget) -> list[tuple[str, int, int]]:
+    """Botones, casillas y combos visibles cuyo texto NO cabe en su ancho.
+
+    Devuelve `(texto, ancho_que_tiene, ancho_que_necesita)`. El detector de
+    etiquetas (`linea_que_no_cabe`) no ve los controles: un `QPushButton` al
+    que la columna no le da lo que pide su `sizeHint()` se pinta cortado en
+    silencio, igual que un `QLabel`. Se detectó en la auditoría de diseño del
+    2026-10-06 (tres controles de la pantalla Aplicar, a 1024 y a 973 px).
+
+    * botones y casillas: el ancho tiene que alcanzar su `sizeHint()`;
+    * combos: el TEXTO ACTUAL tiene que caber en el campo de edición que
+      calcula el estilo (con la política de ajuste a un largo mínimo, el
+      `sizeHint()` ya no sigue al texto y no sirve de medida).
+    """
+    fuera: list[tuple[str, int, int]] = []
+    for clase in (QPushButton, QCheckBox):
+        for w in raiz.findChildren(clase):
+            if w.isVisible() and w.text().strip() and w.width() < w.sizeHint().width() - 1:
+                fuera.append((w.text(), w.width(), w.sizeHint().width()))
+    for combo in raiz.findChildren(QComboBox):
+        if not combo.isVisible() or not combo.currentText().strip():
+            continue
+        opcion = QStyleOptionComboBox()
+        combo.initStyleOption(opcion)
+        campo = combo.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox, opcion, QStyle.SubControl.SC_ComboBoxEditField, combo
+        )
+        necesita = QFontMetrics(combo.font()).horizontalAdvance(combo.currentText())
+        if necesita > campo.width():
+            fuera.append((combo.currentText(), campo.width(), necesita))
+    return fuera
+
+
 # ---------------------------------------------------------------------------
 # Tests DEL apoyo: que los detectores detectan
 # ---------------------------------------------------------------------------
@@ -250,6 +360,28 @@ def test_el_detector_de_corte_ve_un_qlabel_estrecho():
     """Un `QLabel` normal al que no le cabe el texto tiene que salir cazado."""
     app_qt()
     lab = QLabel("una frase que desde luego no cabe en cuarenta pixeles")
+    lab.setFont(idn.fuente_texto(13))
+    lab.resize(40, 20)
+    assert linea_que_no_cabe(lab) is not None
+
+
+def test_el_detector_de_corte_ignora_el_data_uri_de_un_rombo_en_html():
+    """Antes leia el `<img src="data:...">` del rombo como texto plano que «no cabe»."""
+    app_qt()
+    from gui.widgets import marca_html
+
+    lab = QLabel(marca_html("aviso") + "texto corto")
+    lab.setTextFormat(Qt.TextFormat.RichText)
+    lab.setFont(idn.fuente_texto(13))
+    lab.resize(300, 20)
+    assert len(lab.text()) > 300, "el HTML crudo es mucho mas largo que el ancho"
+    assert linea_que_no_cabe(lab) is None
+
+
+def test_el_detector_de_corte_sigue_cazando_un_texto_rico_que_de_verdad_no_cabe():
+    app_qt()
+    lab = QLabel("<b>una frase en negrita que desde luego no cabe en cuarenta pixeles</b>")
+    lab.setTextFormat(Qt.TextFormat.RichText)
     lab.setFont(idn.fuente_texto(13))
     lab.resize(40, 20)
     assert linea_que_no_cabe(lab) is not None
@@ -289,6 +421,45 @@ def test_el_detector_de_corte_caza_una_palabra_larga_con_wordwrap():
     assert linea_que_no_cabe(lab) is not None
 
 
+def test_el_detector_de_controles_ve_un_boton_estrecho():
+    app_qt()
+    caja = QWidget()
+    caja.resize(400, 100)
+    boton = QPushButton("Copiar la estructura de nodos al resto marcado", caja)
+    boton.resize(120, 30)
+    caja.show()
+    asentar()
+    assert controles_cortados(caja)
+
+
+def test_el_detector_de_controles_ve_un_combo_con_el_texto_demasiado_largo():
+    app_qt()
+    caja = QWidget()
+    combo = QComboBox(caja)
+    combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.addItem("(sin carpeta de perfiles configurada)")
+    combo.resize(150, 30)
+    caja.resize(200, 60)
+    caja.show()
+    asentar()
+    assert controles_cortados(caja)
+
+
+def test_el_detector_de_controles_no_se_inventa_nada():
+    app_qt()
+    caja = QWidget()
+    boton = QPushButton("Aplicar", caja)
+    combo = QComboBox(caja)
+    combo.addItem("(sin carpeta)")
+    combo.move(0, 40)
+    boton.adjustSize()
+    combo.resize(260, 30)
+    caja.resize(300, 100)
+    caja.show()
+    asentar()
+    assert controles_cortados(caja) == []
+
+
 def test_el_detector_de_elision_ve_una_etiqueta_elidida():
     app_qt()
     lab = EtiquetaElidida("un nombre de clip larguisimo que no va a caber ni de broma")
@@ -313,9 +484,25 @@ def test_el_detector_de_elision_no_marca_lo_que_cabe():
 
 
 def test_es_monoespaciada_distingue_de_verdad():
+    """El detector de mono sigue valiendo (lo usa el control de los rotulos): se
+    prueba con una mono de verdad del sistema, no con las fuentes de la app."""
     app_qt()
-    assert es_monoespaciada(idn.fuente_cifra(13))
+    mono = QFont("Menlo")
+    if QFontInfo(mono).family() != "Menlo":
+        pytest.skip("no hay Menlo en este sistema")
+    mono.setPixelSize(13)
+    assert es_monoespaciada(mono)
     assert not es_monoespaciada(idn.fuente_texto(13))
+
+
+def test_es_cifra_de_la_suite_distingue_de_verdad():
+    app_qt()
+    assert es_cifra_de_la_suite(idn.fuente_cifra(13))
+    assert es_cifra_de_la_suite(idn.fuente_texto(13))  # Montserrat con tnum tambien
+    otra = QFont("Helvetica Neue")
+    otra.setPixelSize(13)
+    otra.setFeature(QFont.Tag("tnum"), 1)
+    assert not es_cifra_de_la_suite(otra), "otra familia no es una cifra de la suite"
 
 
 def test_la_ventana_de_apoyo_se_construye_contra_el_falso():

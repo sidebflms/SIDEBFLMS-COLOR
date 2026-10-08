@@ -40,3 +40,13 @@ tests/luts_reales/
 # de camara conocidos de la experiencia de Mario, no material generico del
 # motor. Ver core/io/perfiles.py.
 perfiles_trabajo/
+
+# Akira Expanded: licencia comercial de SIDEBFLMS y repo PUBLICO. NUNCA se sube el
+# archivo; Mario lo copia a mano a gui/fuentes/ en su equipo. Montserrat (OFL) si va.
+gui/fuentes/*.otf
+gui/fuentes/*.OTF
+gui/fuentes/*.woff
+gui/fuentes/*.woff2
+gui/fuentes/*[Aa]kira*
+gui/fuentes/*AKIRA*
+gui/fuentes/*TIPOGRAFIA*
