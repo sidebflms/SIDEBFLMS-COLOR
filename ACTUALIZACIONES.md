@@ -4,6 +4,12 @@ Cambios que afectan a **cómo se ve o se usa la app**, en orden inverso (lo últ
 arriba). Para el detalle técnico, medidas y qué hacer al actualizar, ver
 `BITACORA.md`.
 
+## VENTANA DEL .DMG · 2026-10-08 — instalador de COLOR con la ventana de la suite
+
+Hay una herramienta para hacer el `.dmg` de COLOR con la misma ventana que el resto de la suite
+(casete oficial, «COLOR» en Akira, flecha hacia Aplicaciones, distintivo ámbar). `packaging/construye_dmg.sh`
+la lanza sobre una `.app` ya construida; COLOR todavía no se empaqueta como `.app`, así que aún no se ve.
+
 ## ICONO · 2026-10-08 — icono de SIDEBFLMS COLOR
 
 Hay icono de la app: el casete oficial blanco sobre fondo antracita, con «COLOR» debajo y un

@@ -3899,3 +3899,37 @@ por app; el de COLOR es un semicírculo ámbar). Se leyó desde GitHub, no de di
 `CFBundleIconFile` cuando exista). A 16-32 px solo se reconoce el casete y el punto de color. El
 squircle es una superelipse (n = 5), parecida a la de Apple pero no idéntica.
 
+## VENTANA DEL .DMG — herramienta de la suite y lanzador para COLOR (2026-10-08)
+
+Material: `sidebflms-design`, `reviews/2026-10-08-dmg/` (`suite_dmg.py`, `suite_dmg_fondo.mjs`,
+`distintivos.json`, `casete-oficial-blanco.svg`), leído desde GitHub. Se copian a `packaging/`
+**adaptados a este repo, que es público** (la copia dice qué cambió en su cabecera).
+
+**COLOR no tiene empaquetado de `.app` y no se ha inventado uno.** `packaging/construye_dmg.sh` recibe
+una `.app` **ya construida** y solo hace la ventana del `.dmg`: llama a `suite_dmg.py --nombre "SIDEBFLMS
+COLOR" --corto COLOR --distintivo COLOR` (versión de `pyproject.toml`, icono `packaging/AppIcon.icns`,
+`--salida` por defecto `./dist`, `--volumen`, `--solo-fondo`). Sin `.app` se niega con un mensaje claro.
+
+**Adaptaciones por ser repo público:**
+- Ninguna ruta de un equipo concreto. **Akira**: `SUITE_AKIRA_OTF` o un `.otf` copiado a mano a
+  `gui/fuentes/` (ignorado por git, igual que para la app); se lee **solo para rasterizar el fondo**: el
+  `.dmg` lleva la imagen con las letras, nunca la fuente. **Montserrat** (OFL): `gui/fuentes/`.
+  `puppeteer-core`: `SUITE_PUPPETEER_FROM` o la primera de `~/.npm/_npx`.
+- `suite_dmg_fondo.mjs` acepta una **carpeta** de Montserrat estática (400-800) y no solo el archivo
+  variable, y pide cargar todos los pesos antes de comprobar que las fuentes están (con TTF estáticos cada
+  peso es una cara aparte que carga al usarse; sin esto la comprobación fallaba).
+- **Marco de la ventana de Finder en macOS 27**: la herramienta suponía 68 pt (macOS 26) y en macOS 27.0 el
+  marco mide **32 pt** (una sola fila de título; medido por píxel en la captura de la ventana real): la ventana
+  salía 36 pt más alta y dejaba una franja blanca bajo el fondo. Ahora: ≤ 15 → 28, 26 → 68, ≥ 27 → 32
+  (`SUITE_DMG_BARRA` lo fuerza). Solo está medido en macOS 27.0 (los otros dos son medidas del diseño).
+
+**Prueba hecha** con una `.app` FALSA (bundle mínimo + el `AppIcon.icns` del paquete piloto DIT, por eso el
+icono de la app dice «DIT»), salida en carpeta temporal, volumen «SIDEBFLMS COLOR (prueba)»: el `.dmg` sale
+con las cinco comprobaciones en OK y la ventana colocada. Se montó solo lectura, se capturó **la ventana por
+id** (`screencapture -l`, nunca pantalla completa) y se desmontó **solo el nodo propio**. (Con
+`-mountpoint` propio Finder no trata el volumen como disco: la captura fiel se hace montándolo en
+`/Volumes` con el nombre único «(prueba)».)
+
+**No verificado:** con una `.app` real de COLOR (no existe), firma/notarización, modo claro, Mac no Retina,
+otros macOS, ni la ventana en la CI (no hay Finder). El fondo exige Akira en la máquina que construye.
+
