@@ -207,3 +207,38 @@ def test_anchos_fijos_de_la_tabla_de_clips_con_montserrat():
         assert sum(v.p_clips.anchos_fijos().values()) == 387
     finally:
         v.close()
+
+
+def test_crear_app_no_vuelve_a_poner_la_misma_hoja_ni_la_misma_fuente():
+    """`crear_app()` se llama en cada test y en cada `asentar()`: volver a poner la misma hoja
+    de la suite obliga a Qt a re-estilar todos los widgets vivos (~0,5 s por llamada, creciendo
+    con los que quedan de tests anteriores). Con eso la CI pasó de ~40 min a más de 6 h y se
+    cancelaba por tiempo. Solo se toca si cambia."""
+    from PySide6.QtWidgets import QApplication
+
+    from gui.ventana import crear_app
+
+    app = crear_app([])
+    llamadas = {"hoja": 0, "fuente": 0}
+    pon_hoja, pon_fuente = app.setStyleSheet, app.setFont
+
+    def cuenta_hoja(s):
+        llamadas["hoja"] += 1
+        return pon_hoja(s)
+
+    def cuenta_fuente(f):
+        llamadas["fuente"] += 1
+        return pon_fuente(f)
+
+    app.setStyleSheet, app.setFont = cuenta_hoja, cuenta_fuente
+    try:
+        for _ in range(5):
+            crear_app([])
+        assert llamadas == {"hoja": 0, "fuente": 0}, llamadas
+        # y si la hoja CAMBIA (otro test la pisó), se restablece
+        pon_hoja("QLabel { color: red; }")
+        crear_app([])
+        assert app.styleSheet() == idn.hoja_de_estilo()
+    finally:
+        del app.setStyleSheet, app.setFont
+    assert QApplication.instance() is app

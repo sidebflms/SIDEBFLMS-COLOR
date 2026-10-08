@@ -3866,3 +3866,12 @@ Authors (https://github.com/JulietaUla/Montserrat)»; antes decía 2024 y `Monts
 **Qué hacer al actualizar:** un estado nuevo usa `marca_html("aviso"|"averia")` con el criterio de
 arriba; un texto nuevo con símbolos se comprueba con el barrido de `test_gui_fuentes_incluidas.py`; no
 subir `.otf` de Akira (repo público).
+
+**La CI que no terminaba (causa y arreglo).** La CI de la punta se cancelaba a las 6 h (el límite del
+runner) en vez de tardar ~40 min. Medido en local: los tests de GUI eran 5-7 veces más lentos que en la
+base de auditoría (p. ej. `test_gui_pantallas.py`: 34 s el peor test frente a 4,8 s). Causa:
+`crear_app()` —que llama cada test y cada `asentar()`— volvía a hacer `app.setStyleSheet(...)` con la
+**misma** hoja, y con la hoja de la suite (selector `QWidget` universal) Qt re-estila todos los widgets
+vivos: ~0,5 s por llamada, creciendo con los widgets que dejan los tests anteriores. Ahora `crear_app()`
+solo toca la hoja y la fuente si **cambian** (`tests/test_gui_suite_base.py::test_crear_app_no_vuelve_…`).
+`test_gui_pantallas.py` vuelve a 4,3 s en el peor test.

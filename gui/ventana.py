@@ -441,8 +441,16 @@ def crear_app(argv: list[str] | None = None) -> QApplication:
         app = QApplication(argv or [])
     app.setApplicationName(TITULO)
     idn.cargar_fuentes()
-    app.setFont(idn.fuente_texto(idn.PX_CUERPO))
-    app.setStyleSheet(idn.hoja_de_estilo())
+    # Idempotente: `crear_app()` se llama muchas veces (cada test, `asentar()`), y volver a
+    # poner la MISMA hoja o la MISMA fuente obliga a Qt a re-estilar todos los widgets vivos
+    # (con la hoja de la suite, ~0,5 s por llamada y creciendo con los widgets que quedan de
+    # tests anteriores: la CI pasaba de 40 min a mas de 6 h). Solo se toca si cambia.
+    fuente = idn.fuente_texto(idn.PX_CUERPO)
+    if app.font() != fuente:
+        app.setFont(fuente)
+    hoja = idn.hoja_de_estilo()
+    if app.styleSheet() != hoja:
+        app.setStyleSheet(hoja)
     return app
 
 
